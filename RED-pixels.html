@@ -1,0 +1,95 @@
+
+<html >
+<head>
+    <script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
+
+    <style>
+    	.box{
+    		width: 30px;
+    		height: 30px;
+    		display: inline-block;
+    		margin: 1px;
+    		cursor: pointer;
+    	}
+
+    	@media screen and (max-device-width: 431px) {
+		  .box {
+		    width: 40px;
+    		height: 40px;
+		  }
+		}
+
+		@media screen and (min-device-width: 431px) and (max-device-width: 1024px) {
+		  .box {
+		    width: 35px;
+    		height: 35px;
+		  }
+		}
+    </style>
+</head>
+<body>
+<h3> Finde die sich nicht ändernde rote Box.</h3>
+<div id="box-container"></div>
+<span id="solution" style="cursor: pointer;">Zeige Lösung:</span> <span id="show-solution"></span>	
+
+ <script> 
+ 	var amount = 100;
+ 	var target = 1;
+ 	var targetColor = 'red';
+
+ 	function setColors () {
+ 		$(".box").each(function (index) {
+			console.log('sdfsdf');
+        	if(index != target){
+            	$(this).css("background-color", getRandomColor());
+            }else{
+            	$(this).css("background-color", targetColor);
+            }
+        });
+ 	}
+
+ 	 function getRandomColor() {
+        var letters = '0123456789ABCDEF';
+        var color = '#';
+        for (var j = 0; j < 6; j++) {
+            color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+    }
+
+ 	function load(){
+		target = (Math.random() * amount ).toFixed();
+
+	    $("#solution" ).on("click",function() {
+	        $("#show-solution" ).text(target);
+	    });
+
+		$("#box-container").empty();
+
+	    for (var i =  0; i < amount; i = i + 1) {
+			$("#box-container").append('<div class="box"></div>');
+	    }
+
+		setColors();
+	    
+
+	    $(".box" ).on("click",function() {
+	    	if ( $(this).index() == target){
+				alert('Richtig!');
+				amount = amount * 2;
+				 clearInterval(intervalID);
+				load();
+	    	}else{
+	    		alert('Falsch!')
+	    	}
+	    });
+
+	    var intervalID = setInterval(function () {
+	        setColors();
+	    }, 1000);
+
+	}
+	load();
+    </script>
+</body>
+</html>
