@@ -10,14 +10,26 @@
 		color: white;
 
 		}
-
+		h2 {
+			text-align: center;
+			margin-top: 15px;	
+		}
+		#solution{   
+			text-align: center;
+			margin-top: 25px;
+		}
     	.box{
     		width: 30px;
     		height: 30px;
     		display: inline-block;
     		margin: 1px;
     		cursor: pointer;
+			transition: transform 1s;
     	}
+
+		.box.big{
+			animation: 2s linear 0s infinite alternate big-small;
+		}
 
     	@media screen and (max-device-width: 431px) {
 		  .box {
@@ -32,25 +44,38 @@
     		height: 35px;
 		  }
 		}
+
+		@keyframes big-small {
+			from {
+				transform: scale(1);
+			}
+			to {
+				transform: scale(1.5);
+			}
+		}
     </style>
 </head>
 <body>
-<h3> Finde die sich nicht ändernde rote Box.</h3>
+<h2> Finde die sich nicht ändernde rote Box.</h2>
 <div id="box-container"></div>
-<span id="solution" style="cursor: pointer;">Zeige Lösung:</span> <span id="show-solution"></span>	
+<h3 id="solution" style="cursor: pointer;">Zeige Lösung <span id="show-solution"></span></h3>	
 
  <script> 
- 	var amount = 100;
+	prompt("Bitte gebe deinen Namen ein!")
+	var width = window.innerWidth -38;
+	var boxesInRow = (width / 30).toFixed() -1;
+ 	var amount = boxesInRow *4;	
  	var target = 1;
  	var targetColor = 'red';
 
  	function setColors () {
  		$(".box").each(function (index) {
-			console.log('sdfsdf');
         	if(index != target){
             	$(this).css("background-color", getRandomColor());
+				$(this).removeClass("target");
             }else{
             	$(this).css("background-color", targetColor);
+				$(this).addClass("target");
             }
         });
  	}
@@ -69,6 +94,7 @@
 
 	    $("#solution" ).on("click",function() {
 	        $("#show-solution" ).text(target);
+			$(".target" ).addClass("big");
 	    });
 
 		$("#box-container").empty();
@@ -78,13 +104,13 @@
 	    }
 
 		setColors();
-	    
 
 	    $(".box" ).on("click",function() {
 	    	if ( $(this).index() == target){
 				alert('Richtig!');
-				amount = amount * 2;
-				 clearInterval(intervalID);
+				amount = amount + boxesInRow * 4;
+				clearInterval(intervalID);
+				$("#show-solution" ).text("");
 				load();
 	    	}else{
 	    		alert('Falsch!')
