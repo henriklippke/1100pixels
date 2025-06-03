@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html>
     <head>
+        <title>1100pixels.com
+        </title>
+        <meta describtion="The games are created by Leo and Henrik">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
             body {
@@ -16,19 +19,53 @@
                 position: absolute;
                 left:50%;
                 margin-left: -100px;
-                top: -30px;
+                top: 15px;
             }   
+            .text{
+                text-align: center;
+                font-style:italic;
+                margin-bottom: 50px;
+
+            }
+            .game-link img{
+                transition: all 1s;
+            }
+            .game-link:hover img{
+                transform: scale(1.1);
+                box-shadow: 0px 0px 11px 4px rgba(42,114,121,0.9);
+            }
+            .games-wrapper{
+                margin-left:30px;
+                margin-right:30px;
+            }
+
+            @media screen and (max-device-width: 431px) {
+                .games-wrapper {
+                    margin: 0px;
+                    text-align: center;
+                }
+            }
           </style>
+        
     </head>
     <body>
         <img src="/images/logo.png" width="200px" class="logo">
-        
-        <a href="RED-pixels.html">
-            Game 1: Find The Red Pixel<br>
-            <img src="/images/red.png" width="200px">
+        <p class="text">
+            Here you can find lots of fun pixel games made by Leo and his dad Henrik. Have fun playing!
+        </p>
+        <div class="games-wrapper">
+        <a href="RED-pixels.html" class="game-link">
+            <img src="/images/red.jpg" width="200px">
         </a>
+    </div>
 
-        <h1>The games will be released on the 20th  may     
-        </h1>
+    <script type="text/javascript">
+    (function(window, document, dataLayerName, id) {
+    window[dataLayerName]=window[dataLayerName]||[],window[dataLayerName].push({start:(new Date).getTime(),event:"stg.start"});var scripts=document.getElementsByTagName('script')[0],tags=document.createElement('script');
+    var qP=[];dataLayerName!=="dataLayer"&&qP.push("data_layer_name="+dataLayerName);var qPString=qP.length>0?("?"+qP.join("&")):"";
+    tags.async=!0,tags.src="https://technology-circle.containers.piwik.pro/"+id+".js"+qPString,scripts.parentNode.insertBefore(tags,scripts);
+    !function(a,n,i){a[n]=a[n]||{};for(var c=0;c<i.length;c++)!function(i){a[n][i]=a[n][i]||{},a[n][i].api=a[n][i].api||function(){var a=[].slice.call(arguments,0);"string"==typeof a[0]&&window[dataLayerName].push({event:n+"."+i+":"+a[0],parameters:[].slice.call(arguments,1)})}}(i[c])}(window,"ppms",["tm","cm"]);
+    })(window, document, 'dataLayer', 'efb1bb49-ed46-472a-aa4d-1b7834a117e5');
+    </script>
     </body>
 </html>
