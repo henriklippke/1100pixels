@@ -59,10 +59,25 @@
 				transform: scale(1.3);
 			}
 		}
+		.time,
+		.points{
+			position: fixed;
+			color:red;
+			left:15px;
+			top:-11px;
+		}
+		.time{
+			right:15px;
+			left: unset;
+		}
     </style>
 </head>
 <body>
-<h2> Finde die sich nicht ändernde rote Box.</h2>
+<div class="header">
+	<h1 class="points">100 P.</h1>
+	<h1 class="time">20 S.</h1>
+	<h2> Finde die sich nicht ändernde rote Box.</h2>
+</div>
 <div id="box-container"></div>
 <h4 id="solution" style="cursor: pointer;">Zeige Lösung <span id="show-solution"></span></h4>	
 
@@ -76,8 +91,6 @@
 		boxWidth = 35;
 	}
 	var boxesInRow = (width / (boxWidth +2)).toFixed() -1;
-	console.log('window.innerWidth', window.innerWidth);
-	console.log('boxesInRow', boxesInRow);
  	var amount = boxesInRow *4;	
  	var target = 1;
  	var targetColor = 'red';
