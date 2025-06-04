@@ -63,26 +63,62 @@
 		.points{
 			position: fixed;
 			color:red;
-			left:15px;
-			top:-11px;
+			left:10dpx;
+			top:-15px;
+			padding:3px;
+			opacity: 80%;
+			background-color: #13293b;
 		}
 		.time{
-			right:15px;
+			right:10px;
 			left: unset;
+		}
+
+		.shake {
+			animation: shake 0.5s;
+			color: red;
+		}
+
+		@keyframes shake {
+			0% { transform: translateY(0); }
+			20% { transform: translateY(-5px); }
+			40% { transform: translateY(5px); }
+			60% { transform: translateY(-5px); }
+			80% { transform: translateY(5px); }
+			100% { transform: translateY(0); }
+		}
+
+		.shake-wrong {
+			animation: shakeWrong 0.5s;
+			color: red;
+		}
+
+		@keyframes shakeWrong {
+			0% { transform: translateX(0); }
+			20% { transform: translateX(-5px); }
+			40% { transform: translateX(5px); }
+			60% { transform: translateX(-5px); }
+			80% { transform: translateX(5px); }
+			100% { transform: translateX(0); }
 		}
     </style>
 </head>
 <body>
+<audio id="soundRight" src="./red-pixel/right.mp3" preload="auto"></audio>
+<audio id="soundWrong" src="./red-pixel/wrong.mp3" preload="auto"></audio>
+
 <div class="header">
-	<h1 class="points">100 P.</h1>
-	<h1 class="time">20 S.</h1>
-	<h2> Finde die sich nicht ändernde rote Box.</h2>
+	<h2 class="points"><span>0</span> P.</h2>
+	<h2 class="time"><span>20</span> S.</h2>
+	<h2 class="title"> Finde die sich nicht ändernde rote Box.</h2>
 </div>
 <div id="box-container"></div>
 <h4 id="solution" style="cursor: pointer;">Zeige Lösung <span id="show-solution"></span></h4>	
 
  <script> 
 	prompt("Bitte gebe deinen Namen ein!")
+	var point = 0;
+	var time = 20;
 	var width = window.innerWidth;
 	var boxWidth = 30;
 	if(width <431){
@@ -94,6 +130,9 @@
  	var amount = boxesInRow *4;	
  	var target = 1;
  	var targetColor = 'red';
+
+	 const soundWrong = document.getElementById("soundWrong");
+	 const soundRight = document.getElementById("soundRight");
 
  	function setColors () {
  		$(".box").each(function (index) {
@@ -134,18 +173,72 @@
 
 	    $(".box" ).on("click",function() {
 	    	if ( $(this).index() == target){
-				alert('Richtig!');
+				
+				$(".title").css('opacity', '0');
+				$(".points").addClass('shake');
+				point = point + 100;
+				
+				soundRight.currentTime = 0; 
+				soundRight.play();
+
+				$(".points span").html(point);
 				amount = amount + boxesInRow * 4;
 				clearInterval(intervalID);
+				
+				time = time + 10;
+				$(".time span").html(time);
+				clearInterval(timeInerval);
+
+
 				$("#show-solution" ).text("");
 				load();
+				
+				$(".points").addClass('shake');
+				setTimeout(() =>{
+					$(".points").removeClass('shake');
+				},400);
+
+				$(".time").addClass('shake');
+				setTimeout(() =>{
+					$(".time").removeClass('shake');
+				},400);
 	    	}else{
-	    		alert('Falsch!')
+	    		soundWrong.currentTime = 0; 
+				soundWrong.play();
+
+				time = time -2;
+				$(".time span").html(time);
+				clearInterval(timeInerval);
+
+				$(".points").addClass('shake-wrong');
+				setTimeout(() =>{
+					$(".points").removeClass('shake-wrong');
+				},400);
+
+				$(".time").addClass('shake-wrong');
+				setTimeout(() =>{
+					$(".time").removeClass('shake-wrong');
+				},400);
 	    	}
 	    });
 
 	    var intervalID = setInterval(function () {
 	        setColors();
+	    }, 1000);
+
+		var timeInerval = setInterval(function () {
+			if(time < 1){
+				$(".points").addClass('shake-wrong');
+				setTimeout(() =>{
+					$(".points").removeClass('shake-wrong');
+				},400);
+				clearInterval(timeInerval);
+				alert('Game Over');
+				location.href = "/";
+			}
+
+	        time = time -1;
+			$(".time span").html(time)
 	    }, 1000);
 
 	}
