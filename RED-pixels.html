@@ -109,7 +109,7 @@
 
 <div class="header">
 	<h2 class="points"><span>0</span> P.</h2>
-	<h2 class="time"><span>20</span> S.</h2>
+	<h2 class="time"><span>10</span> S.</h2>
 	<h2 class="title"> Finde die sich nicht ändernde rote Box.</h2>
 </div>
 <div id="box-container"></div>
@@ -118,7 +118,7 @@
  <script> 
 	prompt("Bitte gebe deinen Namen ein!")
 	var point = 0;
-	var time = 20;
+	var time = 10;
 	var width = window.innerWidth;
 	var boxWidth = 30;
 	if(width <431){
@@ -185,7 +185,7 @@
 				amount = amount + boxesInRow * 4;
 				clearInterval(intervalID);
 				
-				time = time + 10;
+				time = time + 5;
 				$(".time span").html(time);
 				clearInterval(timeInerval);
 
