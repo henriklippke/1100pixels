@@ -7,16 +7,20 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
             body {
+
                 
                 background-color: #13293b;
                 color:white;
                 padding-top: 120px;
             }
+
+            
             a{
                 color: white;
+            
             }
             .logo{
-                position: absolute;
+                               position: absolute;
                 left:50%;
                 margin-left: -100px;
                 top: 15px;
@@ -40,18 +44,23 @@
                 padding-top:5px;
                 float:left;
             }
-
-            @media screen and (max-device-width: 431px) {
-                .games-wrapper {
-                    margin: 0px;
-                    text-align: center;
-                }
-            }
             .iframe{
                 width:77%;
                 display: inline-block;
                 height:400px;
             }
+
+            @media (max-device-width: 431px) {
+                .games-wrapper {
+                    margin: 0px;
+                    width: 100%;
+                    text-align: center;
+                    padding-left: 0px;
+                }
+                .iframe{width: 100%;}
+            }
+
+            
           </style>
         
     </head>
@@ -64,7 +73,7 @@
         </p>
         <div class="games-wrapper">
             <a href="RED-pixels.html" class="game-link">
-                <img src="/images/red.jpg" width="200px">
+                <img src="/images/red.jpg" width="100%">
             </a>
         </div>
         <iframe src="./tabelle.html" class="iframe" frameBorder="0" ></iframe>
