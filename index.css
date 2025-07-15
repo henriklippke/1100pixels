@@ -1,0 +1,58 @@
+
+            body {
+
+                
+                background-color: #13293b;
+                color:white;
+                padding-top: 120px;
+            }
+
+            
+            a{
+                color: white;
+            
+            }
+            .logo{
+                               position: absolute;
+                left:50%;
+                margin-left: -100px;
+                top: 15px;
+            }   
+            .text{
+                text-align: center;
+                font-style:italic;
+                margin-bottom: 50px;
+
+            }
+            .game-link img{
+                transition: all 1s;
+            }
+            .game-link:hover img{
+                transform: scale(1.1);
+                box-shadow: 0px 0px 11px 4px rgba(42,114,121,0.9);
+            }
+            .games-wrapper{
+                margin-top: 8px;
+                padding-left:30px;
+                width:18%;
+                padding-top:5px;
+                float:left;
+            }
+            .iframe{
+                width:77%;
+                display: inline-block;
+                height:400px;
+            }
+
+            @media (max-device-width: 616px) {
+                .games-wrapper {
+                    margin: 0px;
+                    width: 100%;
+                    text-align: center;
+                    padding-left: 0px;
+                }
+                .iframe{width: 100%;}
+            }
+
+            
+          
