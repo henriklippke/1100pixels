@@ -1,91 +1,146 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>1100pixels.com // Scores
-        </title>
-        <meta describtion="The games are created by Leo and Henrik">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-            body {
-                
-                background-color: #13293b;
-                color:white;
-            }
-            .logo{
-                position: absolute;
-                left:50%;
-                margin-left: -100px;
-                top: 15px;
-            }   
-            a{
-                color: white;
-            }
-            table{
-                width:100%;
-                text-align:center;
-            }
-            table thead td{
-                font-weight: bold;
-                color : #569aa9;;
-            }
-             tr td{
-                border-bottom:1px solid gray;
-                color :#f58642;
-            }
-            .back-btn{
-                position: absolute;
-                top:45px;
-                left:20px;
-                background-color:#569aa9;
-                padding:3px 8px;
-                padding-bottom:5px;
-                border:1px solid white;
-                text-decoration: none;
-                border-radius: 3px;;
-            }
-            .back-btn:hover{
-                background-color: white;
-                color:#569aa9;
-            }
-        </style>
-        
-    </head>
-    <body>
-        <table style="width:100%">
-            <thead>
-                <tr>
-                    <td>Place</td>
-                    <td>Player</td>
-                    <td>Point</td>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><h1>🥇</h1></td>
-                    <td>Henrik</td>
-                    <td>100 points</td>
-                </tr>
-                <tr>
-                    <td><h1>🥈</h1></td>
-                    <td>tim</td>
-                    <td>100 points</td>
-                </tr>
-                <tr>
-                    <td><h1>🥉</h1></td>
-                    <td>leo</td>
-                    <td>100 points</td>
-                </tr>
-            </tbody>
-        </table>
-    
 
-    <script type="text/javascript">
-    (function(window, document, dataLayerName, id) {
-    window[dataLayerName]=window[dataLayerName]||[],window[dataLayerName].push({start:(new Date).getTime(),event:"stg.start"});var scripts=document.getElementsByTagName('script')[0],tags=document.createElement('script');
-    var qP=[];dataLayerName!=="dataLayer"&&qP.push("data_layer_name="+dataLayerName);var qPString=qP.length>0?("?"+qP.join("&")):"";
-    tags.async=!0,tags.src="https://technology-circle.containers.piwik.pro/"+id+".js"+qPString,scripts.parentNode.insertBefore(tags,scripts);
-    !function(a,n,i){a[n]=a[n]||{};for(var c=0;c<i.length;c++)!function(i){a[n][i]=a[n][i]||{},a[n][i].api=a[n][i].api||function(){var a=[].slice.call(arguments,0);"string"==typeof a[0]&&window[dataLayerName].push({event:n+"."+i+":"+a[0],parameters:[].slice.call(arguments,1)})}}(i[c])}(window,"ppms",["tm","cm"]);
-    })(window, document, 'dataLayer', 'efb1bb49-ed46-472a-aa4d-1b7834a117e5');
+<head>
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
+            authDomain: "pixels-e2f82.firebaseapp.com",
+            projectId: "pixels-e2f82",
+            storageBucket: "pixels-e2f82.firebasestorage.app",
+            messagingSenderId: "311496840709",
+            appId: "1:311496840709:web:3a94601ef40cbd0c946e6c"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        async function loadScores() {
+            const tableBody = document.getElementById('score-table-body');
+            tableBody.innerHTML = ''; // Clear existing table data
+
+            try {
+                const scoresCollection = collection(db, 'red-pixel');
+                const q = query(scoresCollection, orderBy('points', 'desc'));
+                const querySnapshot = await getDocs(q);
+                
+                let rank = 1;
+                const medals = ['🥇', '🥈', '🥉'];
+
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const row = document.createElement('tr');
+
+                    const rankCell = document.createElement('td');
+                    if (rank <= 3) {
+                        const h1 = document.createElement('h1');
+                        h1.textContent = medals[rank - 1];
+                        rankCell.appendChild(h1);
+                    } else {
+                        rankCell.textContent = rank;
+                    }
+
+                    const playerCell = document.createElement('td');
+                    playerCell.textContent = data.name;
+
+                    const pointsCell = document.createElement('td');
+                    pointsCell.textContent = `${data.points} points`;
+
+                    row.appendChild(rankCell);
+                    row.appendChild(playerCell);
+                    row.appendChild(pointsCell);
+
+                    tableBody.appendChild(row);
+                    rank++;
+                });
+            } catch (error) {
+                console.error("Error loading scores: ", error);
+                tableBody.innerHTML = '<tr><td colspan="3">Error loading scores.</td></tr>';
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', loadScores);
     </script>
-    </body>
+
+    <title>1100pixels.com // Scores
+    </title>
+    <meta describtion="The games are created by Leo and Henrik">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+
+            background-color: #13293b;
+            color: white;
+        }
+
+        .logo {
+            position: absolute;
+            left: 50%;
+            margin-left: -100px;
+            top: 15px;
+        }
+
+        a {
+            color: white;
+        }
+
+        table {
+            width: 100%;
+            text-align: center;
+        }
+
+        table thead td {
+            font-weight: bold;
+            color: #569aa9;
+            ;
+        }
+
+        tr td {
+            border-bottom: 1px solid gray;
+            color: #f58642;
+        }
+
+        .back-btn {
+            position: absolute;
+            top: 45px;
+            left: 20px;
+            background-color: #569aa9;
+            padding: 3px 8px;
+            padding-bottom: 5px;
+            border: 1px solid white;
+            text-decoration: none;
+            border-radius: 3px;
+            ;
+        }
+
+        .back-btn:hover {
+            background-color: white;
+            color: #569aa9;
+        }
+    </style>
+
+</head>
+
+<body>
+    <table style="width:100%">
+        <thead>
+            <tr>
+                <td>Place</td>
+                <td>Player</td>
+                <td>Point</td>
+            </tr>
+        </thead>
+        <tbody id="score-table-body">
+            <!-- Scores will be loaded here by JavaScript -->
+        </tbody>
+    </table>
+
+</body>
+
 </html>
