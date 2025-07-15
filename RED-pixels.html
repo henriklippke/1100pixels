@@ -19,10 +19,10 @@
 		const db = getFirestore(app);
 
 		window.storeResult = async function (name, points) {
-			if (points <= 0) {
+			if (points <= 0 || name.length) {
 				return;
 			}
-			
+
 			const docRef = await addDoc(collection(db, "red-pixel"), {
 				name: name,
 				points: points,
@@ -90,6 +90,7 @@
 			target = (Math.random() * amount).toFixed();
 
 			$("#solution").on("click", function () {
+				point = point - 100;
 				$("#show-solution").text(target);
 				$(".target").addClass("big");
 			});
