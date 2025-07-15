@@ -4,27 +4,26 @@
 	<script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<script type="module">
-		// Import the functions you need from the SDKs you need
 		import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-		import { getFirestore } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-		// TODO: Add SDKs for Firebase products that you want to use
-		// https://firebase.google.com/docs/web/setup#available-libraries
-
-		// Your web app's Firebase configuration
+		import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 		const firebaseConfig = {
 			apiKey: "AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
 			authDomain: "pixels-e2f82.firebaseapp.com",
 			projectId: "pixels-e2f82",
-			storageBucket: "pixels-e2f82.firebasestorage.app",
 			messagingSenderId: "311496840709",
 			appId: "1:311496840709:web:3a94601ef40cbd0c946e6c"
 		};
-
-		// Initialize Firebase
 		const app = initializeApp(firebaseConfig);
 		const db = getFirestore(app);
-	</script>
 
+		window.storeResult = async function(name, points) {
+			const docRef = await addDoc(collection(db, "red-pixel"), {
+				name: name,
+				points: points,
+				created: new Date()
+			});
+		}
+	</script>
 	<style>
 		body {
 			background-color: #13293b;
@@ -180,7 +179,7 @@
 	<script type="module">
 		import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-		prompt("Bitte gebe deinen Namen ein!")
+		var name = prompt("Bitte gebe deinen Namen ein!");
 		var point = 0;
 		var time = 10;
 		var width = window.innerWidth;
@@ -286,11 +285,11 @@
 				}
 			});
 
-			var intervalID = setInterval(function () {
+			var intervalID = setInterval(async function () {
 				setColors();
 			}, 1000);
 
-			var timeInerval = setInterval(function () {
+			var timeInerval = setInterval(async function () {
 				if (time < 1) {
 					$(".points").addClass('shake-wrong');
 					setTimeout(() => {
@@ -298,47 +297,15 @@
 					}, 400);
 					clearInterval(timeInerval);
 					alert('Game Over');
+					await storeResult(name, point);
 					location.href = "/";
 				}
 
 				time = time - 1;
 				$(".time span").html(time)
 			}, 1000);
-
-			async function schreibeErgebnis() {
-				const app = initializeApp(firebaseConfig);
-				const db = getFirestore(app);
-
-
-				async function speichereSpielstand(username, spielTyp, punktzahl) {
-					try {
-						const docRef = await addDoc(collection(db, "spielstaende"), {
-							username: username,
-							spielTyp: spielTyp,
-							punktzahl: punktzahl,
-							erstelltAm: new Date()
-						});
-						console.log("Spielstand gespeichert:", docRef.id);
-						alert("Spielstand erfolgreich gespeichert!");
-					} catch (error) {
-						console.error("Fehler beim Speichern:", error);
-						alert("Fehler beim Speichern!");
-					}
-				}
-			}
-
 		}
 		load();
-	</script>
-
-
-	<script type="text/javascript">
-		(function (window, document, dataLayerName, id) {
-			window[dataLayerName] = window[dataLayerName] || [], window[dataLayerName].push({ start: (new Date).getTime(), event: "stg.start" }); var scripts = document.getElementsByTagName('script')[0], tags = document.createElement('script');
-			var qP = []; dataLayerName !== "dataLayer" && qP.push("data_layer_name=" + dataLayerName); var qPString = qP.length > 0 ? ("?" + qP.join("&")) : "";
-			tags.async = !0, tags.src = "https://technology-circle.containers.piwik.pro/" + id + ".js" + qPString, scripts.parentNode.insertBefore(tags, scripts);
-			!function (a, n, i) { a[n] = a[n] || {}; for (var c = 0; c < i.length; c++)!function (i) { a[n][i] = a[n][i] || {}, a[n][i].api = a[n][i].api || function () { var a = [].slice.call(arguments, 0); "string" == typeof a[0] && window[dataLayerName].push({ event: n + "." + i + ":" + a[0], parameters: [].slice.call(arguments, 1) }) } }(i[c]) }(window, "ppms", ["tm", "cm"]);
-		})(window, document, 'dataLayer', 'efb1bb49-ed46-472a-aa4d-1b7834a117e5');
 	</script>
 </body>
 
