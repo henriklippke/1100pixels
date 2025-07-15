@@ -86,14 +86,17 @@
 			return color;
 		}
 
+		$("#solution").on("click", function () {
+			point = point - 100;
+			$(".points span").html(point);
+			$("#show-solution").text(target);
+			$(".target").addClass("big");
+			soundWrong.currentTime = 0;
+			soundWrong.play();
+		});
+
 		function load() {
 			target = (Math.random() * amount).toFixed();
-
-			$("#solution").on("click", function () {
-				point = point - 100;
-				$("#show-solution").text(target);
-				$(".target").addClass("big");
-			});
 
 			$("#box-container").empty();
 
