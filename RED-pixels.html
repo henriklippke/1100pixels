@@ -19,6 +19,10 @@
 		const db = getFirestore(app);
 
 		window.storeResult = async function (name, points) {
+			if (points <= 0) {
+				return;
+			}
+			
 			const docRef = await addDoc(collection(db, "red-pixel"), {
 				name: name,
 				points: points,

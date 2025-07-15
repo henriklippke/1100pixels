@@ -52,16 +52,25 @@
                     const pointsCell = document.createElement('td');
                     pointsCell.textContent = `${data.points} points`;
 
+                    const dateCell = document.createElement('td');
+                    if (data.created) {
+                        const date = data.created.toDate();
+                        dateCell.textContent = date.toLocaleString('de-DE');
+                    } else {
+                        dateCell.textContent = '';
+                    }
+
                     row.appendChild(rankCell);
                     row.appendChild(playerCell);
                     row.appendChild(pointsCell);
+                    row.appendChild(dateCell);
 
                     tableBody.appendChild(row);
                     rank++;
                 });
             } catch (error) {
                 console.error("Error loading scores: ", error);
-                tableBody.innerHTML = '<tr><td colspan="3">Error loading scores.</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="4">Error loading scores.</td></tr>';
             }
         }
 
@@ -134,6 +143,7 @@
                 <td>Place</td>
                 <td>Player</td>
                 <td>Point</td>
+                <td>Date</td>
             </tr>
         </thead>
         <tbody id="score-table-body">
