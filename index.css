@@ -53,6 +53,12 @@
                 }
                 .iframe{width: 100%;}
             }
-
+a{ 
+    text-decoration: none;
+}
+a:hover .click{
+    color: #48494f47;
+   
+}
             
-          
+           
