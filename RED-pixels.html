@@ -36,20 +36,41 @@
 	<audio id="soundRight" src="./red-pixel/right.mp3" preload="auto"></audio>
 	<audio id="soundWrong" src="./red-pixel/wrong.mp3" preload="auto"></audio>
 
+	<div id="name-modal" class="show">
+		<div class="modal-box">
+			<h1>RED<br>PIXELS</h1>
+			<p class="modal-subtitle">Gib deinen Namen ein</p>
+			<input type="text" id="name-input" placeholder="Dein Name..." maxlength="20" autocomplete="off" spellcheck="false">
+			<button id="name-submit">Spielen</button>
+		</div>
+	</div>
+
+	<div id="game-over-modal">
+		<div class="modal-box">
+			<h1>Game Over</h1>
+			<p class="final-score">Deine Punkte<span id="final-score-display">0</span></p>
+			<button onclick="location.href='/'">Nochmal spielen</button>
+		</div>
+	</div>
+
 	<div class="header">
 		<h2 class="points"><span>0</span> P.</h2>
-		<h2 class="time"><span>10</span> S.</h2>
-		<h2 class="title"> Finde die sich nicht ändernde rote Box.</h2>
+		<h2 class="title">Finde die sich nicht ändernde rote Box.</h2>
+		<h2 class="level">Level <span id="level-display">1</span></h2>
+		<h2 class="time"><span>15</span> S.</h2>
 	</div>
 	<div id="box-container"></div>
-	<h4 id="solution" style="cursor: pointer;">Zeige Lösung <span id="show-solution"></span></h4>
+	<div id="solution-bar">
+		<button id="solution">Zeige Lösung <span id="show-solution"></span></button>
+	</div>
 
 	<script type="module">
 		import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-		var name = prompt("Bitte gebe deinen Namen ein!");
+		var name = '';
 		var point = 0;
-		var time = 10;
+		var time = 15;
+		var level = 0;
 		var width = window.innerWidth;
 		var boxWidth = 30;
 		if (width < 431) {
@@ -86,7 +107,7 @@
 			return color;
 		}
 
-		$("#solution").on("click", function () {
+		$("#solution-bar #solution").on("click", function () {
 			point = point - 100;
 			$(".points span").html(point);
 			$("#show-solution").text(target);
@@ -95,7 +116,27 @@
 			soundWrong.play();
 		});
 
+		function playGameOverSound() {
+			try {
+				const ctx = new (window.AudioContext || window.webkitAudioContext)();
+				[[494, 0], [392, 0.22], [330, 0.44], [196, 0.70]].forEach(([freq, t]) => {
+					const osc = ctx.createOscillator();
+					const gain = ctx.createGain();
+					osc.connect(gain);
+					gain.connect(ctx.destination);
+					osc.frequency.value = freq;
+					osc.type = 'sawtooth';
+					gain.gain.setValueAtTime(0.3, ctx.currentTime + t);
+					gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.28);
+					osc.start(ctx.currentTime + t);
+					osc.stop(ctx.currentTime + t + 0.3);
+				});
+			} catch (e) {}
+		}
+
 		function load() {
+			level++;
+			document.getElementById('level-display').textContent = level;
 			target = (Math.random() * amount).toFixed();
 
 			$("#box-container").empty();
@@ -142,6 +183,7 @@
 					soundWrong.play();
 
 					time = time - 2;
+					if (time < 0) time = 0;
 					$(".time span").html(time);
 					clearInterval(timeInerval);
 
@@ -162,22 +204,48 @@
 			}, 1000);
 
 			var timeInerval = setInterval(async function () {
-				if (time < 1) {
+				time = time - 1;
+				if (time <= 0) {
+					time = 0;
+					$(".time span").html(0);
+					clearInterval(timeInerval);
+					clearInterval(intervalID);
 					$(".points").addClass('shake-wrong');
+					$(".time").addClass('shake-wrong');
 					setTimeout(() => {
 						$(".points").removeClass('shake-wrong');
-					}, 400);
-					clearInterval(timeInerval);
-					alert('Game Over');
+						$(".time").removeClass('shake-wrong');
+					}, 500);
+					playGameOverSound();
 					await storeResult(name, point);
-					location.href = "/";
+					document.getElementById('final-score-display').textContent = point;
+					document.getElementById('game-over-modal').classList.add('show');
+					return;
 				}
-
-				time = time - 1;
-				$(".time span").html(time)
+				$(".time span").html(time);
 			}, 1000);
 		}
-		load();
+
+		const nameModal = document.getElementById('name-modal');
+		const nameInput = document.getElementById('name-input');
+
+		function submitName() {
+			const val = nameInput.value.trim();
+			if (val.length === 0) {
+				nameInput.classList.add('input-error');
+				setTimeout(() => nameInput.classList.remove('input-error'), 400);
+				return;
+			}
+			name = val;
+			nameModal.classList.remove('show');
+			load();
+		}
+
+		document.getElementById('name-submit').addEventListener('click', submitName);
+		nameInput.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter') submitName();
+		});
+		nameInput.focus();
 	</script>
 </body>
 
