@@ -505,6 +505,15 @@
         }
     });
 
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (gameRunning) setHolding(true);
+    }, { passive: false });
+    canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        setHolding(false);
+    }, { passive: false });
+
     // ── Camera ────────────────────────────────────────────────────
     let camX = 0;  // world X of left edge of screen
 
