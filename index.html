@@ -18,14 +18,14 @@
         });
         const db = getFirestore(app);
 
-        async function loadTop3() {
-            const q = query(collection(db, 'red-pixel'), orderBy('points', 'desc'), limit(3));
+        async function loadTop3(collection_name, prefix) {
+            const q = query(collection(db, collection_name), orderBy('points', 'desc'), limit(3));
             const snap = await getDocs(q);
             const top = [];
             snap.forEach(doc => top.push(doc.data()));
 
-            const order = [top[2], top[0], top[1]]; // left=3rd, center=1st, right=2nd
-            const ids = ['p3', 'p1', 'p2'];
+            const order = [top[2], top[0], top[1]];
+            const ids = [prefix + '3', prefix + '1', prefix + '2'];
             order.forEach((player, i) => {
                 if (!player) return;
                 document.getElementById(ids[i] + '-name').textContent = player.name;
@@ -33,7 +33,10 @@
             });
         }
 
-        window.addEventListener('DOMContentLoaded', loadTop3);
+        window.addEventListener('DOMContentLoaded', () => {
+            loadTop3('red-pixel', 'p');
+            loadTop3('rider', 'r');
+        });
     </script>
 </head>
 <body>
@@ -74,6 +77,70 @@
                     <div class="game-info">
                         <h3>Red Pixels</h3>
                         <p>Finde die sich nicht ändernde rote Box.</p>
+                    </div>
+                </a>
+                <a href="rider.html" class="game-card">
+                    <div class="game-thumb">
+                        <svg class="rider-preview-svg" viewBox="0 0 240 150" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <filter id="rglow">
+                                    <feGaussianBlur stdDeviation="3" result="blur"/>
+                                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                                </filter>
+                                <filter id="vglow">
+                                    <feGaussianBlur stdDeviation="4" result="blur"/>
+                                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                                </filter>
+                            </defs>
+                            <rect width="240" height="150" fill="#0a1628"/>
+                            <!-- Grid -->
+                            <line x1="0" y1="30" x2="240" y2="30" stroke="rgba(86,154,169,0.08)" stroke-width="1"/>
+                            <line x1="0" y1="60" x2="240" y2="60" stroke="rgba(86,154,169,0.08)" stroke-width="1"/>
+                            <line x1="0" y1="90" x2="240" y2="90" stroke="rgba(86,154,169,0.08)" stroke-width="1"/>
+                            <line x1="0" y1="120" x2="240" y2="120" stroke="rgba(86,154,169,0.08)" stroke-width="1"/>
+                            <line x1="60" y1="0" x2="60" y2="150" stroke="rgba(86,154,169,0.08)" stroke-width="1"/>
+                            <line x1="120" y1="0" x2="120" y2="150" stroke="rgba(86,154,169,0.08)" stroke-width="1"/>
+                            <line x1="180" y1="0" x2="180" y2="150" stroke="rgba(86,154,169,0.08)" stroke-width="1"/>
+                            <!-- Terrain -->
+                            <polyline points="0,115 50,115 80,88 120,88 155,72 185,50 240,50"
+                                fill="none" stroke="#569aa9" stroke-width="2.5"
+                                stroke-linejoin="round" filter="url(#rglow)"/>
+                            <!-- Terrain fill -->
+                            <polygon points="0,115 50,115 80,88 120,88 155,72 185,50 240,50 240,150 0,150"
+                                fill="rgba(5,14,26,0.9)"/>
+                            <!-- Vehicle on ramp -->
+                            <g transform="translate(108,80) rotate(-18)" filter="url(#vglow)">
+                                <rect x="-18" y="-11" width="36" height="13" rx="3" fill="#ff3333"/>
+                                <circle cx="-12" cy="3" r="7" fill="#cc2222"/>
+                                <circle cx="12" cy="3" r="7" fill="#cc2222"/>
+                                <circle cx="-12" cy="3" r="3" fill="#0a1628"/>
+                                <circle cx="12" cy="3" r="3" fill="#0a1628"/>
+                            </g>
+                        </svg>
+                        <div class="podium">
+                            <div class="podium-place p3">
+                                <span class="medal">🥉</span>
+                                <span class="p-name" id="r3-name">–</span>
+                                <span class="p-pts" id="r3-pts"></span>
+                            </div>
+                            <div class="podium-place p1">
+                                <span class="medal">🥇</span>
+                                <span class="p-name" id="r1-name">–</span>
+                                <span class="p-pts" id="r1-pts"></span>
+                            </div>
+                            <div class="podium-place p2">
+                                <span class="medal">🥈</span>
+                                <span class="p-name" id="r2-name">–</span>
+                                <span class="p-pts" id="r2-pts"></span>
+                            </div>
+                        </div>
+                        <div class="game-overlay">
+                            <span class="play-btn">Spielen ▶</span>
+                        </div>
+                    </div>
+                    <div class="game-info">
+                        <h3>Rider</h3>
+                        <p>Fahre so weit wie möglich und mache Flips.</p>
                     </div>
                 </a>
             </div>

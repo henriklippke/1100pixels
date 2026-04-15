@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>RIDER</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: #0a1628;
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+
+        /* ── Header ── */
+        .header {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: rgba(10, 22, 40, 0.97);
+            border-bottom: 1px solid rgba(255, 60, 60, 0.4);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.6);
+            pointer-events: none;
+        }
+        .header h2 { margin: 0; font-size: 1.1rem; text-align: center; }
+        .hud-score {
+            color: #ff4444;
+            text-shadow: 0 0 12px rgba(255,68,68,0.7);
+            font-size: 1.3rem;
+            min-width: 130px;
+        }
+        .hud-title {
+            color: rgba(255,255,255,0.5);
+            font-size: 0.85rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            flex: 1;
+            text-align: center;
+            margin: 0 10px;
+        }
+        .hud-flips {
+            color: #569aa9;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            min-width: 130px;
+            text-align: right;
+            text-shadow: 0 0 8px rgba(86,154,169,0.5);
+        }
+
+        /* ── Hint ── */
+        #hint {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.38);
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            pointer-events: none;
+            transition: opacity 1.2s ease;
+            z-index: 100;
+            white-space: nowrap;
+        }
+        #hint.fade { opacity: 0; }
+
+        /* ── Modals ── */
+        #name-modal, #game-over-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.92);
+            backdrop-filter: blur(7px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        #name-modal.show, #game-over-modal.show { display: flex; }
+
+        #game-over-modal.show {
+            animation: screenFlash 0.5s ease-out forwards;
+        }
+        @keyframes screenFlash {
+            0%   { background: rgba(200,0,0,0.6); }
+            100% { background: rgba(0,0,0,0.82); }
+        }
+        #game-over-modal.show .modal-box h1 {
+            animation: gameOverFlicker 0.09s ease-in-out 0.25s 7;
+        }
+        @keyframes gameOverFlicker {
+            0%,100% { opacity:1; text-shadow: 0 0 25px rgba(255,68,68,0.7); }
+            50%     { opacity:0.1; text-shadow: none; }
+        }
+
+        .modal-box {
+            background: linear-gradient(135deg, #0d1f33 0%, #1a0d20 100%);
+            border: 1px solid rgba(255,68,68,0.45);
+            border-radius: 18px;
+            padding: 50px 70px;
+            text-align: center;
+            box-shadow: 0 0 70px rgba(255,68,68,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+            animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
+            max-width: 90vw;
+        }
+        @keyframes popIn {
+            from { transform: scale(0.7); opacity: 0; }
+            to   { transform: scale(1);   opacity: 1; }
+        }
+        .modal-box h1 {
+            color: #ff4444;
+            font-size: 2.8rem;
+            margin: 0 0 8px;
+            text-shadow: 0 0 25px rgba(255,68,68,0.7);
+            text-transform: uppercase;
+            letter-spacing: 6px;
+        }
+        .modal-subtitle {
+            color: rgba(255,255,255,0.45);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin: 0 0 22px;
+        }
+        .modal-box .final-score {
+            font-size: 1rem;
+            color: rgba(255,255,255,0.5);
+            margin: 20px 0 30px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        .modal-box .final-score span {
+            color: #ff8844;
+            font-size: 3rem;
+            font-weight: bold;
+            display: block;
+            margin-top: 8px;
+            text-shadow: 0 0 18px rgba(255,136,68,0.6);
+        }
+        .modal-box input[type="text"] {
+            display: block;
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,68,68,0.35);
+            border-radius: 8px;
+            color: white;
+            font-size: 1.1rem;
+            padding: 12px 18px;
+            outline: none;
+            text-align: center;
+            letter-spacing: 1px;
+            margin-bottom: 18px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: inherit;
+        }
+        .modal-box input[type="text"]:focus {
+            border-color: rgba(255,68,68,0.75);
+            box-shadow: 0 0 18px rgba(255,68,68,0.2);
+        }
+        .modal-box input[type="text"]::placeholder { color: rgba(255,255,255,0.2); }
+        .modal-box input.input-error {
+            border-color: #ff4444;
+            box-shadow: 0 0 12px rgba(255,68,68,0.5);
+            animation: inputShake 0.35s ease;
+        }
+        @keyframes inputShake {
+            0%,100% { transform: translateX(0); }
+            25%     { transform: translateX(-7px); }
+            75%     { transform: translateX(7px); }
+        }
+        .modal-box button {
+            background: linear-gradient(135deg, #ff4444, #cc2222);
+            color: white;
+            border: none;
+            padding: 13px 45px;
+            font-size: 0.9rem;
+            border-radius: 8px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 600;
+            transition: all 0.2s;
+            box-shadow: 0 4px 18px rgba(255,68,68,0.35);
+            font-family: inherit;
+        }
+        .modal-box button:hover {
+            background: linear-gradient(135deg, #ff6666, #ff4444);
+            box-shadow: 0 6px 28px rgba(255,68,68,0.55);
+            transform: translateY(-2px);
+        }
+        .modal-box button:active { transform: translateY(0); }
+
+        @media (max-width: 431px) {
+            .modal-box { padding: 35px 25px; }
+            .modal-box h1 { font-size: 2rem; letter-spacing: 3px; }
+            .modal-box .final-score span { font-size: 2.2rem; }
+            .hud-title { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Canvas -->
+<canvas id="gameCanvas"></canvas>
+
+<!-- HUD -->
+<div class="header">
+    <h2 class="hud-score"><span id="hud-score">0</span> P.</h2>
+    <h2 class="hud-title">Rider</h2>
+    <h2 class="hud-flips">Flips: <span id="hud-flips">0</span></h2>
+</div>
+
+<!-- Hint -->
+<div id="hint">Leertaste halten = Gas &amp; Drehen</div>
+
+<!-- Name Modal -->
+<div id="name-modal" class="show">
+    <div class="modal-box">
+        <h1>RIDER</h1>
+        <p class="modal-subtitle">Gib deinen Namen ein</p>
+        <input type="text" id="name-input" placeholder="Dein Name..." maxlength="20" autocomplete="off" spellcheck="false">
+        <button id="name-submit">Spielen</button>
+    </div>
+</div>
+
+<!-- Game Over Modal -->
+<div id="game-over-modal">
+    <div class="modal-box">
+        <h1>Crash!</h1>
+        <p class="final-score">Deine Punkte<span id="final-score-display">0</span></p>
+        <button onclick="location.href='/'">Zurück</button>
+    </div>
+</div>
+
+<!-- Firebase -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
+        authDomain: "pixels-e2f82.firebaseapp.com",
+        projectId: "pixels-e2f82",
+        storageBucket: "pixels-e2f82.firebasestorage.app",
+        messagingSenderId: "311496840709",
+        appId: "1:311496840709:web:3a94601ef40cbd0c946e6c"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.storeResult = async function(name, points) {
+        if (points <= 0 || name.length === 0) return;
+        try {
+            await addDoc(collection(db, "rider"), {
+                name: name,
+                points: points,
+                created: new Date()
+            });
+        } catch(e) { console.warn("Firebase error:", e); }
+    };
+</script>
+
+<!-- Game Script -->
+<script>
+(function() {
+    "use strict";
+
+    // ── Physics Constants ──────────────────────────────────────────
+    const GRAVITY     = 950;
+    const THRUST      = 400;
+    const MAX_VX      = 650;
+    const FLIP_SPEED  = Math.PI * 2.4; // ~1.2 flips/s
+    const FRICTION    = 0.97;
+    const CRASH_ANGLE = 1.6; // ~92° — nur Crash wenn fast auf dem Kopf
+    const AXLE_DIST   = 18;
+    const WHEEL_R     = 10;
+    const FLIP_PTS    = 150;
+
+    // ── Canvas setup ───────────────────────────────────────────────
+    const canvas = document.getElementById('gameCanvas');
+    const ctx    = canvas.getContext('2d');
+
+    function resizeCanvas() {
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // ── Game state ─────────────────────────────────────────────────
+    let playerName = '';
+    let gameRunning = false;
+
+    let vx, vy, angle, angVel;
+    let px, py;          // position of vehicle center
+    let onGround;
+    let wasOnGround;
+    let score, flips;
+    let flipAccum;       // accumulated rotation for counting flips
+    let holding;
+
+    // Popup texts
+    let popups = [];
+
+    // ── Terrain Generation ─────────────────────────────────────────
+    let terrain = [];   // array of {x, y}, variable spacing
+
+    function generateTerrain() {
+        terrain = [];
+        const H    = canvas.height;
+        const minY = H * 0.18;
+        const maxY = H * 0.82;
+        const base = H * 0.63;
+
+        const pt = (x, y) => terrain.push({ x, y: Math.max(minY, Math.min(maxY, y)) });
+
+        // Underground edge + flat start
+        pt(-1000, base + 600);
+        pt(-1000, base);
+        pt(0,     base);
+        pt(500,   base);
+
+        let x = 500;
+        let y = base;
+
+        for (let seg = 0; seg < 120; seg++) {
+            const diff = Math.min(seg / 50, 1);
+            const r    = Math.random();
+
+            if (r < 0.20) {
+                // ── Flat ──────────────────────────────────────────
+                const w = 180 + Math.random() * 220;
+                pt(x, y); pt(x + w, y);
+                x += w;
+
+            } else if (r < 0.42) {
+                // ── Sanfte Wellen (2–4 Hügel) ─────────────────────
+                const count = 2 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < count; i++) {
+                    const w = 160 + Math.random() * 180;
+                    const h = 25 + Math.random() * 65 * diff;
+                    pt(x,           y);
+                    pt(x + w * 0.25, y - h * 0.6);
+                    pt(x + w * 0.5,  y - h);
+                    pt(x + w * 0.75, y - h * 0.6);
+                    pt(x + w,        y);
+                    x += w;
+                }
+
+            } else if (r < 0.62) {
+                // ── Kicker-Rampen mit Abstand ──────────────────────
+                const count = 1 + Math.floor(Math.random() * 3 * diff + 1);
+                for (let i = 0; i < count; i++) {
+                    const gap    = 100 + Math.random() * 140;
+                    const rampW  = 55  + Math.random() * 55;
+                    const rampH  = 70  + Math.random() * 110 * diff;
+                    const landW  = 80  + Math.random() * 80;
+                    pt(x,                    y);
+                    pt(x + gap,              y);
+                    pt(x + gap + rampW,      y - rampH);
+                    pt(x + gap + rampW + landW, y - rampH + 15);
+                    x += gap + rampW + landW;
+                    y = Math.max(minY, Math.min(maxY, y - rampH + 15));
+                }
+
+            } else if (r < 0.78) {
+                // ── Spitze Dreiecks-Gipfel ─────────────────────────
+                const count = 1 + Math.floor(Math.random() * 2);
+                for (let i = 0; i < count; i++) {
+                    const bw = 100 + Math.random() * 120;
+                    const h  = 70  + Math.random() * 110 * diff;
+                    pt(x,          y);
+                    pt(x + bw / 2, y - h);
+                    pt(x + bw,     y);
+                    x += bw + 60;
+                }
+
+            } else if (r < 0.87) {
+                // ── Zacken / Zähne ────────────────────────────────
+                const count = 3 + Math.floor(Math.random() * 5);
+                for (let i = 0; i < count; i++) {
+                    const tw = 35 + Math.random() * 50;
+                    const th = 20 + Math.random() * 55 * diff;
+                    pt(x,          y);
+                    pt(x + tw / 2, y - th);
+                    pt(x + tw,     y);
+                    x += tw;
+                }
+
+            } else if (r < 0.94) {
+                // ── Tal (V / U Form) ──────────────────────────────
+                const w = 180 + Math.random() * 200;
+                const d = 60  + Math.random() * 100 * diff;
+                pt(x,            y);
+                pt(x + w * 0.3,  y + d * 0.7);
+                pt(x + w * 0.5,  y + d);
+                pt(x + w * 0.7,  y + d * 0.7);
+                pt(x + w,        y);
+                x += w;
+
+            } else {
+                // ── Plateau (erhöhter flacher Abschnitt) ──────────
+                const upW   = 60  + Math.random() * 60;
+                const flatW = 120 + Math.random() * 160;
+                const downW = 60  + Math.random() * 60;
+                const h     = 60  + Math.random() * 90 * diff;
+                pt(x,                       y);
+                pt(x + upW,                 y - h);
+                pt(x + upW + flatW,         y - h);
+                pt(x + upW + flatW + downW, y);
+                x += upW + flatW + downW;
+            }
+
+            y = Math.max(minY, Math.min(maxY, y));
+        }
+
+        pt(x + 800, y); // langer Abschluss
+    }
+
+    // Binary-search Lookup (variable Segment-Breiten)
+    function findIdx(wx) {
+        let lo = 0, hi = terrain.length - 2;
+        while (lo < hi) {
+            const mid = (lo + hi + 1) >> 1;
+            if (terrain[mid].x <= wx) lo = mid; else hi = mid - 1;
+        }
+        return lo;
+    }
+
+    // Get terrain Y at world X
+    function terrainYAt(wx) {
+        const i = findIdx(wx);
+        const a = terrain[i], b = terrain[i + 1];
+        if (!b || b.x === a.x) return a ? a.y : canvas.height;
+        return a.y + (b.y - a.y) * ((wx - a.x) / (b.x - a.x));
+    }
+
+    // Get terrain angle at world X
+    function terrainAngleAt(wx) {
+        const i = findIdx(wx);
+        const a = terrain[i], b = terrain[i + 1];
+        if (!a || !b) return 0;
+        return Math.atan2(b.y - a.y, b.x - a.x);
+    }
+
+    // ── Init / Reset ───────────────────────────────────────────────
+    function initGame() {
+        generateTerrain();
+
+        const startX = 80;
+        const startY = terrainYAt(startX) - WHEEL_R - 4;
+
+        px       = startX;
+        py       = startY;
+        vx       = 0;
+        vy       = 0;
+        angle    = 0;
+        angVel   = 0;
+        onGround = false;
+        score    = 0;
+        flips    = 0;
+        flipAccum = 0;
+        holding  = false;
+        popups   = [];
+        gameRunning = true;
+        lastTime    = null;
+    }
+
+    // ── Input ──────────────────────────────────────────────────────
+    let hintFaded = false;
+
+    function setHolding(val) {
+        if (val && !hintFaded) {
+            hintFaded = true;
+            document.getElementById('hint').classList.add('fade');
+        }
+        holding = val;
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && gameRunning) {
+            e.preventDefault();
+            setHolding(true);
+        }
+    });
+    window.addEventListener('keyup', (e) => {
+        if (e.code === 'Space') {
+            setHolding(false);
+        }
+    });
+
+    // ── Camera ────────────────────────────────────────────────────
+    let camX = 0;  // world X of left edge of screen
+
+    // ── Game Loop ──────────────────────────────────────────────────
+    let lastTime = null;
+
+    function gameLoop(ts) {
+        if (!gameRunning) { requestAnimationFrame(gameLoop); return; }
+
+        if (!lastTime) lastTime = ts;
+        let dt = Math.min((ts - lastTime) / 1000, 0.05); // cap dt
+        lastTime = ts;
+
+        update(dt);
+        render();
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    function update(dt) {
+        wasOnGround = onGround;
+
+        // ── Physik ────────────────────────────────────────────────────
+        const rearWX  = px - AXLE_DIST;
+        const frontWX = px + AXLE_DIST;
+        const rTerrY  = terrainYAt(rearWX);
+        const fTerrY  = terrainYAt(frontWX);
+
+        // Kontaktpunkte der Räder (Winkel berücksichtigt)
+        const rContactY = py + Math.sin(angle) * (-AXLE_DIST) + Math.cos(angle) * WHEEL_R;
+        const fContactY = py + Math.sin(angle) *   AXLE_DIST  + Math.cos(angle) * WHEEL_R;
+
+        const rOnGround = rContactY >= rTerrY;
+        const fOnGround = fContactY >= fTerrY;
+        onGround = rOnGround || fOnGround;
+
+        // Sticky ground: kurz über Terrain (bergab) → trotzdem am Boden bleiben
+        if (!onGround && vy >= 0) {
+            const rAbove = rTerrY - rContactY;
+            const fAbove = fTerrY - fContactY;
+            if ((rAbove >= 0 && rAbove < 40) || (fAbove >= 0 && fAbove < 40)) {
+                onGround = true;
+                py += Math.max(0, Math.max(rAbove, fAbove));
+                vy = 0;
+            }
+        }
+
+        if (onGround) {
+            const terrAngle = terrainAngleAt(px);
+
+            // Crash nur beim Aufkommen
+            if (!wasOnGround) {
+                let diff = Math.abs(normalizeAngle(angle - terrAngle));
+                if (diff > Math.PI) diff = Math.PI * 2 - diff;
+                if (diff > CRASH_ANGLE && Math.abs(vx) > 40) { triggerCrash(); return; }
+                flipAccum = 0;
+            }
+
+            // Position auf Terrain setzen
+            if (rOnGround && fOnGround) {
+                py = (rTerrY + fTerrY) / 2 - WHEEL_R;
+            } else if (rOnGround) {
+                py = rTerrY - WHEEL_R;
+            } else {
+                py = fTerrY - WHEEL_R;
+            }
+
+            // Fahrzeug folgt Terrain-Winkel
+            angle  = terrAngle;
+            angVel = 0;
+
+            // Sprung nur bei Bergauf-Rampe (terrAngle < 0) UND genug Geschwindigkeit
+            const isRampUp   = terrAngle < -0.45;  // ~26° bergauf
+            const fastEnough = vx > 250;
+            vy = (isRampUp && fastEnough) ? vx * Math.sin(terrAngle) : 0;
+
+            // Gas / Bremse
+            if (holding) {
+                vx += THRUST * dt;
+            } else {
+                vx *= Math.pow(FRICTION, dt * 60);
+            }
+            vx = Math.min(Math.max(vx, 0), MAX_VX);
+
+        } else {
+            // Luft: Schwerkraft
+            vy += GRAVITY * dt;
+
+            // Rotation nur bei Gas — konstante 2.5 Flips/s
+            angVel = holding ? -FLIP_SPEED : 0;
+
+            // Flip zählen
+            const prevFlipAccum = flipAccum;
+            flipAccum += angVel * dt;
+            const fullFlips     = Math.floor(Math.abs(flipAccum)     / (Math.PI * 2));
+            const prevFullFlips = Math.floor(Math.abs(prevFlipAccum) / (Math.PI * 2));
+            if (fullFlips > prevFullFlips) {
+                const n = fullFlips - prevFullFlips;
+                flips += n;
+                score += n * FLIP_PTS;
+                popups.push({ x: px, y: py - 50, text: `FLIP! +${n * FLIP_PTS}`, life: 1.4, maxLife: 1.4 });
+                updateHUD();
+            }
+        }
+
+        // Integration
+        px    += vx    * dt;
+        py    += vy    * dt;
+        angle += angVel * dt;
+
+        // Score = distance (in pixels / 10 for clean numbers) + flip bonus
+        const distScore = Math.floor(px / 10);
+        score = distScore + flips * FLIP_PTS;
+        updateHUD();
+
+        // Camera follows player
+        camX = px - canvas.width * 0.30;
+
+        // Crash if fell off bottom of screen
+        if (py > canvas.height + 100) {
+            triggerCrash();
+            return;
+        }
+
+        // Crash if went too far left (reversed)
+        if (px < camX - 50) {
+            triggerCrash();
+            return;
+        }
+
+        // Update popups
+        for (let i = popups.length - 1; i >= 0; i--) {
+            popups[i].life -= dt;
+            if (popups[i].life <= 0) popups.splice(i, 1);
+        }
+    }
+
+    function normalizeAngle(a) {
+        while (a >  Math.PI) a -= Math.PI * 2;
+        while (a < -Math.PI) a += Math.PI * 2;
+        return a;
+    }
+
+    function triggerCrash() {
+        gameRunning = false;
+        const finalScore = score;
+
+        // Show game over after brief delay
+        setTimeout(async () => {
+            document.getElementById('final-score-display').textContent = finalScore;
+            document.getElementById('game-over-modal').classList.add('show');
+            if (window.storeResult) {
+                await window.storeResult(playerName, finalScore);
+            }
+        }, 400);
+    }
+
+    function updateHUD() {
+        document.getElementById('hud-score').textContent = score;
+        document.getElementById('hud-flips').textContent = flips;
+    }
+
+    // ── Rendering ──────────────────────────────────────────────────
+    function render() {
+        const W = canvas.width;
+        const H = canvas.height;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Background
+        ctx.fillStyle = '#0a1628';
+        ctx.fillRect(0, 0, W, H);
+
+        // Neon grid
+        drawGrid();
+
+        // Terrain
+        drawTerrain();
+
+        // Vehicle
+        drawVehicle();
+
+        // Popups
+        drawPopups();
+    }
+
+    function drawGrid() {
+        const W = canvas.width;
+        const H = canvas.height;
+        const gridSize = 80;
+        const offsetX = (-camX) % gridSize;
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(86,154,169,0.07)';
+        ctx.lineWidth = 1;
+
+        // Vertical lines
+        for (let x = offsetX; x < W; x += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, H);
+            ctx.stroke();
+        }
+        // Horizontal lines
+        for (let y = 0; y < H; y += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(W, y);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    function drawTerrain() {
+        const W = canvas.width;
+        const H = canvas.height;
+
+        // Find visible segment range via binary search
+        const startX = camX - 200;
+        const endX   = camX + W + 200;
+
+        let startIdx = Math.max(0, findIdx(startX) - 1);
+        let endIdx   = Math.min(terrain.length - 1, findIdx(endX) + 2);
+
+        if (startIdx >= endIdx) return;
+
+        ctx.save();
+
+        // Glow shadow for terrain line
+        ctx.shadowColor = '#569aa9';
+        ctx.shadowBlur  = 10;
+
+        // Terrain line
+        ctx.beginPath();
+        ctx.strokeStyle = '#569aa9';
+        ctx.lineWidth   = 3;
+
+        let first = true;
+        for (let i = startIdx; i <= endIdx; i++) {
+            const t = terrain[i];
+            if (!t) continue;
+            const sx = t.x - camX;
+            const sy = t.y;
+            if (first) { ctx.moveTo(sx, sy); first = false; }
+            else        ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+
+        // Dark fill below terrain
+        ctx.beginPath();
+        const firstT = terrain[startIdx];
+        const lastT  = terrain[endIdx];
+        ctx.moveTo(firstT.x - camX, firstT.y);
+        for (let i = startIdx + 1; i <= endIdx; i++) {
+            const t = terrain[i];
+            if (!t) continue;
+            ctx.lineTo(t.x - camX, t.y);
+        }
+        ctx.lineTo(lastT.x - camX, H + 50);
+        ctx.lineTo(firstT.x - camX, H + 50);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(10,22,40,0.85)';
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    function drawVehicle() {
+        const sx = px - camX;
+        const sy = py;
+
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(angle);
+
+        // Red glow
+        ctx.shadowColor = '#ff3333';
+        ctx.shadowBlur  = 22;
+
+        // Body — red rounded rectangle
+        const bw = 44, bh = 18;
+        ctx.beginPath();
+        roundRect(ctx, -bw/2, -bh/2 - 2, bw, bh, 5);
+        ctx.fillStyle = '#cc2222';
+        ctx.fill();
+
+        // Bright top stripe
+        ctx.beginPath();
+        roundRect(ctx, -bw/2 + 4, -bh/2 - 2, bw - 8, 5, 3);
+        ctx.fillStyle = '#ff4444';
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+
+        // Wheels
+        const wheelPositions = [
+            { x: -AXLE_DIST, y: bh/2 - 2 },
+            { x:  AXLE_DIST, y: bh/2 - 2 }
+        ];
+
+        for (const wp of wheelPositions) {
+            // Outer tyre
+            ctx.beginPath();
+            ctx.arc(wp.x, wp.y, WHEEL_R, 0, Math.PI * 2);
+            ctx.fillStyle = '#3a0808';
+            ctx.fill();
+            ctx.strokeStyle = '#661111';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Hub
+            ctx.beginPath();
+            ctx.arc(wp.x, wp.y, WHEEL_R * 0.4, 0, Math.PI * 2);
+            ctx.fillStyle = '#aa2222';
+            ctx.fill();
+
+            // Hub dot
+            ctx.beginPath();
+            ctx.arc(wp.x, wp.y, WHEEL_R * 0.15, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff6666';
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    function drawPopups() {
+        for (const p of popups) {
+            const t = p.life / p.maxLife;
+            const alpha = Math.min(1, t * 2);
+            const sy = p.y - camX * 0 - (p.maxLife - p.life) * 40;
+            const sx = p.x - camX;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.font = 'bold 18px "Segoe UI", system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#00ffaa';
+            ctx.shadowColor = '#00ffaa';
+            ctx.shadowBlur  = 12;
+            ctx.fillText(p.text, sx, sy);
+            ctx.restore();
+        }
+    }
+
+    // ── Name Modal Logic ───────────────────────────────────────────
+    const nameModal  = document.getElementById('name-modal');
+    const nameInput  = document.getElementById('name-input');
+    const nameSubmit = document.getElementById('name-submit');
+
+    function submitName() {
+        const val = nameInput.value.trim();
+        if (val.length === 0) {
+            nameInput.classList.add('input-error');
+            setTimeout(() => nameInput.classList.remove('input-error'), 400);
+            return;
+        }
+        playerName = val;
+        nameModal.classList.remove('show');
+        initGame();
+    }
+
+    nameSubmit.addEventListener('click', submitName);
+    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitName(); });
+    nameInput.focus();
+
+    // ── Start loop ─────────────────────────────────────────────────
+    requestAnimationFrame(gameLoop);
+
+})();
+</script>
+</body>
+</html>
