@@ -81,7 +81,7 @@
 		var boxesInRow = (width / (boxWidth + 2)).toFixed() - 1;
 		var amount = boxesInRow * 4;
 		var target = 1;
-		var targetColor = 'red';
+		var targetColor = '#ff0000';
 
 		const soundWrong = document.getElementById("soundWrong");
 		const soundRight = document.getElementById("soundRight");
@@ -107,13 +107,22 @@
 			return color;
 		}
 
-		$("#solution-bar #solution").on("click", function () {
-			point = point - 100;
+		$("#solution-bar #solution").on("click", async function () {
+			point = Math.max(0, point - 100);
 			$(".points span").html(point);
 			$("#show-solution").text(target);
 			$(".target").addClass("big");
 			soundWrong.currentTime = 0;
 			soundWrong.play();
+
+			if (point <= 0) {
+				$(".points").addClass('shake-wrong');
+				setTimeout(() => { $(".points").removeClass('shake-wrong'); }, 500);
+				playGameOverSound();
+				await storeResult(name, point);
+				document.getElementById('final-score-display').textContent = point;
+				document.getElementById('game-over-modal').classList.add('show');
+			}
 		});
 
 		function playGameOverSound() {

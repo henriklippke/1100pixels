@@ -4,6 +4,37 @@
     <title>1100pixels.com</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/index.css">
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+
+        const app = initializeApp({
+            apiKey: "AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
+            authDomain: "pixels-e2f82.firebaseapp.com",
+            projectId: "pixels-e2f82",
+            storageBucket: "pixels-e2f82.firebasestorage.app",
+            messagingSenderId: "311496840709",
+            appId: "1:311496840709:web:3a94601ef40cbd0c946e6c"
+        });
+        const db = getFirestore(app);
+
+        async function loadTop3() {
+            const q = query(collection(db, 'red-pixel'), orderBy('points', 'desc'), limit(3));
+            const snap = await getDocs(q);
+            const top = [];
+            snap.forEach(doc => top.push(doc.data()));
+
+            const order = [top[2], top[0], top[1]]; // left=3rd, center=1st, right=2nd
+            const ids = ['p3', 'p1', 'p2'];
+            order.forEach((player, i) => {
+                if (!player) return;
+                document.getElementById(ids[i] + '-name').textContent = player.name;
+                document.getElementById(ids[i] + '-pts').textContent = player.points + ' P';
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', loadTop3);
+    </script>
 </head>
 <body>
 
@@ -19,6 +50,23 @@
                 <a href="RED-pixels.html" class="game-card">
                     <div class="game-thumb">
                         <img src="/images/red.png" alt="Red Pixels">
+                        <div class="podium">
+                            <div class="podium-place p3">
+                                <span class="medal">🥉</span>
+                                <span class="p-name" id="p3-name">–</span>
+                                <span class="p-pts" id="p3-pts"></span>
+                            </div>
+                            <div class="podium-place p1">
+                                <span class="medal">🥇</span>
+                                <span class="p-name" id="p1-name">–</span>
+                                <span class="p-pts" id="p1-pts"></span>
+                            </div>
+                            <div class="podium-place p2">
+                                <span class="medal">🥈</span>
+                                <span class="p-name" id="p2-name">–</span>
+                                <span class="p-pts" id="p2-pts"></span>
+                            </div>
+                        </div>
                         <div class="game-overlay">
                             <span class="play-btn">Spielen ▶</span>
                         </div>
