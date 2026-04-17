@@ -310,7 +310,10 @@
     const CRASH_ANGLE = 1.6; // ~92° — nur Crash wenn fast auf dem Kopf
     const AXLE_DIST   = 18;
     const WHEEL_R     = 10;
-    const FLIP_PTS    = 100;
+    const FLIP_PTS      = 100;
+    const BOOST_THRUST   = 1100;
+    const BOOST_DURATION = 0.7;
+    const RELEASE_TAP_MS = 280;
 
     // ── Canvas setup ───────────────────────────────────────────────
     const canvas = document.getElementById('gameCanvas');
@@ -331,6 +334,9 @@
     let px, py;          // position of vehicle center
     let onGround;
     let wasOnGround;
+    let boostActive, boostTimer, wheelieTilt, landingFlash, peakAirHeight;
+    let lastSpaceRelease = 0;
+    let lastTouchRelease = 0;
     let airFrames;       // frames seit dem Abheben
     let score, flips;
     let flipAccum;       // accumulated rotation for counting flips
@@ -569,7 +575,12 @@
         score    = 0;
         flips    = 0;
         flipAccum = 0;
-        holding  = false;
+        holding      = false;
+        boostActive  = false;
+        boostTimer   = 0;
+        wheelieTilt  = 0;
+        landingFlash = 0;
+        peakAirHeight = 0;
         popups   = [];
         gameRunning = true;
         lastTime    = null;
@@ -583,27 +594,44 @@
             hintFaded = true;
             document.getElementById('hint').classList.add('fade');
         }
+        if (val) initEngineSound();
         holding = val;
     }
 
     window.addEventListener('keydown', (e) => {
         if (e.code === 'Space' && gameRunning) {
             e.preventDefault();
+            const now = performance.now();
+            if (now - lastSpaceRelease < RELEASE_TAP_MS && !boostActive) {
+                boostActive = true;
+                boostTimer  = BOOST_DURATION;
+                popups.push({ x: px, y: py - 40, text: 'BOOST!', life: 0.9, maxLife: 0.9 });
+            }
             setHolding(true);
         }
     });
     window.addEventListener('keyup', (e) => {
         if (e.code === 'Space') {
+            lastSpaceRelease = performance.now();
             setHolding(false);
         }
     });
 
     canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        if (gameRunning) setHolding(true);
+        if (gameRunning) {
+            const now = performance.now();
+            if (now - lastTouchRelease < RELEASE_TAP_MS && !boostActive) {
+                boostActive = true;
+                boostTimer  = BOOST_DURATION;
+                popups.push({ x: px, y: py - 40, text: 'BOOST!', life: 0.9, maxLife: 0.9 });
+            }
+            setHolding(true);
+        }
     }, { passive: false });
     canvas.addEventListener('touchend', (e) => {
         e.preventDefault();
+        lastTouchRelease = performance.now();
         setHolding(false);
     }, { passive: false });
 
@@ -621,6 +649,7 @@
         lastTime = ts;
 
         update(dt);
+        updateEngineSound();
         render();
 
         requestAnimationFrame(gameLoop);
@@ -656,6 +685,8 @@
 
         if (!onGround) {
             airFrames++;
+            const ah = terrainYAt(px) - (py + WHEEL_R);
+            if (ah > peakAirHeight) peakAirHeight = ah;
         }
 
         if (onGround) {
@@ -666,9 +697,21 @@
                 let diff = Math.abs(normalizeAngle(angle - terrAngle));
                 if (diff > Math.PI) diff = Math.PI * 2 - diff;
                 if (diff > CRASH_ANGLE && Math.abs(vx) > 40) { triggerCrash(); return; }
+
+                // Saubere Landung: Winkel passt + mindestens 60px Höhe erreicht
+                if (diff < 0.55 && peakAirHeight >= 60) {
+                    const bonus = 75;
+                    score += bonus;
+                    flips += 0; // kein flip, nur Punkte
+                    landingFlash = 1.0;
+                    playLandingSound();
+                    popups.push({ x: px, y: py - 45, text: `CLEAN! +${bonus}`, life: 1.2, maxLife: 1.2 });
+                    updateHUD();
+                }
             }
-            flipAccum = 0;
-            airFrames = 0;
+            flipAccum     = 0;
+            airFrames     = 0;
+            peakAirHeight = 0;
 
             // Position auf Terrain setzen
             if (rOnGround && fOnGround) {
@@ -684,26 +727,28 @@
             angVel = 0;
 
             // Sprung ab ~9° bergauf UND genug Geschwindigkeit
-            const isRampUp   = terrAngle < -0.15;  // ~9° bergauf
+            const isRampUp   = terrAngle < -0.15;
             const fastEnough = vx > 180;
-            vy = (isRampUp && fastEnough) ? Math.min(vx * Math.sin(terrAngle), -130) : 0;
+            const baseVy     = (isRampUp && fastEnough) ? Math.min(vx * Math.sin(terrAngle), -130) : 0;
+            vy = (boostActive && baseVy < 0) ? Math.min(baseVy * 1.35, -175) : baseVy;
 
             // Gas / Bremse
             if (holding) {
-                vx += THRUST * dt;
+                vx += (boostActive ? BOOST_THRUST : THRUST) * dt;
             } else {
                 vx *= Math.pow(FRICTION, dt * 60);
             }
             vx = Math.min(Math.max(vx, 0), MAX_VX);
 
         } else {
-            // Luft: Schwerkraft
-            vy += GRAVITY * dt;
+            // Luft: Schwerkraft (Boost = 15% weniger Gravität + 15% mehr Horizontalgeschwindigkeit)
+            vy += GRAVITY * (boostActive ? 0.93 : 1.0) * dt;
 
             // Rotation nur wenn minimal in der Luft (mind. 30px über Terrain)
             const terrYBelow = terrainYAt(px);
             const airHeight = terrYBelow - (py + WHEEL_R);
-            angVel = (holding && airHeight > 30) ? -FLIP_SPEED : 0;
+            const flipSpeed = boostActive ? FLIP_SPEED * 1.5 : FLIP_SPEED;
+            angVel = (holding && airHeight > 30) ? -flipSpeed : 0;
 
             // Flip zählen
             const prevFlipAccum = flipAccum;
@@ -719,6 +764,19 @@
                 updateHUD();
             }
         }
+
+        // Landing flash timer
+        if (landingFlash > 0) landingFlash = Math.max(0, landingFlash - dt * 3.5);
+
+        // Boost timer
+        if (boostActive) {
+            boostTimer -= dt;
+            if (boostTimer <= 0) { boostActive = false; boostTimer = 0; }
+        }
+
+        // Wheelie tilt (visuell): Nase hoch wenn Boost + Boden
+        const targetTilt = (boostActive && onGround) ? -0.52 : 0;
+        wheelieTilt += (targetTilt - wheelieTilt) * Math.min(dt * 10, 1);
 
         // Integration
         px    += vx    * dt;
@@ -788,6 +846,53 @@
             gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.2);
             osc.start(ac.currentTime);
             osc.stop(ac.currentTime + 0.2);
+        } catch(e) {}
+    }
+
+    function playLandingSound() {
+        try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            // kurzer dumpfer Aufprall + heller Ding
+            [[120, 0, 'sine', 0.18, 0.12], [660, 0.04, 'sine', 0.14, 0.18], [1100, 0.07, 'sine', 0.08, 0.14]]
+                .forEach(([freq, t, type, vol, dur]) => {
+                    const osc = ac.createOscillator(), g = ac.createGain();
+                    osc.connect(g); g.connect(ac.destination);
+                    osc.frequency.value = freq; osc.type = type;
+                    g.gain.setValueAtTime(vol, ac.currentTime + t);
+                    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + dur);
+                    osc.start(ac.currentTime + t);
+                    osc.stop(ac.currentTime + t + dur + 0.01);
+                });
+        } catch(e) {}
+    }
+
+    // ── Engine / Roll Sound ────────────────────────────────────────
+    let engAC = null, engOsc = null, engGain = null;
+
+    function initEngineSound() {
+        if (engAC) return;
+        try {
+            engAC  = new (window.AudioContext || window.webkitAudioContext)();
+            engOsc  = engAC.createOscillator();
+            engGain = engAC.createGain();
+            engOsc.type = 'sawtooth';
+            engOsc.frequency.value = 55;
+            engGain.gain.value = 0;
+            engOsc.connect(engGain);
+            engGain.connect(engAC.destination);
+            engOsc.start();
+        } catch(e) {}
+    }
+
+    function updateEngineSound() {
+        if (!engAC) return;
+        try {
+            const t      = engAC.currentTime;
+            const active = holding && onGround && vx > 15;
+            const freq   = 55 + vx * 0.28;
+            engOsc.frequency.setTargetAtTime(freq, t, 0.07);
+            const vol = active ? Math.min(0.022, vx / 4800 + 0.005) : 0;
+            engGain.gain.setTargetAtTime(vol, t, active ? 0.10 : 0.30);
         } catch(e) {}
     }
 
@@ -925,24 +1030,24 @@
         const tx1  = -13;  // rear truck x
         const tx2  =  13;  // front truck x
         const wrot = -px / WHEEL_R;
-        const C    = '#00f0ff';
-        const CG   = '#00f0ff';
+        const C  = boostActive ? '#ffcc44' : '#00f0ff';
+        const CG = boostActive ? '#ffaa00' : '#00f0ff';
 
         ctx.save();
         ctx.translate(sx, sy);
-        ctx.rotate(angle);
+        ctx.rotate(angle + wheelieTilt);
         ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
         // deck shape with nose/tail kick
         const dL  = 21;
         const k   = 2;
         const kx  = dL * 0.58;
-        const bot = -4;   // side face bottom y
-        const top = -8;   // side face top y  (4px board thickness in side view)
-        const far = -11;  // far edge y for top surface (3px 3D depth)
+        const bot = -4;
+        const top = -8;
+        const far = -11;
 
         // side face
-        ctx.shadowColor = CG; ctx.shadowBlur = 10;
+        ctx.shadowColor = CG; ctx.shadowBlur = boostActive ? 18 : 10;
         ctx.beginPath();
         ctx.moveTo(-dL, bot-k); ctx.lineTo(-kx, bot); ctx.lineTo(kx, bot); ctx.lineTo(dL, bot-k);
         ctx.lineTo(dL, top-k);  ctx.lineTo(kx, top);  ctx.lineTo(-kx, top); ctx.lineTo(-dL, top-k);
@@ -1014,6 +1119,20 @@
             ctx.restore();
         });
 
+        // Landing flash ring
+        if (landingFlash > 0) {
+            const r   = 28 + (1 - landingFlash) * 22;
+            const alpha = landingFlash * 0.85;
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = `rgba(100,255,220,${alpha})`;
+            ctx.lineWidth   = 2.5 * landingFlash;
+            ctx.shadowColor = '#00ffcc';
+            ctx.shadowBlur  = 18 * landingFlash;
+            ctx.beginPath();
+            ctx.arc(0, -4, r, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
         ctx.restore();
     }
 
@@ -1070,9 +1189,19 @@
     nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitName(); });
     nameInput.focus();
 
-    document.getElementById('restart-btn').addEventListener('click', () => {
+    function doRestart() {
         document.getElementById('game-over-modal').classList.remove('show');
         initGame();
+    }
+
+    document.getElementById('restart-btn').addEventListener('click', doRestart);
+
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && !gameRunning &&
+            document.getElementById('game-over-modal').classList.contains('show')) {
+            e.preventDefault();
+            doRestart();
+        }
     });
 
     // ── Start loop ─────────────────────────────────────────────────
