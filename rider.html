@@ -62,6 +62,39 @@
             text-align: right;
             text-shadow: 0 0 8px rgba(86,154,169,0.5);
         }
+        .hud-level {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            min-width: 130px;
+            gap: 3px;
+        }
+        .hud-level-label {
+            color: #ffcc44;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 0 8px rgba(255,204,68,0.6);
+        }
+        .hud-xp-bar-wrap {
+            width: 110px;
+            height: 5px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .hud-xp-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ffcc44, #ff8800);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 6px rgba(255,180,0,0.7);
+        }
+        .hud-boost-charges {
+            color: #ffcc44;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+        }
 
         /* ── Hint ── */
         #hint {
@@ -237,9 +270,13 @@
 
 <!-- HUD -->
 <div class="header">
-    <h2 class="hud-score"><span id="hud-score">0</span> P.</h2>
+    <h2 class="hud-score">Flips: <span id="hud-score">0</span></h2>
     <h2 class="hud-title">Rider</h2>
-    <h2 class="hud-flips">Flips: <span id="hud-flips">0</span></h2>
+    <div class="hud-level">
+        <span class="hud-level-label" id="hud-boost-label">BOOST</span>
+        <div class="hud-xp-bar-wrap"><div class="hud-xp-bar" id="hud-xp-bar" style="width:0%"></div></div>
+        <span class="hud-boost-charges" id="hud-boost-charges"></span>
+    </div>
 </div>
 
 <!-- Hint -->
@@ -310,10 +347,12 @@
     const CRASH_ANGLE = 1.6; // ~92° — nur Crash wenn fast auf dem Kopf
     const AXLE_DIST   = 18;
     const WHEEL_R     = 10;
-    const FLIP_PTS      = 100;
+
     const BOOST_THRUST   = 1100;
-    const BOOST_DURATION = 0.7;
+    const BOOST_DURATION = 1.4;
     const RELEASE_TAP_MS = 280;
+
+    const FLIPS_PER_BOOST = 10; // flips needed to earn one boost charge
 
     // ── Canvas setup ───────────────────────────────────────────────
     const canvas = document.getElementById('gameCanvas');
@@ -334,7 +373,8 @@
     let px, py;          // position of vehicle center
     let onGround;
     let wasOnGround;
-    let boostActive, boostTimer, wheelieTilt, landingFlash, peakAirHeight;
+    let boostActive, boostTimer, wheelieTilt;
+    let boostCharges, flipsUntilBoost;
     let lastSpaceRelease = 0;
     let lastTouchRelease = 0;
     let airFrames;       // frames seit dem Abheben
@@ -508,7 +548,7 @@
                     x += gap + 2 * R;
                 }
 
-            } else {
+            } else if (r < 0.95) {
                 // ── Looping (Halbkreis-Bogen, unten offen) ────────
                 const R     = 55 + Math.random() * 50 * (0.5 + diff);
                 const gap   = 80 + Math.random() * 100;
@@ -523,6 +563,31 @@
                 }
                 pt(x + gap + 2 * R + 80, y);
                 x += gap + 2 * R + 80;
+
+            } else {
+                // ── Bodenloser Abgrund mit Pflichtschanze ──────────
+                const flatIn  = 120 + Math.random() * 80;
+                const rampW   = 60  + Math.random() * 40;
+                const rampH   = 90  + Math.random() * 60;
+                const pitW    = 280 + Math.random() * 160;
+                const landW   = 100 + Math.random() * 80;
+
+                // Anlauf + Schanze
+                pt(x,                  y);
+                pt(x + flatIn,         y);
+                pt(x + flatIn + rampW, y - rampH);
+
+                const pitStart = x + flatIn + rampW;
+                const pitEnd   = pitStart + pitW;
+
+                // Abgrund-Wände direkt pushen (kein Y-Clamp)
+                terrain.push({ x: pitStart,     y: y - rampH });
+                terrain.push({ x: pitStart + 5, y: H + 400 });
+                terrain.push({ x: pitEnd   - 5, y: H + 400 });
+                terrain.push({ x: pitEnd,       y: y });
+                pt(pitEnd + landW, y);
+
+                x = pitEnd + landW;
             }
 
             y = Math.max(minY, Math.min(maxY, y));
@@ -576,14 +641,16 @@
         flips    = 0;
         flipAccum = 0;
         holding      = false;
-        boostActive  = false;
-        boostTimer   = 0;
-        wheelieTilt  = 0;
-        landingFlash = 0;
-        peakAirHeight = 0;
+        boostActive   = false;
+        boostTimer    = 0;
+        wheelieTilt   = 0;
+
+        boostCharges  = 0;
+        flipsUntilBoost = FLIPS_PER_BOOST;
         popups   = [];
         gameRunning = true;
         lastTime    = null;
+        updateHUD();
     }
 
     // ── Input ──────────────────────────────────────────────────────
@@ -603,9 +670,15 @@
             e.preventDefault();
             const now = performance.now();
             if (now - lastSpaceRelease < RELEASE_TAP_MS && !boostActive) {
-                boostActive = true;
-                boostTimer  = BOOST_DURATION;
-                popups.push({ x: px, y: py - 40, text: 'BOOST!', life: 0.9, maxLife: 0.9 });
+                if (boostCharges > 0) {
+                    boostCharges--;
+                    boostActive = true;
+                    boostTimer  = BOOST_DURATION;
+                    popups.push({ x: px, y: py - 40, text: 'BOOST!', life: 0.9, maxLife: 0.9, color: '#ffcc44' });
+                    updateHUD();
+                } else {
+                    popups.push({ x: px, y: py - 40, text: 'KEIN BOOST! Mehr Flips!', life: 1.2, maxLife: 1.2 });
+                }
             }
             setHolding(true);
         }
@@ -622,9 +695,15 @@
         if (gameRunning) {
             const now = performance.now();
             if (now - lastTouchRelease < RELEASE_TAP_MS && !boostActive) {
-                boostActive = true;
-                boostTimer  = BOOST_DURATION;
-                popups.push({ x: px, y: py - 40, text: 'BOOST!', life: 0.9, maxLife: 0.9 });
+                if (boostCharges > 0) {
+                    boostCharges--;
+                    boostActive = true;
+                    boostTimer  = BOOST_DURATION;
+                    popups.push({ x: px, y: py - 40, text: 'BOOST!', life: 0.9, maxLife: 0.9, color: '#ffcc44' });
+                    updateHUD();
+                } else {
+                    popups.push({ x: px, y: py - 40, text: 'KEIN BOOST! Mehr Flips!', life: 1.2, maxLife: 1.2 });
+                }
             }
             setHolding(true);
         }
@@ -685,8 +764,6 @@
 
         if (!onGround) {
             airFrames++;
-            const ah = terrainYAt(px) - (py + WHEEL_R);
-            if (ah > peakAirHeight) peakAirHeight = ah;
         }
 
         if (onGround) {
@@ -697,21 +774,9 @@
                 let diff = Math.abs(normalizeAngle(angle - terrAngle));
                 if (diff > Math.PI) diff = Math.PI * 2 - diff;
                 if (diff > CRASH_ANGLE && Math.abs(vx) > 40) { triggerCrash(); return; }
-
-                // Saubere Landung: Winkel passt + mindestens 60px Höhe erreicht
-                if (diff < 0.55 && peakAirHeight >= 60) {
-                    const bonus = 75;
-                    score += bonus;
-                    flips += 0; // kein flip, nur Punkte
-                    landingFlash = 1.0;
-                    playLandingSound();
-                    popups.push({ x: px, y: py - 45, text: `CLEAN! +${bonus}`, life: 1.2, maxLife: 1.2 });
-                    updateHUD();
-                }
             }
-            flipAccum     = 0;
-            airFrames     = 0;
-            peakAirHeight = 0;
+            flipAccum = 0;
+            airFrames = 0;
 
             // Position auf Terrain setzen
             if (rOnGround && fOnGround) {
@@ -730,7 +795,7 @@
             const isRampUp   = terrAngle < -0.15;
             const fastEnough = vx > 180;
             const baseVy     = (isRampUp && fastEnough) ? Math.min(vx * Math.sin(terrAngle), -130) : 0;
-            vy = (boostActive && baseVy < 0) ? Math.min(baseVy * 1.35, -175) : baseVy;
+            vy = baseVy;
 
             // Gas / Bremse
             if (holding) {
@@ -742,7 +807,7 @@
 
         } else {
             // Luft: Schwerkraft (Boost = 15% weniger Gravität + 15% mehr Horizontalgeschwindigkeit)
-            vy += GRAVITY * (boostActive ? 0.93 : 1.0) * dt;
+            vy += GRAVITY * dt;
 
             // Rotation nur wenn minimal in der Luft (mind. 30px über Terrain)
             const terrYBelow = terrainYAt(px);
@@ -758,15 +823,17 @@
             if (fullFlips > prevFullFlips) {
                 const n = fullFlips - prevFullFlips;
                 flips += n;
-                score += n * FLIP_PTS;
                 playFlipSound();
-                popups.push({ x: px, y: py - 50, text: `FLIP! +${n * FLIP_PTS}`, life: 1.4, maxLife: 1.4 });
+                flipsUntilBoost -= n;
+                while (flipsUntilBoost <= 0) {
+                    boostCharges++;
+                    flipsUntilBoost += FLIPS_PER_BOOST;
+                    popups.push({ x: px, y: py - 70, text: 'BOOST VERDIENT!', life: 1.4, maxLife: 1.4, color: '#ffcc44' });
+                }
+                popups.push({ x: px, y: py - 50, text: `FLIP! (${flipsUntilBoost} bis Boost)`, life: 1.4, maxLife: 1.4 });
                 updateHUD();
             }
         }
-
-        // Landing flash timer
-        if (landingFlash > 0) landingFlash = Math.max(0, landingFlash - dt * 3.5);
 
         // Boost timer
         if (boostActive) {
@@ -783,9 +850,7 @@
         py    += vy    * dt;
         angle += angVel * dt;
 
-        // Score = distance (in pixels / 10 for clean numbers) + flip bonus
-        const distScore = Math.floor(px / 10);
-        score = distScore + flips * FLIP_PTS;
+        score = flips;
         updateHUD();
 
         // Camera follows player
@@ -849,22 +914,6 @@
         } catch(e) {}
     }
 
-    function playLandingSound() {
-        try {
-            const ac = new (window.AudioContext || window.webkitAudioContext)();
-            // kurzer dumpfer Aufprall + heller Ding
-            [[120, 0, 'sine', 0.18, 0.12], [660, 0.04, 'sine', 0.14, 0.18], [1100, 0.07, 'sine', 0.08, 0.14]]
-                .forEach(([freq, t, type, vol, dur]) => {
-                    const osc = ac.createOscillator(), g = ac.createGain();
-                    osc.connect(g); g.connect(ac.destination);
-                    osc.frequency.value = freq; osc.type = type;
-                    g.gain.setValueAtTime(vol, ac.currentTime + t);
-                    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + dur);
-                    osc.start(ac.currentTime + t);
-                    osc.stop(ac.currentTime + t + dur + 0.01);
-                });
-        } catch(e) {}
-    }
 
     // ── Engine / Roll Sound ────────────────────────────────────────
     let engAC = null, engOsc = null, engGain = null;
@@ -911,8 +960,13 @@
     }
 
     function updateHUD() {
-        document.getElementById('hud-score').textContent = score;
-        document.getElementById('hud-flips').textContent = flips;
+        document.getElementById('hud-score').textContent = flips;
+        const progressPct = Math.floor(((FLIPS_PER_BOOST - flipsUntilBoost) / FLIPS_PER_BOOST) * 100);
+        document.getElementById('hud-xp-bar').style.width = progressPct + '%';
+        document.getElementById('hud-boost-charges').textContent = boostCharges > 0 ? '⚡'.repeat(boostCharges) : '';
+        const label = document.getElementById('hud-boost-label');
+        label.style.color = boostCharges > 0 ? '#ffcc44' : 'rgba(255,204,68,0.35)';
+        label.style.textShadow = boostCharges > 0 ? '0 0 8px rgba(255,204,68,0.8)' : 'none';
     }
 
     // ── Rendering ──────────────────────────────────────────────────
@@ -1000,6 +1054,24 @@
             else        ctx.lineTo(sx, sy);
         }
         ctx.stroke();
+
+        // Red glow on pit edges (segments that drop far below screen)
+        for (let i = startIdx; i < endIdx; i++) {
+            const a = terrain[i], b = terrain[i + 1];
+            if (!a || !b) continue;
+            if (a.y > H + 50 || b.y > H + 50) {
+                ctx.save();
+                ctx.strokeStyle = '#ff3333';
+                ctx.shadowColor = '#ff0000';
+                ctx.shadowBlur  = 18;
+                ctx.lineWidth   = 2;
+                ctx.beginPath();
+                ctx.moveTo(a.x - camX, Math.min(a.y, H));
+                ctx.lineTo(b.x - camX, Math.min(b.y, H));
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
 
         ctx.shadowBlur = 0;
 
@@ -1119,19 +1191,6 @@
             ctx.restore();
         });
 
-        // Landing flash ring
-        if (landingFlash > 0) {
-            const r   = 28 + (1 - landingFlash) * 22;
-            const alpha = landingFlash * 0.85;
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = `rgba(100,255,220,${alpha})`;
-            ctx.lineWidth   = 2.5 * landingFlash;
-            ctx.shadowColor = '#00ffcc';
-            ctx.shadowBlur  = 18 * landingFlash;
-            ctx.beginPath();
-            ctx.arc(0, -4, r, 0, Math.PI * 2);
-            ctx.stroke();
-        }
 
         ctx.restore();
     }
@@ -1160,8 +1219,9 @@
             ctx.globalAlpha = alpha;
             ctx.font = 'bold 18px "Segoe UI", system-ui, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillStyle = '#00ffaa';
-            ctx.shadowColor = '#00ffaa';
+            const col = p.color || '#00ffaa';
+            ctx.fillStyle = col;
+            ctx.shadowColor = col;
             ctx.shadowBlur  = 12;
             ctx.fillText(p.text, sx, sy);
             ctx.restore();
