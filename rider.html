@@ -183,11 +183,16 @@
             25%     { transform: translateX(-7px); }
             75%     { transform: translateX(7px); }
         }
+        .modal-buttons {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+            margin-top: 4px;
+        }
         .modal-box button {
-            background: linear-gradient(135deg, #ff4444, #cc2222);
             color: white;
             border: none;
-            padding: 13px 45px;
+            padding: 13px 30px;
             font-size: 0.9rem;
             border-radius: 8px;
             cursor: pointer;
@@ -195,12 +200,24 @@
             letter-spacing: 2px;
             font-weight: 600;
             transition: all 0.2s;
-            box-shadow: 0 4px 18px rgba(255,68,68,0.35);
             font-family: inherit;
         }
-        .modal-box button:hover {
-            background: linear-gradient(135deg, #ff6666, #ff4444);
+        .btn-primary {
+            background: linear-gradient(135deg, #ff4444, #cc2222);
+            box-shadow: 0 4px 18px rgba(255,68,68,0.35);
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #ff6666, #ff4444) !important;
             box-shadow: 0 6px 28px rgba(255,68,68,0.55);
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.18) !important;
+            box-shadow: none !important;
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.15) !important;
             transform: translateY(-2px);
         }
         .modal-box button:active { transform: translateY(0); }
@@ -234,7 +251,7 @@
         <h1>RIDER</h1>
         <p class="modal-subtitle">Gib deinen Namen ein</p>
         <input type="text" id="name-input" placeholder="Dein Name..." maxlength="20" autocomplete="off" spellcheck="false">
-        <button id="name-submit">Spielen</button>
+        <button id="name-submit" class="btn-primary">Spielen</button>
     </div>
 </div>
 
@@ -243,7 +260,10 @@
     <div class="modal-box">
         <h1>Crash!</h1>
         <p class="final-score">Deine Punkte<span id="final-score-display">0</span></p>
-        <button onclick="location.href='/'">Zurück</button>
+        <div class="modal-buttons">
+            <button class="btn-secondary" onclick="location.href='/'">Zurück</button>
+            <button class="btn-primary" id="restart-btn">Nochmal</button>
+        </div>
     </div>
 </div>
 
@@ -344,13 +364,13 @@
             const diff = Math.min(seg / 50, 1);
             const r    = Math.random();
 
-            if (r < 0.15) {
+            if (r < 0.14) {
                 // ── Flat ──────────────────────────────────────────
                 const w = 180 + Math.random() * 220;
                 pt(x, y); pt(x + w, y);
                 x += w;
 
-            } else if (r < 0.30) {
+            } else if (r < 0.27) {
                 // ── Sanfte Wellen (2–4 Hügel) ─────────────────────
                 const count = 2 + Math.floor(Math.random() * 3);
                 for (let i = 0; i < count; i++) {
@@ -364,7 +384,7 @@
                     x += w;
                 }
 
-            } else if (r < 0.44) {
+            } else if (r < 0.40) {
                 // ── Kicker-Rampen mit Abstand ──────────────────────
                 const count = 1 + Math.floor(Math.random() * 3 * diff + 1);
                 for (let i = 0; i < count; i++) {
@@ -379,7 +399,7 @@
                     x += gap + rampW + landW;
                 }
 
-            } else if (r < 0.56) {
+            } else if (r < 0.52) {
                 // ── Spitze Dreiecks-Gipfel ─────────────────────────
                 const count = 1 + Math.floor(Math.random() * 2);
                 for (let i = 0; i < count; i++) {
@@ -391,7 +411,7 @@
                     x += bw + 60;
                 }
 
-            } else if (r < 0.63) {
+            } else if (r < 0.59) {
                 // ── Zacken / Zähne ────────────────────────────────
                 const count = 3 + Math.floor(Math.random() * 5);
                 for (let i = 0; i < count; i++) {
@@ -403,7 +423,7 @@
                     x += tw;
                 }
 
-            } else if (r < 0.70) {
+            } else if (r < 0.65) {
                 // ── Tal (V / U Form) ──────────────────────────────
                 const w = 180 + Math.random() * 200;
                 const d = 60  + Math.random() * 100 * diff;
@@ -414,7 +434,7 @@
                 pt(x + w,        y);
                 x += w;
 
-            } else if (r < 0.76) {
+            } else if (r < 0.70) {
                 // ── Plateau (erhöhter flacher Abschnitt) ──────────
                 const upW   = 60  + Math.random() * 60;
                 const flatW = 120 + Math.random() * 160;
@@ -426,7 +446,7 @@
                 pt(x + upW + flatW + downW, y);
                 x += upW + flatW + downW;
 
-            } else if (r < 0.83) {
+            } else if (r < 0.76) {
                 // ── Runde Schanze (Sinus-Kurve) ───────────────────
                 const count = 1 + Math.floor(Math.random() * 2);
                 for (let i = 0; i < count; i++) {
@@ -445,7 +465,7 @@
                     x += gap + w;
                 }
 
-            } else if (r < 0.88) {
+            } else if (r < 0.81) {
                 // ── Viertelkreis-Schanze ───────────────────────────
                 const R    = 70 + Math.random() * 90 * diff;
                 const gap  = 80 + Math.random() * 100;
@@ -463,6 +483,24 @@
                 pt(x + gap + R + 20, y - R);
                 pt(x + gap + R + 100, y);
                 x += gap + R + 100;
+
+            } else if (r < 0.87) {
+                // ── Kreissenke (runde Mulde nach unten) ───────────
+                const count = 1 + Math.floor(Math.random() * 2);
+                for (let i = 0; i < count; i++) {
+                    const R    = 40 + Math.random() * 50;
+                    const gap  = 50 + Math.random() * 80;
+                    const lcx  = x + gap + R;
+                    const lcy  = y;
+                    const steps = 12;
+                    pt(x, y);
+                    pt(x + gap, y);
+                    for (let s = 0; s <= steps; s++) {
+                        const theta = Math.PI * (1 - s / steps); // 180° → 0° (durch Tiefpunkt bei 90°)
+                        pt(lcx + R * Math.cos(theta), lcy + R * Math.sin(theta));
+                    }
+                    x += gap + 2 * R;
+                }
 
             } else {
                 // ── Looping (Halbkreis-Bogen, unten offen) ────────
@@ -670,8 +708,8 @@
             // Flip zählen
             const prevFlipAccum = flipAccum;
             flipAccum += angVel * dt;
-            const fullFlips     = Math.floor(Math.abs(flipAccum)     / (Math.PI * 2));
-            const prevFullFlips = Math.floor(Math.abs(prevFlipAccum) / (Math.PI * 2));
+            const fullFlips     = Math.floor(Math.abs(flipAccum)     / Math.PI);
+            const prevFullFlips = Math.floor(Math.abs(prevFlipAccum) / Math.PI);
             if (fullFlips > prevFullFlips) {
                 const n = fullFlips - prevFullFlips;
                 flips += n;
@@ -880,60 +918,101 @@
     }
 
     function drawVehicle() {
-        const sx = px - camX;
-        const sy = py;
+        const sx   = px - camX;
+        const sy   = py;
+        const vr   = 8;    // wy+vr = WHEEL_R=10
+        const wy   = 2;    // wheel center y
+        const tx1  = -13;  // rear truck x
+        const tx2  =  13;  // front truck x
+        const wrot = -px / WHEEL_R;
+        const C    = '#00f0ff';
+        const CG   = '#00f0ff';
 
         ctx.save();
         ctx.translate(sx, sy);
         ctx.rotate(angle);
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
-        // Red glow
-        ctx.shadowColor = '#ff3333';
-        ctx.shadowBlur  = 22;
+        // deck shape with nose/tail kick
+        const dL  = 21;
+        const k   = 2;
+        const kx  = dL * 0.58;
+        const bot = -4;   // side face bottom y
+        const top = -8;   // side face top y  (4px board thickness in side view)
+        const far = -11;  // far edge y for top surface (3px 3D depth)
 
-        // Body — red rounded rectangle
-        const bw = 44, bh = 18;
+        // side face
+        ctx.shadowColor = CG; ctx.shadowBlur = 10;
         ctx.beginPath();
-        roundRect(ctx, -bw/2, -bh/2 - 2, bw, bh, 5);
-        ctx.fillStyle = '#cc2222';
-        ctx.fill();
+        ctx.moveTo(-dL, bot-k); ctx.lineTo(-kx, bot); ctx.lineTo(kx, bot); ctx.lineTo(dL, bot-k);
+        ctx.lineTo(dL, top-k);  ctx.lineTo(kx, top);  ctx.lineTo(-kx, top); ctx.lineTo(-dL, top-k);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0,35,50,0.95)'; ctx.fill();
+        ctx.strokeStyle = C; ctx.lineWidth = 1.5; ctx.stroke();
 
-        // Bright top stripe
+        // top surface (3px depth → minimal 3D)
+        ctx.shadowColor = CG; ctx.shadowBlur = 14;
         ctx.beginPath();
-        roundRect(ctx, -bw/2 + 4, -bh/2 - 2, bw - 8, 5, 3);
-        ctx.fillStyle = '#ff4444';
-        ctx.fill();
+        ctx.moveTo(-dL,   top-k); ctx.lineTo(-kx,   top); ctx.lineTo(kx,   top); ctx.lineTo(dL,   top-k);
+        ctx.lineTo(dL-1,  far-k); ctx.lineTo(kx-1,  far); ctx.lineTo(-kx+1, far); ctx.lineTo(-dL+1, far-k);
+        ctx.closePath();
+        const tg = ctx.createLinearGradient(0, far, 0, top);
+        tg.addColorStop(0, 'rgba(0,240,255,0.30)'); tg.addColorStop(1, 'rgba(0,80,105,0.12)');
+        ctx.fillStyle = tg; ctx.fill();
+        ctx.strokeStyle = C; ctx.lineWidth = 1.2; ctx.stroke();
 
-        ctx.shadowBlur = 0;
+        // gloss line
+        ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(150,255,255,0.45)'; ctx.lineWidth = 0.9;
+        ctx.beginPath();
+        ctx.moveTo(-kx+5, (top+far)/2 - 0.5); ctx.lineTo(kx-5, (top+far)/2 - 0.5);
+        ctx.stroke();
 
-        // Wheels
-        const wheelPositions = [
-            { x: -AXLE_DIST, y: bh/2 - 2 },
-            { x:  AXLE_DIST, y: bh/2 - 2 }
-        ];
+        // trucks
+        ctx.shadowColor = '#446677'; ctx.shadowBlur = 4;
+        ctx.strokeStyle = '#336677'; ctx.lineWidth = 2.5;
+        [tx1, tx2].forEach(tx => {
+            ctx.beginPath(); ctx.moveTo(tx-5, bot); ctx.lineTo(tx+5, bot); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(tx, bot); ctx.lineTo(tx, wy); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(tx-5, wy); ctx.lineTo(tx+5, wy); ctx.stroke();
+        });
 
-        for (const wp of wheelPositions) {
-            // Outer tyre
-            ctx.beginPath();
-            ctx.arc(wp.x, wp.y, WHEEL_R, 0, Math.PI * 2);
-            ctx.fillStyle = '#3a0808';
-            ctx.fill();
-            ctx.strokeStyle = '#661111';
-            ctx.lineWidth = 2;
-            ctx.stroke();
+        // far wheels (behind, subtle ovals)
+        [tx1, tx2].forEach(tx => {
+            ctx.save();
+            ctx.translate(tx, wy-5); ctx.scale(1, 0.38);
+            ctx.beginPath(); ctx.arc(0, 0, vr-1, 0, Math.PI*2);
+            ctx.fillStyle = '#000608'; ctx.fill();
+            ctx.shadowColor = CG; ctx.shadowBlur = 5;
+            ctx.strokeStyle = 'rgba(0,240,255,0.45)'; ctx.lineWidth = 1.3; ctx.stroke();
+            ctx.restore();
+        });
 
-            // Hub
-            ctx.beginPath();
-            ctx.arc(wp.x, wp.y, WHEEL_R * 0.4, 0, Math.PI * 2);
-            ctx.fillStyle = '#aa2222';
-            ctx.fill();
-
-            // Hub dot
-            ctx.beginPath();
-            ctx.arc(wp.x, wp.y, WHEEL_R * 0.15, 0, Math.PI * 2);
-            ctx.fillStyle = '#ff6666';
-            ctx.fill();
-        }
+        // near wheels
+        [tx1, tx2].forEach(tx => {
+            ctx.save(); ctx.translate(tx, wy);
+            const rg = ctx.createRadialGradient(-vr*.28,-vr*.3,0,0,0,vr);
+            rg.addColorStop(0,'#0e2830'); rg.addColorStop(0.6,'#020c10'); rg.addColorStop(1,'#000103');
+            ctx.beginPath(); ctx.arc(0,0,vr,0,Math.PI*2);
+            ctx.fillStyle = rg; ctx.fill();
+            ctx.shadowColor = CG; ctx.shadowBlur = 14;
+            ctx.strokeStyle = C; ctx.lineWidth = 2; ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(0,170,200,0.3)'; ctx.lineWidth = 0.8;
+            ctx.beginPath(); ctx.arc(0,0,vr-3,0,Math.PI*2); ctx.stroke();
+            ctx.strokeStyle = 'rgba(0,150,180,0.45)'; ctx.lineWidth = 1.1;
+            for (let i=0;i<3;i++) {
+                const a = wrot + i*Math.PI*2/3;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(a)*(vr-2), Math.sin(a)*(vr-2));
+                ctx.lineTo(-Math.cos(a)*(vr-2),-Math.sin(a)*(vr-2));
+                ctx.stroke();
+            }
+            const hg = ctx.createRadialGradient(-0.8,-0.8,0,0,0,2.5);
+            hg.addColorStop(0,'#aaffff'); hg.addColorStop(1,'#007a88');
+            ctx.beginPath(); ctx.arc(0,0,2.5,0,Math.PI*2);
+            ctx.fillStyle = hg; ctx.shadowColor = '#fff'; ctx.shadowBlur = 10; ctx.fill();
+            ctx.restore();
+        });
 
         ctx.restore();
     }
@@ -990,6 +1069,11 @@
     nameSubmit.addEventListener('click', submitName);
     nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitName(); });
     nameInput.focus();
+
+    document.getElementById('restart-btn').addEventListener('click', () => {
+        document.getElementById('game-over-modal').classList.remove('show');
+        initGame();
+    });
 
     // ── Start loop ─────────────────────────────────────────────────
     requestAnimationFrame(gameLoop);
