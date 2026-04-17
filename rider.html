@@ -282,7 +282,7 @@
     "use strict";
 
     // ── Physics Constants ──────────────────────────────────────────
-    const GRAVITY     = 950;
+    const GRAVITY     = 600;
     const THRUST      = 400;
     const MAX_VX      = 650;
     const FLIP_SPEED  = Math.PI * 2.4; // ~1.2 flips/s
@@ -311,6 +311,7 @@
     let px, py;          // position of vehicle center
     let onGround;
     let wasOnGround;
+    let airFrames;       // frames seit dem Abheben
     let score, flips;
     let flipAccum;       // accumulated rotation for counting flips
     let holding;
@@ -343,13 +344,13 @@
             const diff = Math.min(seg / 50, 1);
             const r    = Math.random();
 
-            if (r < 0.20) {
+            if (r < 0.15) {
                 // ── Flat ──────────────────────────────────────────
                 const w = 180 + Math.random() * 220;
                 pt(x, y); pt(x + w, y);
                 x += w;
 
-            } else if (r < 0.42) {
+            } else if (r < 0.30) {
                 // ── Sanfte Wellen (2–4 Hügel) ─────────────────────
                 const count = 2 + Math.floor(Math.random() * 3);
                 for (let i = 0; i < count; i++) {
@@ -363,7 +364,7 @@
                     x += w;
                 }
 
-            } else if (r < 0.62) {
+            } else if (r < 0.44) {
                 // ── Kicker-Rampen mit Abstand ──────────────────────
                 const count = 1 + Math.floor(Math.random() * 3 * diff + 1);
                 for (let i = 0; i < count; i++) {
@@ -374,12 +375,11 @@
                     pt(x,                    y);
                     pt(x + gap,              y);
                     pt(x + gap + rampW,      y - rampH);
-                    pt(x + gap + rampW + landW, y - rampH + 15);
+                    pt(x + gap + rampW + landW, y);
                     x += gap + rampW + landW;
-                    y = Math.max(minY, Math.min(maxY, y - rampH + 15));
                 }
 
-            } else if (r < 0.78) {
+            } else if (r < 0.56) {
                 // ── Spitze Dreiecks-Gipfel ─────────────────────────
                 const count = 1 + Math.floor(Math.random() * 2);
                 for (let i = 0; i < count; i++) {
@@ -391,7 +391,7 @@
                     x += bw + 60;
                 }
 
-            } else if (r < 0.87) {
+            } else if (r < 0.63) {
                 // ── Zacken / Zähne ────────────────────────────────
                 const count = 3 + Math.floor(Math.random() * 5);
                 for (let i = 0; i < count; i++) {
@@ -403,7 +403,7 @@
                     x += tw;
                 }
 
-            } else if (r < 0.94) {
+            } else if (r < 0.70) {
                 // ── Tal (V / U Form) ──────────────────────────────
                 const w = 180 + Math.random() * 200;
                 const d = 60  + Math.random() * 100 * diff;
@@ -414,7 +414,7 @@
                 pt(x + w,        y);
                 x += w;
 
-            } else {
+            } else if (r < 0.76) {
                 // ── Plateau (erhöhter flacher Abschnitt) ──────────
                 const upW   = 60  + Math.random() * 60;
                 const flatW = 120 + Math.random() * 160;
@@ -425,6 +425,60 @@
                 pt(x + upW + flatW,         y - h);
                 pt(x + upW + flatW + downW, y);
                 x += upW + flatW + downW;
+
+            } else if (r < 0.83) {
+                // ── Runde Schanze (Sinus-Kurve) ───────────────────
+                const count = 1 + Math.floor(Math.random() * 2);
+                for (let i = 0; i < count; i++) {
+                    const gap  = 80  + Math.random() * 120;
+                    const w    = 140 + Math.random() * 140;
+                    const h    = 55  + Math.random() * 100 * diff;
+                    const steps = 10;
+                    pt(x, y);
+                    pt(x + gap, y);
+                    for (let s = 0; s <= steps; s++) {
+                        const t  = s / steps;
+                        const cx = x + gap + t * w;
+                        const cy = y - Math.sin(t * Math.PI) * h;
+                        pt(cx, cy);
+                    }
+                    x += gap + w;
+                }
+
+            } else if (r < 0.88) {
+                // ── Viertelkreis-Schanze ───────────────────────────
+                const R    = 70 + Math.random() * 90 * diff;
+                const gap  = 80 + Math.random() * 100;
+                const steps = 9;
+                // Center of arc directly above ramp base
+                const cx   = x + gap;
+                const cy   = y - R;
+                pt(x, y);
+                pt(x + gap, y);
+                for (let s = 0; s <= steps; s++) {
+                    const theta = Math.PI / 2 * (1 - s / steps); // 90° → 0°
+                    pt(cx + R * Math.cos(theta), cy + R * Math.sin(theta));
+                }
+                // Ramp lip at (x+gap+R, y-R) → short descent back to ground
+                pt(x + gap + R + 20, y - R);
+                pt(x + gap + R + 100, y);
+                x += gap + R + 100;
+
+            } else {
+                // ── Looping (Halbkreis-Bogen, unten offen) ────────
+                const R     = 55 + Math.random() * 50 * (0.5 + diff);
+                const gap   = 80 + Math.random() * 100;
+                const lcx   = x + gap + R;
+                const lcy   = y;
+                const steps = 18;
+                pt(x, y);
+                pt(x + gap, y);
+                for (let s = 0; s <= steps; s++) {
+                    const theta = Math.PI + Math.PI * (s / steps); // 180° → 360°
+                    pt(lcx + R * Math.cos(theta), lcy + R * Math.sin(theta));
+                }
+                pt(x + gap + 2 * R + 80, y);
+                x += gap + 2 * R + 80;
             }
 
             y = Math.max(minY, Math.min(maxY, y));
@@ -472,7 +526,8 @@
         vy       = 0;
         angle    = 0;
         angVel   = 0;
-        onGround = false;
+        onGround  = false;
+        airFrames = 0;
         score    = 0;
         flips    = 0;
         flipAccum = 0;
@@ -561,16 +616,21 @@
             }
         }
 
+        if (!onGround) {
+            airFrames++;
+        }
+
         if (onGround) {
             const terrAngle = terrainAngleAt(px);
 
-            // Crash nur beim Aufkommen
-            if (!wasOnGround) {
+            // Crash nur beim Aufkommen — und nur wenn mind. 10 Frames in der Luft waren
+            if (!wasOnGround && airFrames >= 10) {
                 let diff = Math.abs(normalizeAngle(angle - terrAngle));
                 if (diff > Math.PI) diff = Math.PI * 2 - diff;
                 if (diff > CRASH_ANGLE && Math.abs(vx) > 40) { triggerCrash(); return; }
-                flipAccum = 0;
             }
+            flipAccum = 0;
+            airFrames = 0;
 
             // Position auf Terrain setzen
             if (rOnGround && fOnGround) {
@@ -585,10 +645,10 @@
             angle  = terrAngle;
             angVel = 0;
 
-            // Sprung nur bei Bergauf-Rampe (terrAngle < 0) UND genug Geschwindigkeit
-            const isRampUp   = terrAngle < -0.45;  // ~26° bergauf
-            const fastEnough = vx > 250;
-            vy = (isRampUp && fastEnough) ? vx * Math.sin(terrAngle) : 0;
+            // Sprung ab ~9° bergauf UND genug Geschwindigkeit
+            const isRampUp   = terrAngle < -0.15;  // ~9° bergauf
+            const fastEnough = vx > 180;
+            vy = (isRampUp && fastEnough) ? Math.min(vx * Math.sin(terrAngle), -130) : 0;
 
             // Gas / Bremse
             if (holding) {
@@ -602,8 +662,10 @@
             // Luft: Schwerkraft
             vy += GRAVITY * dt;
 
-            // Rotation nur bei Gas — konstante 2.5 Flips/s
-            angVel = holding ? -FLIP_SPEED : 0;
+            // Rotation nur wenn minimal in der Luft (mind. 30px über Terrain)
+            const terrYBelow = terrainYAt(px);
+            const airHeight = terrYBelow - (py + WHEEL_R);
+            angVel = (holding && airHeight > 30) ? -FLIP_SPEED : 0;
 
             // Flip zählen
             const prevFlipAccum = flipAccum;
