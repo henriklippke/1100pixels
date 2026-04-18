@@ -374,6 +374,7 @@
     let onGround;
     let wasOnGround;
     let boostActive, boostTimer, wheelieTilt;
+    let activeLoopIdx, loopAngle, loopSpeed, loopCooldown;
     let boostCharges, flipsUntilBoost;
     let lastSpaceRelease = 0;
     let lastTouchRelease = 0;
@@ -387,9 +388,11 @@
 
     // ── Terrain Generation ─────────────────────────────────────────
     let terrain = [];   // array of {x, y}, variable spacing
+    let loops   = [];   // array of {cx, cy, R} — separate circular track objects
 
     function generateTerrain() {
         terrain = [];
+        loops   = [];
         const H    = canvas.height;
         const minY = H * 0.18;
         const maxY = H * 0.82;
@@ -410,19 +413,36 @@
             const diff = Math.min(seg / 50, 1);
             const r    = Math.random();
 
-            if (r < 0.14) {
+            if (r < 0.08) {
                 // ── Flat ──────────────────────────────────────────
                 const w = 180 + Math.random() * 220;
                 pt(x, y); pt(x + w, y);
                 x += w;
 
-            } else if (r < 0.27) {
+            } else if (r < 0.14) {
+                // ── Lange Auffahrt (langer diagonaler Anstieg) ────
+                // Sanft ansteigend → langer flacher Gipfel → Abstieg
+                const riseW  = 200 + Math.random() * 180;
+                const flatW  = 80  + Math.random() * 120;
+                const fallW  = 80  + Math.random() * 100;
+                const h      = 80  + Math.random() * 100 * diff;
+                const steps  = 8;
+                pt(x, y);
+                for (let s = 1; s <= steps; s++) {
+                    const t = s / steps;
+                    pt(x + t * riseW, y - Math.sin(t * Math.PI * 0.5) * h);
+                }
+                pt(x + riseW + flatW, y - h);
+                pt(x + riseW + flatW + fallW, y);
+                x += riseW + flatW + fallW;
+
+            } else if (r < 0.22) {
                 // ── Sanfte Wellen (2–4 Hügel) ─────────────────────
                 const count = 2 + Math.floor(Math.random() * 3);
                 for (let i = 0; i < count; i++) {
                     const w = 160 + Math.random() * 180;
                     const h = 25 + Math.random() * 65 * diff;
-                    pt(x,           y);
+                    pt(x,            y);
                     pt(x + w * 0.25, y - h * 0.6);
                     pt(x + w * 0.5,  y - h);
                     pt(x + w * 0.75, y - h * 0.6);
@@ -430,22 +450,22 @@
                     x += w;
                 }
 
-            } else if (r < 0.40) {
+            } else if (r < 0.31) {
                 // ── Kicker-Rampen mit Abstand ──────────────────────
                 const count = 1 + Math.floor(Math.random() * 3 * diff + 1);
                 for (let i = 0; i < count; i++) {
-                    const gap    = 100 + Math.random() * 140;
-                    const rampW  = 55  + Math.random() * 55;
-                    const rampH  = 70  + Math.random() * 110 * diff;
-                    const landW  = 80  + Math.random() * 80;
-                    pt(x,                    y);
-                    pt(x + gap,              y);
-                    pt(x + gap + rampW,      y - rampH);
+                    const gap   = 100 + Math.random() * 140;
+                    const rampW = 55  + Math.random() * 55;
+                    const rampH = 70  + Math.random() * 110 * diff;
+                    const landW = 80  + Math.random() * 80;
+                    pt(x,                       y);
+                    pt(x + gap,                 y);
+                    pt(x + gap + rampW,         y - rampH);
                     pt(x + gap + rampW + landW, y);
                     x += gap + rampW + landW;
                 }
 
-            } else if (r < 0.52) {
+            } else if (r < 0.40) {
                 // ── Spitze Dreiecks-Gipfel ─────────────────────────
                 const count = 1 + Math.floor(Math.random() * 2);
                 for (let i = 0; i < count; i++) {
@@ -457,7 +477,7 @@
                     x += bw + 60;
                 }
 
-            } else if (r < 0.59) {
+            } else if (r < 0.46) {
                 // ── Zacken / Zähne ────────────────────────────────
                 const count = 3 + Math.floor(Math.random() * 5);
                 for (let i = 0; i < count; i++) {
@@ -469,18 +489,18 @@
                     x += tw;
                 }
 
-            } else if (r < 0.65) {
+            } else if (r < 0.51) {
                 // ── Tal (V / U Form) ──────────────────────────────
                 const w = 180 + Math.random() * 200;
                 const d = 60  + Math.random() * 100 * diff;
-                pt(x,            y);
-                pt(x + w * 0.3,  y + d * 0.7);
-                pt(x + w * 0.5,  y + d);
-                pt(x + w * 0.7,  y + d * 0.7);
-                pt(x + w,        y);
+                pt(x,           y);
+                pt(x + w * 0.3, y + d * 0.7);
+                pt(x + w * 0.5, y + d);
+                pt(x + w * 0.7, y + d * 0.7);
+                pt(x + w,       y);
                 x += w;
 
-            } else if (r < 0.70) {
+            } else if (r < 0.56) {
                 // ── Plateau (erhöhter flacher Abschnitt) ──────────
                 const upW   = 60  + Math.random() * 60;
                 const flatW = 120 + Math.random() * 160;
@@ -492,77 +512,193 @@
                 pt(x + upW + flatW + downW, y);
                 x += upW + flatW + downW;
 
-            } else if (r < 0.76) {
+            } else if (r < 0.62) {
                 // ── Runde Schanze (Sinus-Kurve) ───────────────────
                 const count = 1 + Math.floor(Math.random() * 2);
                 for (let i = 0; i < count; i++) {
-                    const gap  = 80  + Math.random() * 120;
-                    const w    = 140 + Math.random() * 140;
-                    const h    = 55  + Math.random() * 100 * diff;
+                    const gap   = 80  + Math.random() * 120;
+                    const w     = 140 + Math.random() * 140;
+                    const h     = 55  + Math.random() * 100 * diff;
                     const steps = 10;
                     pt(x, y);
                     pt(x + gap, y);
                     for (let s = 0; s <= steps; s++) {
-                        const t  = s / steps;
-                        const cx = x + gap + t * w;
-                        const cy = y - Math.sin(t * Math.PI) * h;
-                        pt(cx, cy);
+                        const t = s / steps;
+                        pt(x + gap + t * w, y - Math.sin(t * Math.PI) * h);
                     }
                     x += gap + w;
                 }
 
-            } else if (r < 0.81) {
+            } else if (r < 0.67) {
                 // ── Viertelkreis-Schanze ───────────────────────────
-                const R    = 70 + Math.random() * 90 * diff;
-                const gap  = 80 + Math.random() * 100;
+                const R     = 70 + Math.random() * 90 * diff;
+                const gap   = 80 + Math.random() * 100;
                 const steps = 9;
-                // Center of arc directly above ramp base
-                const cx   = x + gap;
-                const cy   = y - R;
+                const cx    = x + gap;
+                const cy    = y - R;
                 pt(x, y);
                 pt(x + gap, y);
                 for (let s = 0; s <= steps; s++) {
-                    const theta = Math.PI / 2 * (1 - s / steps); // 90° → 0°
+                    const theta = Math.PI / 2 * (1 - s / steps);
                     pt(cx + R * Math.cos(theta), cy + R * Math.sin(theta));
                 }
-                // Ramp lip at (x+gap+R, y-R) → short descent back to ground
-                pt(x + gap + R + 20, y - R);
+                pt(x + gap + R + 20,  y - R);
                 pt(x + gap + R + 100, y);
                 x += gap + R + 100;
 
-            } else if (r < 0.87) {
+            } else if (r < 0.72) {
                 // ── Kreissenke (runde Mulde nach unten) ───────────
                 const count = 1 + Math.floor(Math.random() * 2);
                 for (let i = 0; i < count; i++) {
-                    const R    = 40 + Math.random() * 50;
-                    const gap  = 50 + Math.random() * 80;
-                    const lcx  = x + gap + R;
-                    const lcy  = y;
+                    const R     = 40 + Math.random() * 50;
+                    const gap   = 50 + Math.random() * 80;
+                    const lcx   = x + gap + R;
+                    const lcy   = y;
                     const steps = 12;
                     pt(x, y);
                     pt(x + gap, y);
                     for (let s = 0; s <= steps; s++) {
-                        const theta = Math.PI * (1 - s / steps); // 180° → 0° (durch Tiefpunkt bei 90°)
+                        const theta = Math.PI * (1 - s / steps);
                         pt(lcx + R * Math.cos(theta), lcy + R * Math.sin(theta));
                     }
                     x += gap + 2 * R;
                 }
 
-            } else if (r < 0.95) {
-                // ── Looping (Halbkreis-Bogen, unten offen) ────────
-                const R     = 55 + Math.random() * 50 * (0.5 + diff);
-                const gap   = 80 + Math.random() * 100;
-                const lcx   = x + gap + R;
-                const lcy   = y;
-                const steps = 18;
+            } else if (r < 0.78) {
+                // ── Looping (durchfahrbar) ─────────────────────────
+                const R        = 150 + Math.random() * 80 * (0.5 + diff);
+                const approach = 80 + Math.random() * 100;
+                const cx       = x + approach + R;
+                const cy       = y - R;
+                const halfGap  = 0.3 + Math.random() * 0.1;
+                loops.push({ cx, cy, R, halfGap, gaps: [] });
                 pt(x, y);
-                pt(x + gap, y);
-                for (let s = 0; s <= steps; s++) {
-                    const theta = Math.PI + Math.PI * (s / steps); // 180° → 360°
-                    pt(lcx + R * Math.cos(theta), lcy + R * Math.sin(theta));
+                pt(cx + R + 80, y);
+                x = cx + R + 80;
+
+            } else if (r < 0.84) {
+                // ── Mogul-Strecke (schnelle runde Buckel) ─────────
+                const count = 5 + Math.floor(Math.random() * 7);
+                for (let i = 0; i < count; i++) {
+                    const w     = 40 + Math.random() * 45;
+                    const h     = 18 + Math.random() * 32 * (0.4 + diff * 0.6);
+                    const steps = 6;
+                    for (let s = 0; s <= steps; s++) {
+                        const t = s / steps;
+                        pt(x + t * w, y - Math.sin(t * Math.PI) * h);
+                    }
+                    x += w;
                 }
-                pt(x + gap + 2 * R + 80, y);
-                x += gap + 2 * R + 80;
+
+            } else if (r < 0.89) {
+                // ── S-Kurven-Schanze (Curl / Haken oben) ──────────
+                // Anlauf → steile Rampe hoch → konkave Haken-Kurve → Abstieg
+                const gap   = 80  + Math.random() * 80;
+                const rampW = 55  + Math.random() * 45;
+                const rampH = 85  + Math.random() * 70 * diff;
+                const dipR  = 35  + Math.random() * 30;
+                const steps = 10;
+                pt(x, y);
+                pt(x + gap,         y);
+                pt(x + gap + rampW, y - rampH);   // Rampenspitze
+                // konkaver Haken an der Spitze (Viertelkreis-Kurve nach vorne-unten)
+                const hx = x + gap + rampW + dipR;
+                const hy = y - rampH;
+                for (let s = 0; s <= steps; s++) {
+                    const theta = Math.PI - (s / steps) * (Math.PI / 2); // 180°→90°
+                    pt(hx + dipR * Math.cos(theta), hy + dipR * Math.sin(theta));
+                }
+                pt(x + gap + rampW + dipR + 90, y);
+                x += gap + rampW + dipR + 90;
+
+            } else if (r < 0.94) {
+                // ── Steile Zickzack-Rampen ────────────────────────
+                // Wechselnde steile Auf- und Abfahrten wie auf dem Bild
+                const count = 2 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < count; i++) {
+                    const w  = 70  + Math.random() * 60;
+                    const h  = 75  + Math.random() * 90 * diff;
+                    const g  = 30  + Math.random() * 50;
+                    pt(x, y);
+                    pt(x + g,         y);          // kurzer Anlauf
+                    pt(x + g + w * 0.35, y - h);   // steile Auffahrt
+                    pt(x + g + w,     y);           // steile Abfahrt
+                    x += g + w;
+                }
+
+            } else if (r < 0.91) {
+                // ── Doppelte Halfpipe (2 Mulden hintereinander) ───
+                const count = 2;
+                for (let i = 0; i < count; i++) {
+                    const R     = 55 + Math.random() * 55 * diff;
+                    const gap   = 30 + Math.random() * 50;
+                    const lcx   = x + gap + R;
+                    const lcy   = y;
+                    const steps = 14;
+                    pt(x, y);
+                    pt(x + gap, y);
+                    for (let s = 0; s <= steps; s++) {
+                        const theta = Math.PI * (1 - s / steps);
+                        pt(lcx + R * Math.cos(theta), lcy + R * Math.sin(theta));
+                    }
+                    x += gap + 2 * R + 15;
+                }
+                pt(x + 60, y);
+                x += 60;
+
+            } else if (r < 0.94) {
+                // ── Sanfte Doppelmulde (zwei weiche U-Täler) ──────
+                for (let i = 0; i < 2; i++) {
+                    const w = 140 + Math.random() * 100;
+                    const d = 35  + Math.random() * 50 * diff;
+                    pt(x, y);
+                    for (let s = 0; s <= 8; s++) {
+                        const t = s / 8;
+                        pt(x + t * w, y + Math.sin(t * Math.PI) * d);
+                    }
+                    x += w + 20;
+                }
+                pt(x, y);
+
+            } else if (r < 0.97) {
+                // ── Treppenstufen (gestaffelte Plateaus) ──────────
+                {
+                    const numSteps = 2 + Math.floor(Math.random() * 3);
+                    const dir      = Math.random() < 0.5 ? 1 : -1;
+                    const stepH    = 40 + Math.random() * 40 * diff;
+                    const stepW    = 80 + Math.random() * 80;
+                    pt(x, y);
+                    for (let i = 0; i < numSteps; i++) {
+                        const sx = x + i * (stepW + 30);
+                        pt(sx,         y - dir * i * stepH);
+                        pt(sx + 25,    y - dir * (i + 1) * stepH);
+                        pt(sx + stepW, y - dir * (i + 1) * stepH);
+                    }
+                    x += numSteps * (stepW + 30);
+                    y  = Math.max(minY, Math.min(maxY, y - dir * numSteps * stepH));
+                    pt(x, y);
+                }
+
+            } else if (r < 0.99) {
+                // ── Rampen-Loop (Auffahrt + Loop als separates Objekt) ─
+                {
+                    const gap   = 60  + Math.random() * 80;
+                    const rampW = 60  + Math.random() * 50;
+                    const rampH = 55  + Math.random() * 45 * diff;
+                    const R     = 120 + Math.random() * 60 * (0.5 + diff);
+                    // Rampe als Terrain
+                    pt(x, y);
+                    pt(x + gap,         y);
+                    pt(x + gap + rampW, y - rampH);
+                    const cx = x + gap + rampW + R;
+                    const cy = y - rampH - R;
+                    const hg2 = 0.3 + Math.random() * 0.1;
+                    loops.push({ cx, cy, R, halfGap: hg2, gaps: [] });
+                    // Abstieg nach Loop
+                    pt(cx + R + 40, y - rampH);
+                    pt(cx + R + 120, y);
+                    x = cx + R + 120;
+                }
 
             } else {
                 // ── Bodenloser Abgrund mit Pflichtschanze ──────────
@@ -644,6 +780,10 @@
         boostActive   = false;
         boostTimer    = 0;
         wheelieTilt   = 0;
+        activeLoopIdx = -1;
+        loopAngle     = 0;
+        loopSpeed     = 0;
+        loopCooldown  = 0;
 
         boostCharges  = 0;
         flipsUntilBoost = FLIPS_PER_BOOST;
@@ -736,6 +876,105 @@
 
     function update(dt) {
         wasOnGround = onGround;
+
+        // ── Loop-Physik ────────────────────────────────────────────
+        // loopAngle: φ=0 Einfahrt unten, φ=π oben, φ=2π Ausfahrt unten
+        // Position: px = cx + sin(φ)*rEff,  py = cy + cos(φ)*rEff
+        // Tangente (vorwärts): (cos(φ), −sin(φ))
+        // Schwerkraft-Tangentialkomponente: −g·sin(φ)
+
+        // Einfahrt erkennen
+        if (loopCooldown > 0) loopCooldown -= dt;
+        if (activeLoopIdx < 0 && loopCooldown <= 0) {
+            for (let li = 0; li < loops.length; li++) {
+                const loop = loops[li];
+                const rEff = loop.R - WHEEL_R;
+                const dx   = px - loop.cx;
+                const dy   = py - loop.cy;
+                const d    = Math.hypot(dx, dy);
+                if (Math.abs(d - rEff) > 70) continue;   // großzügige Zone
+                if (dy < rEff * 0.1) continue;            // muss unten sein
+                if (dx < 0) continue;                     // nur von rechts einfahren
+                if (vx < 30) continue;
+                activeLoopIdx = li;
+                const hg = loop.halfGap || 0.35;
+                loopAngle = Math.max(hg, Math.atan2(dx, dy));
+                loopSpeed = vx;
+                popups.push({ x: px, y: py - 50, text: 'LOOP!', life: 1.0, maxLife: 1.0, color: '#ffcc44' });
+                break;
+            }
+        }
+
+        let onLoop = false;
+        if (activeLoopIdx >= 0) {
+            const loop  = loops[activeLoopIdx];
+            const rEff  = loop.R - WHEEL_R;
+
+            // Schwerkraft bremst bergauf, beschleunigt bergab
+            loopSpeed += -GRAVITY * Math.sin(loopAngle) * dt;
+            if (holding) loopSpeed += (boostActive ? BOOST_THRUST : THRUST) * dt;
+            loopSpeed = Math.min(Math.max(loopSpeed, 15), MAX_VX);
+
+            // Winkel vorwärts
+            loopAngle += (loopSpeed / rEff) * dt;
+
+            const halfGapL = loop.halfGap || 0.35;
+
+            // Lücken-Check: in Extra-Lücke? → Auswerfen zum Drüber-Fliegen
+            const inExtraGap = (loop.gaps || []).some(g => loopAngle >= g.start && loopAngle <= g.end);
+
+            // Rückwärts aus Einfahrt herausgefallen
+            if (loopAngle < halfGapL) {
+                activeLoopIdx = -1;
+                loopCooldown  = 0.8;
+                vx = loopSpeed; vy = 0;
+            // In Lücke geflogen → tangential auswerfen (Luft-Sprung über die Lücke)
+            } else if (inExtraGap) {
+                activeLoopIdx = -1;
+                loopCooldown  = 1.5;
+                vx = loopSpeed * Math.cos(loopAngle);
+                vy = -loopSpeed * Math.sin(loopAngle);
+            // Ablösen: nur an Oberseite (φ zwischen 90° und 270°)
+            } else if (loopAngle > Math.PI * 0.5 && loopAngle < Math.PI * 1.5
+                && loopSpeed < Math.sqrt(GRAVITY * rEff * Math.max(0, Math.cos(Math.PI - loopAngle)))) {
+                activeLoopIdx = -1;
+                loopCooldown  = 1.2;
+                vx = loopSpeed * Math.cos(loopAngle);
+                vy = -loopSpeed * Math.sin(loopAngle);
+            } else if (loopAngle >= 2 * Math.PI - halfGapL) {
+                // Ausfahrt: Kreisbahn beendet → fetter Speed-Boost + Wheelie!
+                activeLoopIdx = -1;
+                loopCooldown  = 1.2;
+                const boostedSpeed = Math.min(loopSpeed * 1.7 + 120, MAX_VX);
+                vx = boostedSpeed * Math.cos(halfGapL);
+                vy = boostedSpeed * Math.sin(halfGapL);
+                wheelieTilt   = -1.1;          // sofortiger Wheelie
+                boostActive   = true;
+                boostTimer    = BOOST_DURATION;
+                popups.push({ x: px, y: py - 60, text: 'SPEED BOOST!', life: 1.2, maxLife: 1.2, color: '#ffcc44' });
+            } else {
+                // Position direkt aus Winkel berechnen
+                px     = loop.cx + Math.sin(loopAngle) * rEff;
+                py     = loop.cy + Math.cos(loopAngle) * rEff;
+                angle  = -loopAngle;
+                angVel = 0;
+                onGround  = false;
+                onLoop    = true;
+                airFrames = 0;
+            }
+        }
+
+        if (onLoop) {
+            // Boost-Timer, Wheelie, HUD, Popups noch updaten
+            if (boostActive) { boostTimer -= dt; if (boostTimer <= 0) { boostActive = false; boostTimer = 0; } }
+            wheelieTilt += (0 - wheelieTilt) * Math.min(dt * 10, 1);
+            score = flips;
+            updateHUD();
+            camX = px - canvas.width * 0.30;
+            if (py > canvas.height + 100) { triggerCrash(); return; }
+            for (let i = popups.length - 1; i >= 0; i--) { popups[i].life -= dt; if (popups[i].life <= 0) popups.splice(i, 1); }
+            return;
+        }
 
         // ── Physik ────────────────────────────────────────────────────
         const rearWX  = px - AXLE_DIST;
@@ -986,6 +1225,9 @@
         // Terrain
         drawTerrain();
 
+        // Loops
+        drawLoops();
+
         // Vehicle
         drawVehicle();
 
@@ -1092,6 +1334,59 @@
         ctx.fill();
 
         ctx.restore();
+    }
+
+    function drawLoops() {
+        for (let li = 0; li < loops.length; li++) {
+            const loop   = loops[li];
+            const sx     = loop.cx - camX;
+            const sy     = loop.cy;
+            const active = (li === activeLoopIdx);
+            const halfGap = loop.halfGap || 0.35;
+            const C      = active ? '#ffcc44' : '#569aa9';
+            const CG     = active ? '#ffaa00' : '#569aa9';
+
+            // Build list of solid arc segments: [halfGap … gaps … 2π-halfGap]
+            const extraGaps = (loop.gaps || []).slice().sort((a,b) => a.start - b.start);
+            const segments = [];
+            let segStart = halfGap;
+            for (const g of extraGaps) {
+                if (g.start > segStart) segments.push([segStart, g.start]);
+                segStart = g.end;
+            }
+            segments.push([segStart, 2 * Math.PI - halfGap]);
+
+            ctx.save();
+            ctx.strokeStyle = C;
+            ctx.shadowColor = CG;
+            ctx.shadowBlur  = active ? 22 : 14;
+            ctx.lineWidth   = 4;
+
+            for (const [a, b] of segments) {
+                // φ→canvas: canvas_angle = π/2 − φ; anticlockwise=true goes over top
+                ctx.beginPath();
+                ctx.arc(sx, sy, loop.R, Math.PI/2 - a, Math.PI/2 - b, true);
+                ctx.stroke();
+            }
+
+            // Inner glow ring (same segments)
+            ctx.strokeStyle = active ? 'rgba(255,200,80,0.22)' : 'rgba(86,154,169,0.2)';
+            ctx.lineWidth   = 10;
+            ctx.shadowBlur  = 0;
+            for (const [a, b] of segments) {
+                ctx.beginPath();
+                ctx.arc(sx, sy, loop.R, Math.PI/2 - a, Math.PI/2 - b, true);
+                ctx.stroke();
+            }
+
+            // Legs at entry/exit
+            ctx.strokeStyle = C; ctx.shadowColor = CG; ctx.shadowBlur = active ? 22 : 14; ctx.lineWidth = 4;
+            const legX = Math.sin(halfGap) * loop.R;
+            const legY = Math.cos(halfGap) * loop.R;
+            ctx.beginPath(); ctx.moveTo(sx + legX, sy + legY); ctx.lineTo(sx + legX, sy + loop.R); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(sx - legX, sy + legY); ctx.lineTo(sx - legX, sy + loop.R); ctx.stroke();
+            ctx.restore();
+        }
     }
 
     function drawVehicle() {
