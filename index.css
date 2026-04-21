@@ -32,12 +32,19 @@ main {
     padding: 48px 24px 72px;
 }
 
-/* ── Grid: always side by side ── */
-.games-grid {
+/* ── Slider / Grid ── */
+.slider {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 24px;
+    align-items: start;
 }
+.slide {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+.slider-dots { display: none; }
 
 /* ── Card ── */
 .game-card {
@@ -263,26 +270,76 @@ main {
 
 .lb-rank { padding: 7px 6px; width: 32px; color: rgba(255,255,255,0.3); font-size: 0.85rem; }
 .lb-name { padding: 7px 6px; color: rgba(255,255,255,0.85); font-weight: 600; }
-.lb-pts  { padding: 7px 6px; color: #ff8844; font-weight: 700; text-align: right; white-space: nowrap; }
+.lb-pts  { padding: 7px 6px; color: #ff8844; font-weight: 700; white-space: nowrap; }
 .lb-unit { color: rgba(255,255,255,0.3); font-weight: 400; font-size: 0.75rem; }
+.lb-date { padding: 7px 6px; color: rgba(255,255,255,0.35); font-size: 0.78rem; text-align: right; white-space: nowrap; }
 .lb-empty { padding: 16px 6px; color: rgba(255,255,255,0.25); font-size: 0.8rem; text-align: center; }
 
 .lb-scroll {
-    max-height: 330px;
+    max-height: 300px;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.12) transparent;
 }
 .lb-scroll::-webkit-scrollbar { width: 4px; }
 .lb-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
-.lb-body-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+
+.lb-scroll .lb-table thead th {
+    position: sticky;
+    top: 0;
+    background: #0d1f33;
+    z-index: 1;
+}
+
+.lb-fixed { table-layout: fixed; width: 100%; }
+.col-rank { width: 32px; }
+.col-name { width: 35%; }
+.col-pts  { width: 80px; }
+.col-date { text-align: right; }
+
+.lb-table th:nth-child(3) { text-align: left; padding-left: 0; }
+.lb-table th:nth-child(4) { text-align: right; }
 
 /* ── Responsive ── */
-@media (max-width: 500px) {
+@media (max-width: 600px) {
     header { padding: 28px 16px 20px; }
-    main { padding: 24px 12px 48px; }
-    .games-grid { gap: 14px; }
+    main { padding: 16px 0 48px; }
     .game-title { font-size: 1rem; letter-spacing: 2px; }
     .play-btn { padding: 8px 18px; font-size: 0.72rem; }
-    .leaderboards { grid-template-columns: 1fr; gap: 16px; margin-top: 32px; }
+
+    /* Slider */
+    .slider {
+        display: flex;
+        overflow-x: scroll;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        gap: 0;
+    }
+    .slider::-webkit-scrollbar { display: none; }
+    .slide {
+        flex: 0 0 100vw;
+        scroll-snap-align: start;
+        padding: 0 16px;
+        box-sizing: border-box;
+    }
+
+    /* Dots */
+    .slider-dots {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 20px;
+    }
+    .dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.2);
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .dot.active { background: #ff4444; box-shadow: 0 0 8px rgba(255,68,68,0.7); }
+
+    /* Kein Podium auf Mobile */
+    .podium { display: none; }
 }

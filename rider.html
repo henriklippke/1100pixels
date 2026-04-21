@@ -23,9 +23,11 @@
 
         async function storeResult(name, points) {
             try {
-                await addDoc(collection(db, 'red-pixel'), {
-                    name, points, game: 'RIDER', created: serverTimestamp()
-                });
+                if (name.trim().toLowerCase() !== 'test') {
+                    await addDoc(collection(db, 'red-pixel'), {
+                        name, points, game: 'RIDER', created: serverTimestamp()
+                    });
+                }
             } catch(e) { console.error('Save error:', e); }
             await loadLeaderboard();
         }
@@ -40,13 +42,20 @@
                 const docs = [];
                 qs.forEach(doc => docs.push(doc.data()));
                 docs.sort((a, b) => b.points - a.points);
+                const filtered = docs.filter(d => d.name?.trim().toLowerCase() !== 'test');
                 tbody.innerHTML = '';
-                docs.slice(0, 10).forEach((d, i) => {
+                filtered.forEach((d, i) => {
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${i < 3 ? medals[i] : i+1}</td><td>${d.name}</td><td style="color:#ff8844;font-weight:bold">${d.points}</td>`;
+                    const ts = d.created;
+                    let dateStr = '';
+                    if (ts) {
+                        const dt = ts.toDate ? ts.toDate() : new Date(ts);
+                        dateStr = `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}`;
+                    }
+                    tr.innerHTML = `<td>${i < 3 ? medals[i] : i+1}</td><td>${d.name}</td><td style="color:#ff8844;font-weight:bold;text-align:center">${d.points}</td><td style="color:rgba(255,255,255,0.35);font-size:0.78rem;text-align:right;white-space:nowrap">${dateStr}</td>`;
                     tbody.appendChild(tr);
                 });
-                if (docs.length === 0) tbody.innerHTML = '<tr><td colspan="3" style="opacity:.5">Noch keine Einträge</td></tr>';
+                if (filtered.length === 0) tbody.innerHTML = '<tr><td colspan="4" style="opacity:.5">Noch keine Einträge</td></tr>';
             } catch(e) {
                 console.error('Leaderboard Fehler:', e);
                 tbody.innerHTML = `<tr><td colspan="3" style="opacity:.5;font-size:0.7rem">${e.message}</td></tr>`;
@@ -359,18 +368,23 @@
         <h1>Crash!</h1>
         <p class="final-score">Deine Flips<br><span id="final-score-display">0</span></p>
 
-        <table id="leaderboard" style="width:100%;border-collapse:collapse;margin:18px 0 22px;font-size:0.9rem">
+        <table style="width:100%;border-collapse:collapse;margin:18px 0 6px;font-size:0.9rem">
             <thead>
                 <tr style="color:#569aa9;border-bottom:1px solid rgba(86,154,169,0.4)">
                     <td style="padding:4px 6px">#</td>
                     <td style="padding:4px 6px">Spieler</td>
-                    <td style="padding:4px 6px">Flips</td>
+                    <td style="padding:4px 6px;text-align:center">Flips</td>
+                    <td style="padding:4px 6px;text-align:right">Datum</td>
                 </tr>
             </thead>
-            <tbody id="lb-body">
-                <tr><td colspan="3" style="opacity:.5;padding:8px 0">Laden…</td></tr>
-            </tbody>
         </table>
+        <div style="max-height:240px;overflow-y:auto;margin-bottom:22px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.15) transparent">
+            <table id="leaderboard" style="width:100%;border-collapse:collapse;font-size:0.9rem">
+                <tbody id="lb-body">
+                    <tr><td colspan="3" style="opacity:.5;padding:8px 0">Laden…</td></tr>
+                </tbody>
+            </table>
+        </div>
 
         <div class="modal-buttons">
             <button class="btn-secondary" onclick="location.href='/'">Zurück</button>
@@ -1079,7 +1093,10 @@
             // Sprung ab ~9° bergauf UND genug Geschwindigkeit
             const isRampUp   = terrAngle < -0.15;
             const fastEnough = vx > 180;
-            const baseVy     = (isRampUp && fastEnough) ? Math.min(vx * Math.sin(terrAngle), -130) : 0;
+            // Bergab: vy dem Terrain-Winkel folgen → kein Bounce
+            const baseVy = (isRampUp && fastEnough)
+                ? Math.min(vx * Math.sin(terrAngle), -130)
+                : (terrAngle > 0 ? vx * Math.tan(terrAngle) : 0);
             vy = baseVy;
 
             // Gas / Bremse
@@ -1438,100 +1455,198 @@
     function drawVehicle() {
         const sx   = px - camX;
         const sy   = py;
-        const vr   = 8;    // wy+vr = WHEEL_R=10
-        const wy   = 2;    // wheel center y
-        const tx1  = -13;  // rear truck x
-        const tx2  =  13;  // front truck x
         const wrot = -px / WHEEL_R;
-        const C  = boostActive ? '#ffcc44' : '#00f0ff';
-        const CG = boostActive ? '#ffaa00' : '#00f0ff';
+        const boost = boostActive;
+
+        // Colors
+        const WC  = boost ? '#ffcc44' : '#00aaff';  // wheel color
+        const WCG = boost ? '#ff8800' : '#0055ff';  // wheel glow
 
         ctx.save();
         ctx.translate(sx, sy);
         ctx.rotate(angle + wheelieTilt);
         ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
-        // deck shape with nose/tail kick
-        const dL  = 21;
-        const k   = 2;
-        const kx  = dL * 0.58;
-        const bot = -4;
-        const top = -8;
-        const far = -11;
+        // ── Dimensions ────────────────────────────────────────────────
+        const W    = 28;   // half-length of deck
+        const kx   = W * 0.62;  // where kick tail begins
+        const kH   = 5;   // kick tail rise
+        const dBot = -4;  // deck bottom y
+        const dTop = -11; // deck top y (side face)
+        const dFar = -14; // top surface far edge y
+        const wy   = 2;   // wheel center y
+        const wr   = 9;   // wheel visual radius
+        const tx1  = -16, tx2 = 16;  // truck x
 
-        // side face
-        ctx.shadowColor = CG; ctx.shadowBlur = boostActive ? 18 : 10;
-        ctx.beginPath();
-        ctx.moveTo(-dL, bot-k); ctx.lineTo(-kx, bot); ctx.lineTo(kx, bot); ctx.lineTo(dL, bot-k);
-        ctx.lineTo(dL, top-k);  ctx.lineTo(kx, top);  ctx.lineTo(-kx, top); ctx.lineTo(-dL, top-k);
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(0,35,50,0.95)'; ctx.fill();
-        ctx.strokeStyle = C; ctx.lineWidth = 1.5; ctx.stroke();
+        // ── Speed trails ──────────────────────────────────────────────
+        if (vx > 60) {
+            ctx.save();
+            const alpha = Math.min((vx - 60) / 320, 0.7);
+            [tx1, tx2].forEach(tx => {
+                const len = Math.min(vx * 0.1, 48);
+                const g = ctx.createLinearGradient(tx - len, 0, tx - 1, 0);
+                g.addColorStop(0, 'rgba(30,140,255,0)');
+                g.addColorStop(0.6, `rgba(80,170,255,${alpha * 0.5})`);
+                g.addColorStop(1, `rgba(150,210,255,${alpha})`);
+                ctx.globalAlpha = alpha;
+                ctx.shadowColor = '#0088ff'; ctx.shadowBlur = 10;
+                ctx.strokeStyle = g; ctx.lineWidth = 2.5;
+                ctx.beginPath(); ctx.moveTo(tx - len, wy + 1); ctx.lineTo(tx - 1, wy + 1); ctx.stroke();
+                // second thinner trail
+                ctx.lineWidth = 1.2; ctx.globalAlpha = alpha * 0.5;
+                ctx.beginPath(); ctx.moveTo(tx - len * 0.7, wy + 4); ctx.lineTo(tx - 1, wy + 4); ctx.stroke();
+            });
+            ctx.restore();
+        }
 
-        // top surface (3px depth → minimal 3D)
-        ctx.shadowColor = CG; ctx.shadowBlur = 14;
-        ctx.beginPath();
-        ctx.moveTo(-dL,   top-k); ctx.lineTo(-kx,   top); ctx.lineTo(kx,   top); ctx.lineTo(dL,   top-k);
-        ctx.lineTo(dL-1,  far-k); ctx.lineTo(kx-1,  far); ctx.lineTo(-kx+1, far); ctx.lineTo(-dL+1, far-k);
-        ctx.closePath();
-        const tg = ctx.createLinearGradient(0, far, 0, top);
-        tg.addColorStop(0, 'rgba(0,240,255,0.30)'); tg.addColorStop(1, 'rgba(0,80,105,0.12)');
-        ctx.fillStyle = tg; ctx.fill();
-        ctx.strokeStyle = C; ctx.lineWidth = 1.2; ctx.stroke();
-
-        // gloss line
-        ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(150,255,255,0.45)'; ctx.lineWidth = 0.9;
-        ctx.beginPath();
-        ctx.moveTo(-kx+5, (top+far)/2 - 0.5); ctx.lineTo(kx-5, (top+far)/2 - 0.5);
-        ctx.stroke();
-
-        // trucks
-        ctx.shadowColor = '#446677'; ctx.shadowBlur = 4;
-        ctx.strokeStyle = '#336677'; ctx.lineWidth = 2.5;
-        [tx1, tx2].forEach(tx => {
-            ctx.beginPath(); ctx.moveTo(tx-5, bot); ctx.lineTo(tx+5, bot); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(tx, bot); ctx.lineTo(tx, wy); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(tx-5, wy); ctx.lineTo(tx+5, wy); ctx.stroke();
-        });
-
-        // far wheels (behind, subtle ovals)
+        // ── Trucks ────────────────────────────────────────────────────
         [tx1, tx2].forEach(tx => {
             ctx.save();
-            ctx.translate(tx, wy-5); ctx.scale(1, 0.38);
-            ctx.beginPath(); ctx.arc(0, 0, vr-1, 0, Math.PI*2);
-            ctx.fillStyle = '#000608'; ctx.fill();
-            ctx.shadowColor = CG; ctx.shadowBlur = 5;
-            ctx.strokeStyle = 'rgba(0,240,255,0.45)'; ctx.lineWidth = 1.3; ctx.stroke();
+            ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+            // baseplate
+            ctx.fillStyle = '#141e2a';
+            ctx.fillRect(tx - 7, dBot - 1, 14, 3);
+            // hanger
+            ctx.fillStyle = '#1c2d3e';
+            ctx.fillRect(tx - 5, dBot + 2, 10, wy - dBot - 1);
             ctx.restore();
         });
 
-        // near wheels
+        // ── Deck side face ─────────────────────────────────────────────
+        ctx.beginPath();
+        ctx.moveTo(-W, dBot - kH);
+        ctx.quadraticCurveTo(-W * 0.88, dBot, -kx, dBot);
+        ctx.lineTo(kx, dBot);
+        ctx.quadraticCurveTo(W * 0.88, dBot, W, dBot - kH);
+        ctx.lineTo(W, dTop - kH);
+        ctx.quadraticCurveTo(W * 0.88, dTop, kx, dTop);
+        ctx.lineTo(-kx, dTop);
+        ctx.quadraticCurveTo(-W * 0.88, dTop, -W, dTop - kH);
+        ctx.closePath();
+        ctx.fillStyle = '#0d0820'; ctx.fill();
+        ctx.strokeStyle = 'rgba(160,80,255,0.35)'; ctx.lineWidth = 0.8; ctx.stroke();
+
+        // ── Top surface (3D depth) ─────────────────────────────────────
+        ctx.beginPath();
+        ctx.moveTo(-W,   dTop - kH);
+        ctx.quadraticCurveTo(-W * 0.88, dTop, -kx, dTop);
+        ctx.lineTo(kx, dTop);
+        ctx.quadraticCurveTo(W * 0.88, dTop, W, dTop - kH);
+        ctx.lineTo(W,   dFar - kH);
+        ctx.quadraticCurveTo(W * 0.88, dFar, kx, dFar);
+        ctx.lineTo(-kx, dFar);
+        ctx.quadraticCurveTo(-W * 0.88, dFar, -W, dFar - kH);
+        ctx.closePath();
+        const tg = ctx.createLinearGradient(0, dFar, 0, dTop);
+        tg.addColorStop(0, 'rgba(140,50,240,0.4)');
+        tg.addColorStop(1, 'rgba(50,10,90,0.2)');
+        ctx.fillStyle = tg; ctx.fill();
+
+        // ── Neon graphics on deck ──────────────────────────────────────
+        ctx.save();
+        // clip to top surface
+        ctx.beginPath();
+        ctx.moveTo(-W, dTop - kH); ctx.quadraticCurveTo(-W * 0.88, dTop, -kx, dTop);
+        ctx.lineTo(kx, dTop); ctx.quadraticCurveTo(W * 0.88, dTop, W, dTop - kH);
+        ctx.lineTo(W, dFar - kH); ctx.quadraticCurveTo(W * 0.88, dFar, kx, dFar);
+        ctx.lineTo(-kx, dFar); ctx.quadraticCurveTo(-W * 0.88, dFar, -W, dFar - kH);
+        ctx.closePath(); ctx.clip();
+
+        const midY = (dTop + dFar) / 2;
+
+        // Pink zigzag lines
+        ctx.shadowColor = '#ff30cc'; ctx.shadowBlur = 7;
+        ctx.strokeStyle = 'rgba(255,50,200,0.9)'; ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(-24, midY - 0.5);
+        ctx.lineTo(-12, dFar + 1); ctx.lineTo(0, midY - 0.5);
+        ctx.lineTo(12, dFar + 1); ctx.lineTo(24, midY - 0.5);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-24, midY + 1);
+        ctx.lineTo(-12, dTop - 1); ctx.lineTo(0, midY + 1);
+        ctx.lineTo(12, dTop - 1); ctx.lineTo(24, midY + 1);
+        ctx.stroke();
+
+        // Cyan diamond shapes
+        ctx.shadowColor = '#00ccff'; ctx.shadowBlur = 7;
+        ctx.strokeStyle = 'rgba(0,210,255,0.8)'; ctx.lineWidth = 0.9;
+        [-15, 0, 15].forEach(cx => {
+            ctx.beginPath();
+            ctx.moveTo(cx,     dFar + 1);
+            ctx.lineTo(cx + 5, midY);
+            ctx.lineTo(cx,     dTop - 1);
+            ctx.lineTo(cx - 5, midY);
+            ctx.closePath(); ctx.stroke();
+        });
+        ctx.restore();
+
+        // ── White bottom rail (bright glow) ───────────────────────────
+        ctx.save();
+        ctx.shadowColor = 'rgba(255,255,255,0.95)'; ctx.shadowBlur = 18;
+        ctx.strokeStyle = 'rgba(255,252,235,0.97)'; ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(-W + 1, dBot - kH + 1);
+        ctx.quadraticCurveTo(-W * 0.88, dBot, -kx, dBot);
+        ctx.lineTo(kx, dBot);
+        ctx.quadraticCurveTo(W * 0.88, dBot, W - 1, dBot - kH + 1);
+        ctx.stroke();
+        // second pass for extra glow
+        ctx.lineWidth = 0.8; ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(-W + 1, dBot - kH + 1);
+        ctx.quadraticCurveTo(-W * 0.88, dBot, -kx, dBot);
+        ctx.lineTo(kx, dBot);
+        ctx.quadraticCurveTo(W * 0.88, dBot, W - 1, dBot - kH + 1);
+        ctx.stroke();
+        ctx.restore();
+
+        // ── Wheels ────────────────────────────────────────────────────
         [tx1, tx2].forEach(tx => {
             ctx.save(); ctx.translate(tx, wy);
-            const rg = ctx.createRadialGradient(-vr*.28,-vr*.3,0,0,0,vr);
-            rg.addColorStop(0,'#0e2830'); rg.addColorStop(0.6,'#020c10'); rg.addColorStop(1,'#000103');
-            ctx.beginPath(); ctx.arc(0,0,vr,0,Math.PI*2);
+
+            // glow ring
+            ctx.shadowColor = WCG; ctx.shadowBlur = 22;
+            ctx.strokeStyle = WC; ctx.lineWidth = 2.8;
+            ctx.beginPath(); ctx.arc(0, 0, wr, 0, Math.PI * 2); ctx.stroke();
+
+            // wheel body
+            const rg = ctx.createRadialGradient(0, 0, 0, 0, 0, wr);
+            rg.addColorStop(0, '#0c1a38'); rg.addColorStop(0.7, '#060e20'); rg.addColorStop(1, '#020408');
+            ctx.beginPath(); ctx.arc(0, 0, wr, 0, Math.PI * 2);
             ctx.fillStyle = rg; ctx.fill();
-            ctx.shadowColor = CG; ctx.shadowBlur = 14;
-            ctx.strokeStyle = C; ctx.lineWidth = 2; ctx.stroke();
+
+            // outer neon ring (redrawn on top)
+            ctx.shadowColor = WCG; ctx.shadowBlur = 16;
+            ctx.strokeStyle = WC; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, 0, wr, 0, Math.PI * 2); ctx.stroke();
+
+            // inner ring
             ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(0,170,200,0.3)'; ctx.lineWidth = 0.8;
-            ctx.beginPath(); ctx.arc(0,0,vr-3,0,Math.PI*2); ctx.stroke();
-            ctx.strokeStyle = 'rgba(0,150,180,0.45)'; ctx.lineWidth = 1.1;
-            for (let i=0;i<3;i++) {
-                const a = wrot + i*Math.PI*2/3;
+            ctx.strokeStyle = boost ? 'rgba(255,200,80,0.35)' : 'rgba(0,160,255,0.35)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(0, 0, wr - 3.5, 0, Math.PI * 2); ctx.stroke();
+
+            // spokes
+            ctx.strokeStyle = boost ? 'rgba(255,200,80,0.5)' : 'rgba(0,150,220,0.55)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 3; i++) {
+                const a = wrot + i * Math.PI * 2 / 3;
                 ctx.beginPath();
-                ctx.moveTo(Math.cos(a)*(vr-2), Math.sin(a)*(vr-2));
-                ctx.lineTo(-Math.cos(a)*(vr-2),-Math.sin(a)*(vr-2));
+                ctx.moveTo( Math.cos(a) * (wr - 1),  Math.sin(a) * (wr - 1));
+                ctx.lineTo(-Math.cos(a) * (wr - 1), -Math.sin(a) * (wr - 1));
                 ctx.stroke();
             }
-            const hg = ctx.createRadialGradient(-0.8,-0.8,0,0,0,2.5);
-            hg.addColorStop(0,'#aaffff'); hg.addColorStop(1,'#007a88');
-            ctx.beginPath(); ctx.arc(0,0,2.5,0,Math.PI*2);
+
+            // hub
+            const hg = ctx.createRadialGradient(-0.6, -0.6, 0, 0, 0, 3);
+            hg.addColorStop(0, boost ? '#ffe680' : '#aaddff');
+            hg.addColorStop(1, boost ? '#cc6600' : '#0055aa');
+            ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2);
             ctx.fillStyle = hg; ctx.shadowColor = '#fff'; ctx.shadowBlur = 10; ctx.fill();
+
             ctx.restore();
         });
-
 
         ctx.restore();
     }

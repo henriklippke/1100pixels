@@ -29,19 +29,30 @@
             }
         }
 
+        function fmtDate(ts) {
+            if (!ts) return '';
+            const d   = ts.toDate ? ts.toDate() : new Date(ts);
+            const day = String(d.getDate()).padStart(2,'0');
+            const mon = String(d.getMonth()+1).padStart(2,'0');
+            const yr  = d.getFullYear();
+            const h   = String(d.getHours()).padStart(2,'0');
+            const min = String(d.getMinutes()).padStart(2,'0');
+            return `${day}.${mon}.${yr} ${h}:${min}`;
+        }
+
         function fillTable(tbodyId, docs, scoreLabel) {
             const tbody = document.getElementById(tbodyId);
             if (!tbody) return;
             const medals = ['🥇','🥈','🥉'];
             tbody.innerHTML = '';
             if (docs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" class="lb-empty">Noch keine Einträge</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="lb-empty" style="text-align:center">Noch keine Einträge</td></tr>';
                 return;
             }
             docs.forEach((d, i) => {
                 const tr = document.createElement('tr');
                 tr.className = i < 3 ? `rank-${i+1}` : '';
-                tr.innerHTML = `<td class="lb-rank">${i < 3 ? medals[i] : i+1}</td><td class="lb-name">${d.name}</td><td class="lb-pts">${d.points} <span class="lb-unit">${scoreLabel}</span></td>`;
+                tr.innerHTML = `<td class="lb-rank">${i < 3 ? medals[i] : i+1}</td><td class="lb-name">${d.name}</td><td class="lb-pts">${d.points} <span class="lb-unit">${scoreLabel}</span></td><td class="lb-date">${fmtDate(d.created)}</td>`;
                 tbody.appendChild(tr);
             });
         }
@@ -52,6 +63,7 @@
                 const redPixels = [], rider = [];
                 snap.forEach(doc => {
                     const d = doc.data();
+                    if (d.name?.trim().toLowerCase() === 'test') return;
                     if (d.game === 'RIDER') rider.push(d);
                     else redPixels.push(d);
                 });
@@ -74,9 +86,10 @@
 </header>
 
 <main>
-    <div class="games-grid">
+    <div class="slider" id="slider">
 
         <!-- ── Red Pixels ── -->
+        <div class="slide">
         <a href="RED-pixels.html" class="game-card">
             <div class="game-thumb">
                 <img src="/images/red.png" alt="Red Pixels">
@@ -95,8 +108,20 @@
                 </div>
             </div>
         </a>
+        <div class="lb-panel slide-lb">
+            <h3 class="lb-title"><span class="lb-dot red"></span>1100pixels</h3>
+            <div class="lb-scroll">
+                <table class="lb-table lb-fixed">
+                    <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
+                    <thead><tr><th>#</th><th>Spieler</th><th>Punkte</th><th>Datum</th></tr></thead>
+                    <tbody id="lb-redpixel"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+        </div>
 
         <!-- ── Rider ── -->
+        <div class="slide">
         <a href="rider.html" class="game-card">
             <div class="game-thumb">
                 <svg class="rider-svg" viewBox="0 0 400 260" xmlns="http://www.w3.org/2000/svg">
@@ -208,39 +233,36 @@
                 </div>
             </div>
         </a>
+        <div class="lb-panel slide-lb">
+            <h3 class="lb-title"><span class="lb-dot cyan"></span>Rider</h3>
+            <div class="lb-scroll">
+                <table class="lb-table lb-fixed">
+                    <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
+                    <thead><tr><th>#</th><th>Spieler</th><th>Flips</th><th>Datum</th></tr></thead>
+                    <tbody id="lb-rider"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+        </div>
 
     </div>
-
-    <section class="leaderboards">
-        <div class="lb-panel">
-            <h3 class="lb-title"><span class="lb-dot red"></span>1100pixels</h3>
-            <table class="lb-table">
-                <thead><tr><th>#</th><th>Spieler</th><th>Punkte</th></tr></thead>
-            </table>
-            <div class="lb-scroll">
-                <table class="lb-table lb-body-table">
-                    <tbody id="lb-redpixel">
-                        <tr><td colspan="3" class="lb-empty">Laden…</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <div class="lb-panel">
-            <h3 class="lb-title"><span class="lb-dot cyan"></span>Rider</h3>
-            <table class="lb-table">
-                <thead><tr><th>#</th><th>Spieler</th><th>Flips</th></tr></thead>
-            </table>
-            <div class="lb-scroll">
-                <table class="lb-table lb-body-table">
-                    <tbody id="lb-rider">
-                        <tr><td colspan="3" class="lb-empty">Laden…</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </section>
+    <div class="slider-dots" id="slider-dots">
+        <span class="dot active"></span>
+        <span class="dot"></span>
+    </div>
 
 </main>
 
+<script>
+    const slider = document.getElementById('slider');
+    const dots   = document.querySelectorAll('.dot');
+    slider.addEventListener('scroll', () => {
+        const idx = Math.round(slider.scrollLeft / slider.offsetWidth);
+        dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    }, { passive: true });
+    dots.forEach((d, i) => d.addEventListener('click', () => {
+        slider.scrollTo({ left: i * slider.offsetWidth, behavior: 'smooth' });
+    }));
+</script>
 </body>
 </html>
