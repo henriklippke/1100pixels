@@ -35,10 +35,8 @@
             if (!tbody) return;
             tbody.innerHTML = '<tr><td colspan="3" style="opacity:.5">Laden…</td></tr>';
             try {
-                const q  = query(collection(db, 'red-pixel'), where('game', '==', 'RIDER'));
-                const qs = await getDocs(q);
+                const qs = await getDocs(query(collection(db, 'red-pixel'), where('game', '==', 'RIDER')));
                 const medals = ['🥇','🥈','🥉'];
-                // client-seitig sortieren, kein Composite Index nötig
                 const docs = [];
                 qs.forEach(doc => docs.push(doc.data()));
                 docs.sort((a, b) => b.points - a.points);
@@ -359,7 +357,7 @@
 <div id="game-over-modal">
     <div class="modal-box" style="max-height:90vh;overflow-y:auto;width:min(420px,92vw)">
         <h1>Crash!</h1>
-        <p class="final-score">Deine Punkte<br><span id="final-score-display">0</span></p>
+        <p class="final-score">Deine Flips<br><span id="final-score-display">0</span></p>
 
         <table id="leaderboard" style="width:100%;border-collapse:collapse;margin:18px 0 22px;font-size:0.9rem">
             <thead>

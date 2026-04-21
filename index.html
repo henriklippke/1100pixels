@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/index.css">
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, query, orderBy, where, limit }
+        import { getFirestore, collection, getDocs }
             from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
         const app = initializeApp({
@@ -20,33 +20,49 @@
         });
         const db = getFirestore(app);
 
-        async function loadTop3(colName, prefix, gameFilter) {
-            try {
-                const q = gameFilter
-                    ? query(collection(db, colName), where('game', '==', gameFilter))
-                    : query(collection(db, colName), orderBy('points', 'desc'), limit(3));
-                const snap = await getDocs(q);
-                const top = [];
-                snap.forEach(doc => top.push(doc.data()));
-                if (gameFilter) top.sort((a, b) => b.points - a.points);
-                top.splice(3);
-                for (let i = 0; i < 3; i++) {
-                    const el = document.getElementById(`${prefix}${i+1}`);
-                    if (!el) continue;
-                    if (top[i]) {
-                        el.querySelector('.p-name').textContent = top[i].name;
-                        el.querySelector('.p-pts').textContent  = top[i].points;
-                    } else {
-                        el.querySelector('.p-name').textContent = '–';
-                        el.querySelector('.p-pts').textContent  = '';
-                    }
-                }
-            } catch(e) { console.error(e); }
+        function fillPodium(prefix, docs) {
+            for (let i = 0; i < 3; i++) {
+                const el = document.getElementById(`${prefix}${i+1}`);
+                if (!el) continue;
+                el.querySelector('.p-name').textContent = docs[i] ? docs[i].name  : '–';
+                el.querySelector('.p-pts').textContent  = docs[i] ? docs[i].points : '';
+            }
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
-            loadTop3('red-pixel', 'p');
-            loadTop3('red-pixel', 'r', 'RIDER');
+        function fillTable(tbodyId, docs, scoreLabel) {
+            const tbody = document.getElementById(tbodyId);
+            if (!tbody) return;
+            const medals = ['🥇','🥈','🥉'];
+            tbody.innerHTML = '';
+            if (docs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="lb-empty">Noch keine Einträge</td></tr>';
+                return;
+            }
+            docs.forEach((d, i) => {
+                const tr = document.createElement('tr');
+                tr.className = i < 3 ? `rank-${i+1}` : '';
+                tr.innerHTML = `<td class="lb-rank">${i < 3 ? medals[i] : i+1}</td><td class="lb-name">${d.name}</td><td class="lb-pts">${d.points} <span class="lb-unit">${scoreLabel}</span></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const snap = await getDocs(collection(db, 'red-pixel'));
+                const redPixels = [], rider = [];
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    if (d.game === 'RIDER') rider.push(d);
+                    else redPixels.push(d);
+                });
+                redPixels.sort((a, b) => b.points - a.points);
+                rider.sort((a, b) => b.points - a.points);
+
+                fillPodium('p', redPixels);
+                fillPodium('r', rider);
+                fillTable('lb-redpixel', redPixels, 'Pts');
+                fillTable('lb-rider', rider, 'Flips');
+            } catch(e) { console.error(e); }
         });
     </script>
 </head>
@@ -194,6 +210,36 @@
         </a>
 
     </div>
+
+    <section class="leaderboards">
+        <div class="lb-panel">
+            <h3 class="lb-title"><span class="lb-dot red"></span>1100pixels</h3>
+            <table class="lb-table">
+                <thead><tr><th>#</th><th>Spieler</th><th>Punkte</th></tr></thead>
+            </table>
+            <div class="lb-scroll">
+                <table class="lb-table lb-body-table">
+                    <tbody id="lb-redpixel">
+                        <tr><td colspan="3" class="lb-empty">Laden…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="lb-panel">
+            <h3 class="lb-title"><span class="lb-dot cyan"></span>Rider</h3>
+            <table class="lb-table">
+                <thead><tr><th>#</th><th>Spieler</th><th>Flips</th></tr></thead>
+            </table>
+            <div class="lb-scroll">
+                <table class="lb-table lb-body-table">
+                    <tbody id="lb-rider">
+                        <tr><td colspan="3" class="lb-empty">Laden…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
 </main>
 
 </body>

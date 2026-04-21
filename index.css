@@ -195,6 +195,88 @@ main {
     text-shadow: 0 0 8px rgba(86,154,169,0.6);
 }
 
+/* ── Leaderboards ── */
+.leaderboards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 48px;
+}
+
+.lb-panel {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 22px 20px;
+}
+
+.lb-title {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lb-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.lb-dot.red  { background: #ff4444; box-shadow: 0 0 8px rgba(255,68,68,0.8); }
+.lb-dot.cyan { background: #569aa9; box-shadow: 0 0 8px rgba(86,154,169,0.8); }
+
+.lb-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.lb-table thead tr {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.lb-table th {
+    padding: 4px 6px 10px;
+    color: rgba(255,255,255,0.28);
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: left;
+}
+
+.lb-table tbody tr {
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.15s;
+}
+
+.lb-table tbody tr:hover { background: rgba(255,255,255,0.04); }
+.lb-table tbody tr:last-child { border-bottom: none; }
+
+.lb-table tbody tr.rank-1 .lb-name { color: #ffd700; }
+.lb-table tbody tr.rank-2 .lb-name { color: #c0c0c0; }
+.lb-table tbody tr.rank-3 .lb-name { color: #cd7f32; }
+
+.lb-rank { padding: 7px 6px; width: 32px; color: rgba(255,255,255,0.3); font-size: 0.85rem; }
+.lb-name { padding: 7px 6px; color: rgba(255,255,255,0.85); font-weight: 600; }
+.lb-pts  { padding: 7px 6px; color: #ff8844; font-weight: 700; text-align: right; white-space: nowrap; }
+.lb-unit { color: rgba(255,255,255,0.3); font-weight: 400; font-size: 0.75rem; }
+.lb-empty { padding: 16px 6px; color: rgba(255,255,255,0.25); font-size: 0.8rem; text-align: center; }
+
+.lb-scroll {
+    max-height: 330px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+.lb-scroll::-webkit-scrollbar { width: 4px; }
+.lb-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+.lb-body-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+
 /* ── Responsive ── */
 @media (max-width: 500px) {
     header { padding: 28px 16px 20px; }
@@ -202,4 +284,5 @@ main {
     .games-grid { gap: 14px; }
     .game-title { font-size: 1rem; letter-spacing: 2px; }
     .play-btn { padding: 8px 18px; font-size: 0.72rem; }
+    .leaderboards { grid-template-columns: 1fr; gap: 16px; margin-top: 32px; }
 }
