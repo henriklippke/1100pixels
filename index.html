@@ -52,7 +52,7 @@
             docs.forEach((d, i) => {
                 const tr = document.createElement('tr');
                 tr.className = i < 3 ? `rank-${i+1}` : '';
-                tr.innerHTML = `<td class="lb-rank">${i < 3 ? medals[i] : i+1}</td><td class="lb-name">${d.name}</td><td class="lb-pts">${d.points} <span class="lb-unit">${scoreLabel}</span></td><td class="lb-date">${fmtDate(d.created)}</td>`;
+                tr.innerHTML = `<td class="lb-rank">${i < 3 ? medals[i] : i+1}</td><td class="lb-name">${d.name}<span class="lb-name-date">${fmtDate(d.created)}</span></td><td class="lb-pts">${d.points} <span class="lb-unit">${scoreLabel}</span></td><td class="lb-date">${fmtDate(d.created)}</td>`;
                 tbody.appendChild(tr);
             });
         }
@@ -87,38 +87,6 @@
 
 <main>
     <div class="slider" id="slider">
-
-        <!-- ── Red Pixels ── -->
-        <div class="slide">
-        <a href="RED-pixels.html" class="game-card">
-            <div class="game-thumb">
-                <img src="/images/red.png" alt="Red Pixels">
-                <div class="scanlines"></div>
-                <div class="thumb-overlay">
-                    <div class="podium">
-                        <div class="podium-place p2" id="p2"><span class="medal">🥈</span><span class="p-name">–</span><span class="p-pts"></span></div>
-                        <div class="podium-place p1" id="p1"><span class="medal">🥇</span><span class="p-name">–</span><span class="p-pts"></span></div>
-                        <div class="podium-place p3" id="p3"><span class="medal">🥉</span><span class="p-name">–</span><span class="p-pts"></span></div>
-                    </div>
-                    <span class="play-btn">▶ Spielen</span>
-                    <div class="thumb-bottom">
-                        <h2 class="game-title">Red Pixels</h2>
-                        <p class="game-desc">Finde die sich nicht ändernde rote Box.</p>
-                    </div>
-                </div>
-            </div>
-        </a>
-        <div class="lb-panel slide-lb">
-            <h3 class="lb-title"><span class="lb-dot red"></span>1100pixels</h3>
-            <div class="lb-scroll">
-                <table class="lb-table lb-fixed">
-                    <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
-                    <thead><tr><th>#</th><th>Spieler</th><th>Punkte</th><th>Datum</th></tr></thead>
-                    <tbody id="lb-redpixel"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
-                </table>
-            </div>
-        </div>
-        </div>
 
         <!-- ── Rider ── -->
         <div class="slide">
@@ -240,6 +208,38 @@
                     <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
                     <thead><tr><th>#</th><th>Spieler</th><th>Flips</th><th>Datum</th></tr></thead>
                     <tbody id="lb-rider"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+        </div>
+
+        <!-- ── Red Pixels ── -->
+        <div class="slide">
+        <a href="RED-pixels.html" class="game-card">
+            <div class="game-thumb">
+                <img src="/images/red.png" alt="Red Pixels">
+                <div class="scanlines"></div>
+                <div class="thumb-overlay">
+                    <div class="podium">
+                        <div class="podium-place p2" id="p2"><span class="medal">🥈</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                        <div class="podium-place p1" id="p1"><span class="medal">🥇</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                        <div class="podium-place p3" id="p3"><span class="medal">🥉</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                    </div>
+                    <span class="play-btn">▶ Spielen</span>
+                    <div class="thumb-bottom">
+                        <h2 class="game-title">Red Pixels</h2>
+                        <p class="game-desc">Finde die sich nicht ändernde rote Box.</p>
+                    </div>
+                </div>
+            </div>
+        </a>
+        <div class="lb-panel slide-lb">
+            <h3 class="lb-title"><span class="lb-dot red"></span>1100pixels</h3>
+            <div class="lb-scroll">
+                <table class="lb-table lb-fixed">
+                    <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
+                    <thead><tr><th>#</th><th>Spieler</th><th>Punkte</th><th>Datum</th></tr></thead>
+                    <tbody id="lb-redpixel"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
                 </table>
             </div>
         </div>

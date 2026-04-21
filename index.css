@@ -275,6 +275,13 @@ main {
 .lb-date { padding: 7px 6px; color: rgba(255,255,255,0.35); font-size: 0.78rem; text-align: right; white-space: nowrap; }
 .lb-empty { padding: 16px 6px; color: rgba(255,255,255,0.25); font-size: 0.8rem; text-align: center; }
 
+.lb-name-date {
+    display: none;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.35);
+    font-weight: 400;
+}
+
 .lb-scroll {
     max-height: 300px;
     overflow-y: auto;
@@ -314,13 +321,16 @@ main {
         scroll-snap-type: x mandatory;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
-        gap: 0;
+        gap: 16px;
+        padding: 0 60px 0 60px;
+        scroll-padding-left: 60px;
+        margin: 0;
     }
     .slider::-webkit-scrollbar { display: none; }
     .slide {
-        flex: 0 0 100vw;
+        flex: 0 0 calc(100vw - 120px);
         scroll-snap-align: start;
-        padding: 0 16px;
+        padding: 0;
         box-sizing: border-box;
     }
 
@@ -342,4 +352,9 @@ main {
 
     /* Kein Podium auf Mobile */
     .podium { display: none; }
+
+    /* Mobile-freundliche Tabelle: Datum unter Name */
+    .lb-date, .lb-table th:last-child { display: none; }
+    .lb-name { display: flex; flex-direction: column; gap: 2px; }
+    .lb-name-date { display: block; }
 }
