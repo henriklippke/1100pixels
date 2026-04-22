@@ -24,9 +24,23 @@
         async function storeResult(name, points) {
             try {
                 if (name.trim().toLowerCase() !== 'test') {
-                    await addDoc(collection(db, 'red-pixel'), {
-                        name, points, game: 'RIDER', created: serverTimestamp()
+                    const qs = await getDocs(query(collection(db, 'red-pixel'), where('game', '==', 'RIDER')));
+                    const all = [];
+                    let personalBest = 0;
+                    qs.forEach(doc => {
+                        const d = doc.data();
+                        if (d.name?.trim().toLowerCase() === 'test') return;
+                        all.push(d.points);
+                        if (d.name === name && d.points > personalBest) personalBest = d.points;
                     });
+                    all.sort((a, b) => b - a);
+                    const threshold = all.length >= 10 ? all[9] : -1;
+                    const inTop10 = points > threshold || all.length < 10;
+                    if (inTop10) {
+                        await addDoc(collection(db, 'red-pixel'), {
+                            name, points, game: 'RIDER', created: serverTimestamp()
+                        });
+                    }
                 }
             } catch(e) { console.error('Save error:', e); }
             await loadLeaderboard();
@@ -39,11 +53,12 @@
             try {
                 const qs = await getDocs(query(collection(db, 'red-pixel'), where('game', '==', 'RIDER')));
                 const medals = ['🥇','🥈','🥉'];
-                const docs = [];
-                qs.forEach(doc => docs.push(doc.data()));
-                docs.push({ name: 'Leo', points: 66, created: new Date(2026, 3, 22, 15, 53) });
-                docs.sort((a, b) => b.points - a.points);
-                const filtered = docs.filter(d => d.name?.trim().toLowerCase() !== 'test');
+                const filtered = [];
+                qs.forEach(doc => {
+                    const d = doc.data();
+                    if (d.name?.trim().toLowerCase() !== 'test') filtered.push(d);
+                });
+                filtered.sort((a, b) => b.points - a.points);
                 tbody.innerHTML = '';
                 filtered.forEach((d, i) => {
                     const tr = document.createElement('tr');
