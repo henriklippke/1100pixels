@@ -24,23 +24,9 @@
         async function storeResult(name, points) {
             try {
                 if (name.trim().toLowerCase() !== 'test') {
-                    const qs = await getDocs(query(collection(db, 'red-pixel'), where('game', '==', 'RIDER')));
-                    const all = [];
-                    let personalBest = 0;
-                    qs.forEach(doc => {
-                        const d = doc.data();
-                        if (d.name?.trim().toLowerCase() === 'test') return;
-                        all.push(d.points);
-                        if (d.name === name && d.points > personalBest) personalBest = d.points;
+                    await addDoc(collection(db, 'red-pixel'), {
+                        name, points, game: 'RIDER', created: serverTimestamp()
                     });
-                    all.sort((a, b) => b - a);
-                    const threshold = all.length >= 10 ? all[9] : -1;
-                    const inTop10 = points > threshold || all.length < 10;
-                    if (inTop10) {
-                        await addDoc(collection(db, 'red-pixel'), {
-                            name, points, game: 'RIDER', created: serverTimestamp()
-                        });
-                    }
                 }
             } catch(e) { console.error('Save error:', e); }
             await loadLeaderboard();
@@ -1396,40 +1382,6 @@
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, W, H);
 
-        // Nebulae (screen-fixed, pulsing)
-        const now = performance.now() / 1000;
-        nebulae.forEach(n => {
-            const alpha = 0.015 + 0.02 * (0.5 + 0.5 * Math.sin(now * 0.2 + n.phase));
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            const g = ctx.createRadialGradient(
-                n.x * W, n.y * H, 0,
-                n.x * W, n.y * H, n.rx * W
-            );
-            g.addColorStop(0,   `rgba(${n.color},1)`);
-            g.addColorStop(0.5, `rgba(${n.color},0.4)`);
-            g.addColorStop(1,   `rgba(${n.color},0)`);
-            ctx.scale(1, n.ry / n.rx);
-            ctx.fillStyle = g;
-            ctx.beginPath();
-            ctx.arc(n.x * W, n.y * H / (n.ry / n.rx), n.rx * W, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-        });
-
-        // Stars
-        stars.forEach(s => {
-            const twinkle = 0.4 + 0.6 * Math.sin(now * 1.2 + s.twinkle);
-            ctx.save();
-            ctx.globalAlpha = twinkle * 0.55;
-            ctx.fillStyle = 'white';
-            ctx.shadowColor = 'white';
-            ctx.shadowBlur = 4;
-            ctx.beginPath();
-            ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-        });
 
         // Neon grid
         drawGrid();
