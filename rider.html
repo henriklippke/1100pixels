@@ -59,6 +59,15 @@
                     if (d.name?.trim().toLowerCase() !== 'test') filtered.push(d);
                 });
                 filtered.sort((a, b) => b.points - a.points);
+
+                // Persönlicher Highscore
+                const currentUser = (() => { try { return JSON.parse(localStorage.getItem('1100px_user')); } catch(e) { return null; } })();
+                const pbEl = document.getElementById('personal-best-display');
+                if (currentUser && pbEl) {
+                    const myBest = filtered.filter(d => d.name === currentUser.name).reduce((max, d) => Math.max(max, d.points), 0);
+                    pbEl.textContent = myBest > 0 ? `Dein Rekord: ${myBest} Flips` : '';
+                }
+
                 tbody.innerHTML = '';
                 filtered.forEach((d, i) => {
                     const tr = document.createElement('tr');
@@ -68,7 +77,9 @@
                         const dt = ts.toDate ? ts.toDate() : new Date(ts);
                         dateStr = `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}`;
                     }
-                    tr.innerHTML = `<td>${i < 3 ? medals[i] : i+1}</td><td>${d.name}</td><td style="color:#ff8844;font-weight:bold;text-align:center">${d.points}</td><td style="color:rgba(255,255,255,0.35);font-size:0.78rem;text-align:right;white-space:nowrap">${dateStr}</td>`;
+                    const isMe = currentUser && d.name === currentUser.name;
+                    tr.style.background = isMe ? 'rgba(255,68,68,0.08)' : '';
+                    tr.innerHTML = `<td>${i < 3 ? medals[i] : i+1}</td><td style="${isMe ? 'color:#ff8844;font-weight:700' : ''}">${d.name}</td><td style="color:#ff8844;font-weight:bold;text-align:center">${d.points}</td><td style="color:rgba(255,255,255,0.35);font-size:0.78rem;text-align:right;white-space:nowrap">${dateStr}</td>`;
                     tbody.appendChild(tr);
                 });
                 if (filtered.length === 0) tbody.innerHTML = '<tr><td colspan="4" style="opacity:.5">Noch keine Einträge</td></tr>';
@@ -80,6 +91,7 @@
 
         window.storeResult    = storeResult;
         window.loadLeaderboard = loadLeaderboard;
+        window.getUser = getUser;
     </script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -369,7 +381,7 @@
 <div id="hint">Leertaste halten = Gas &amp; Drehen</div>
 
 <!-- Name Modal -->
-<div id="name-modal" class="show">
+<div id="name-modal">
     <div class="modal-box">
         <h1>RIDER</h1>
         <p class="modal-subtitle">Gib deinen Namen ein</p>
@@ -383,6 +395,7 @@
     <div class="modal-box" style="max-height:90vh;overflow-y:auto;width:min(420px,92vw)">
         <h1>Crash!</h1>
         <p class="final-score">Deine Flips<br><span id="final-score-display">0</span></p>
+        <p id="personal-best-display" style="font-size:0.8rem;color:rgba(255,255,255,0.4);margin:-8px 0 12px;letter-spacing:1px"></p>
 
         <table style="width:100%;border-collapse:collapse;margin:18px 0 6px;font-size:0.9rem">
             <thead>
@@ -433,6 +446,62 @@
     // ── Canvas setup ───────────────────────────────────────────────
     const canvas = document.getElementById('gameCanvas');
     const ctx    = canvas.getContext('2d');
+
+    // ── Particles ──────────────────────────────────────────────────
+    let particles = [];
+
+    function spawnParticles(x, y, count, color, speed, life) {
+        for (let i = 0; i < count; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const s = speed * (0.4 + Math.random() * 0.8);
+            particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - speed * 0.3,
+                life, maxLife: life, color, size: 1.5 + Math.random() * 2.5 });
+        }
+    }
+
+    function spawnDust(x, y) {
+        for (let i = 0; i < 6; i++) {
+            particles.push({ x, y, vx: (Math.random() - 0.6) * 40, vy: -20 - Math.random() * 40,
+                life: 0.4 + Math.random() * 0.3, maxLife: 0.7, color: 'rgba(86,154,169,', size: 3 + Math.random() * 3 });
+        }
+    }
+
+    function updateParticles(dt) {
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.vy += 200 * dt;
+            p.life -= dt;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+    }
+
+    function drawParticles() {
+        for (const p of particles) {
+            const t = p.life / p.maxLife;
+            ctx.save();
+            ctx.globalAlpha = t * t;
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = p.color.startsWith('rgba') ? p.color : p.color;
+            ctx.fillStyle = p.color.startsWith('rgba') ? p.color + t + ')' : p.color;
+            ctx.beginPath();
+            ctx.arc(p.x - camX, p.y, p.size * t, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    // ── Screen shake ───────────────────────────────────────────────
+    let shakeAmt = 0;
+
+    function triggerShake(amount) { shakeAmt = amount; }
+
+    // ── Stars ──────────────────────────────────────────────────────
+    const stars = Array.from({ length: 80 }, () => ({
+        x: Math.random(), y: Math.random() * 0.6,
+        r: 0.5 + Math.random() * 1.2, twinkle: Math.random() * Math.PI * 2
+    }));
 
     function resizeCanvas() {
         canvas.width  = window.innerWidth;
@@ -945,6 +1014,8 @@
         lastTime = ts;
 
         update(dt);
+        updateParticles(dt);
+        if (shakeAmt > 0) shakeAmt *= 0.85;
         updateEngineSound();
         render();
 
@@ -1091,6 +1162,8 @@
                 if (diff > Math.PI) diff = Math.PI * 2 - diff;
                 if (diff > CRASH_ANGLE && Math.abs(vx) > 40) { triggerCrash(); return; }
             }
+            // Dust on landing
+            if (!wasOnGround && airFrames >= 10) spawnDust(px, py + WHEEL_R);
             flipAccum = 0;
             airFrames = 0;
 
@@ -1142,6 +1215,7 @@
             if (fullFlips > prevFullFlips) {
                 const n = fullFlips - prevFullFlips;
                 flips += n;
+                spawnParticles(px, py, 14, '#ff44cc', 180, 0.6);
                 playFlipSound();
                 flipsUntilBoost -= n;
                 while (flipsUntilBoost <= 0) {
@@ -1158,6 +1232,7 @@
         if (boostActive) {
             boostTimer -= dt;
             if (boostTimer <= 0) { boostActive = false; boostTimer = 0; }
+            if (Math.random() < 0.4) spawnParticles(px - 20, py + 2, 3, '#ffaa00', 120, 0.35);
         }
 
         // Wheelie tilt (visuell): Nase hoch wenn Boost + Boden
@@ -1266,6 +1341,9 @@
 
     function triggerCrash() {
         gameRunning = false;
+        triggerShake(18);
+        spawnParticles(px, py, 28, '#ff4444', 250, 0.9);
+        spawnParticles(px, py, 12, '#ffcc44', 180, 0.7);
         playGameOverSound();
         const finalScore = score;
 
@@ -1293,11 +1371,47 @@
         const W = canvas.width;
         const H = canvas.height;
 
+        // Screen shake
+        ctx.save();
+        if (shakeAmt > 0.5) {
+            ctx.translate(
+                (Math.random() - 0.5) * shakeAmt,
+                (Math.random() - 0.5) * shakeAmt
+            );
+        }
+
         ctx.clearRect(0, 0, W, H);
 
-        // Background
-        ctx.fillStyle = '#0a1628';
+        // Dynamic background gradient
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+        bgGrad.addColorStop(0, boostActive ? '#0d1830' : '#07111f');
+        bgGrad.addColorStop(1, '#0a1628');
+        ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, W, H);
+
+        // Stars
+        const now = performance.now() / 1000;
+        stars.forEach(s => {
+            const twinkle = 0.4 + 0.6 * Math.sin(now * 1.2 + s.twinkle);
+            ctx.save();
+            ctx.globalAlpha = twinkle * 0.55;
+            ctx.fillStyle = 'white';
+            ctx.shadowColor = 'white';
+            ctx.shadowBlur = 4;
+            ctx.beginPath();
+            ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
+
+        // Boost edge glow
+        if (boostActive) {
+            const eg = ctx.createRadialGradient(W/2, H/2, H*0.3, W/2, H/2, H);
+            eg.addColorStop(0, 'rgba(255,180,0,0)');
+            eg.addColorStop(1, 'rgba(255,120,0,0.18)');
+            ctx.fillStyle = eg;
+            ctx.fillRect(0, 0, W, H);
+        }
 
         // Neon grid
         drawGrid();
@@ -1308,11 +1422,16 @@
         // Loops
         drawLoops();
 
+        // Particles (behind vehicle)
+        drawParticles();
+
         // Vehicle
         drawVehicle();
 
         // Popups
         drawPopups();
+
+        ctx.restore();
     }
 
     function drawGrid() {
@@ -1701,26 +1820,28 @@
         }
     }
 
-    // ── Name Modal Logic ───────────────────────────────────────────
+    // ── Auth / Name ───────────────────────────────────────────────
     const nameModal  = document.getElementById('name-modal');
     const nameInput  = document.getElementById('name-input');
     const nameSubmit = document.getElementById('name-submit');
 
-    function submitName() {
-        const val = nameInput.value.trim();
-        if (val.length === 0) {
-            nameInput.classList.add('input-error');
-            setTimeout(() => nameInput.classList.remove('input-error'), 400);
-            return;
-        }
-        playerName = val;
-        nameModal.classList.remove('show');
+    const user = (() => { try { return JSON.parse(localStorage.getItem('1100px_user')); } catch(e) { return null; } })();
+    if (user) {
+        playerName = user.name;
         initGame();
+    } else {
+        nameModal.classList.add('show');
+        function submitName() {
+            const val = nameInput.value.trim();
+            if (!val) { nameInput.classList.add('input-error'); setTimeout(() => nameInput.classList.remove('input-error'), 400); return; }
+            playerName = val;
+            nameModal.classList.remove('show');
+            initGame();
+        }
+        nameSubmit.addEventListener('click', submitName);
+        nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
+        nameInput.focus();
     }
-
-    nameSubmit.addEventListener('click', submitName);
-    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitName(); });
-    nameInput.focus();
 
     let spaceReleasedSinceCrash = false;
 

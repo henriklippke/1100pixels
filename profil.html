@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <title>Profil – 1100pixels</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/index.css">
+    <style>
+        .profil-wrap {
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 56px 28px 100px;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        .profil-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            padding: 44px 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            text-align: center;
+        }
+
+        .profil-initial {
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff4444, #cc2222);
+            box-shadow: 0 0 36px rgba(255,68,68,0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+        }
+
+        .profil-name {
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .profil-since {
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.28);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 24px 20px;
+        }
+
+        .stat-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .stat-game {
+            font-size: 0.66rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: rgba(255,255,255,0.3);
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .stat-value {
+            font-size: 2.4rem;
+            font-weight: 800;
+            line-height: 1;
+            color: white;
+        }
+
+        .stat-unit {
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.28);
+            letter-spacing: 1px;
+            margin-top: 5px;
+        }
+
+        .stat-divider {
+            height: 1px;
+            background: rgba(255,255,255,0.06);
+            margin: 14px 0;
+        }
+
+        .stat-games {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.35);
+        }
+
+        .profil-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .btn-back {
+            padding: 16px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 12px;
+            color: rgba(255,255,255,0.5);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            text-align: center;
+            text-decoration: none;
+            display: block;
+        }
+
+        .btn-logout {
+            padding: 16px;
+            background: rgba(255,68,68,0.08);
+            border: 1px solid rgba(255,68,68,0.2);
+            border-radius: 12px;
+            color: #ff5555;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .info-row {
+            display: flex;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 20px 0;
+        }
+        .info-item {
+            flex: 1;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .info-value {
+            font-size: 1rem;
+            font-weight: 800;
+            color: white;
+        }
+        .info-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: rgba(255,255,255,0.28);
+        }
+        .info-sep {
+            width: 1px;
+            background: rgba(255,255,255,0.07);
+            margin: 4px 0;
+        }
+
+        .loading {
+            text-align: center;
+            color: rgba(255,255,255,0.25);
+            padding: 60px 0;
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <img src="/images/logo.png" width="160" class="logo" alt="1100pixels">
+    <p class="tagline">Pixel games made by Leo</p>
+</header>
+
+<div class="profil-wrap">
+    <div id="profil-content"><p class="loading">Laden…</p></div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, query, where }
+        from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+    import { getUser, logout } from '/auth.js';
+
+    const app = initializeApp({
+        apiKey: "AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
+        authDomain: "pixels-e2f82.firebaseapp.com",
+        projectId: "pixels-e2f82",
+        storageBucket: "pixels-e2f82.firebasestorage.app",
+        messagingSenderId: "311496840709",
+        appId: "1:311496840709:web:3a94601ef40cbd0c946e6c"
+    });
+    const db = getFirestore(app);
+
+    const user = getUser();
+    const el = document.getElementById('profil-content');
+
+    if (!user) {
+        el.innerHTML = '<p class="loading">Nicht eingeloggt. <a href="/" style="color:#ff5555">Startseite</a></p>';
+    } else {
+        try {
+            const [qs, uqs] = await Promise.all([
+                getDocs(collection(db, 'red-pixel')),
+                getDocs(query(collection(db, 'users'), where('nameLower', '==', user.name.toLowerCase())))
+            ]);
+
+            let riderBest = 0, riderGames = 0, riderSum = 0, riderLast = null;
+            let rpBest = 0, rpGames = 0, rpSum = 0, rpLast = null;
+            let joinDate = null;
+
+            // Alle Einträge aller Spieler für Rang-Berechnung
+            const allRider = [], allRp = [];
+
+            if (!uqs.empty) {
+                const ud = uqs.docs[0].data();
+                if (ud.created) joinDate = ud.created.toDate ? ud.created.toDate() : new Date(ud.created);
+            }
+
+            qs.forEach(doc => {
+                const d = doc.data();
+                if (d.name?.trim().toLowerCase() === 'test') return;
+                const ts = d.created ? (d.created.toDate ? d.created.toDate() : new Date(d.created)) : null;
+                if (d.game === 'RIDER') {
+                    allRider.push(d.points);
+                    if (d.name === user.name) {
+                        riderGames++;
+                        riderSum += d.points;
+                        if (d.points > riderBest) riderBest = d.points;
+                        if (ts && (!riderLast || ts > riderLast)) riderLast = ts;
+                    }
+                } else {
+                    allRp.push(d.points);
+                    if (d.name === user.name) {
+                        rpGames++;
+                        rpSum += d.points;
+                        if (d.points > rpBest) rpBest = d.points;
+                        if (ts && (!rpLast || ts > rpLast)) rpLast = ts;
+                    }
+                }
+            });
+
+            allRider.sort((a, b) => b - a);
+            allRp.sort((a, b) => b - a);
+
+            const riderRank = riderBest > 0 ? allRider.findIndex(p => p <= riderBest) + 1 : '–';
+            const rpRank    = rpBest > 0    ? allRp.findIndex(p => p <= rpBest) + 1    : '–';
+
+            const riderAvg = riderGames > 0 ? Math.round(riderSum / riderGames) : 0;
+            const rpAvg    = rpGames > 0    ? Math.round(rpSum / rpGames)       : 0;
+
+            const fmtDate = d => d
+                ? `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`
+                : '–';
+
+            const fmtJoin = joinDate ? fmtDate(joinDate) : '';
+            const totalGames = riderGames + rpGames;
+            const favGame = riderGames >= rpGames ? 'Rider' : 'Red Pixels';
+            const lastPlayed = [riderLast, rpLast].filter(Boolean).sort((a,b) => b-a)[0];
+
+            el.innerHTML = `
+                <div class="profil-card">
+                    <div class="profil-initial">${user.name.charAt(0).toUpperCase()}</div>
+                    <div class="profil-name">${user.name}</div>
+                    ${fmtJoin ? `<div class="profil-since">Dabei seit ${fmtJoin}</div>` : ''}
+                </div>
+
+                <div class="info-row">
+                    <div class="info-item"><div class="info-value">${totalGames}</div><div class="info-label">Spiele gesamt</div></div>
+                    <div class="info-sep"></div>
+                    <div class="info-item"><div class="info-value">${favGame}</div><div class="info-label">Lieblingsspiel</div></div>
+                    <div class="info-sep"></div>
+                    <div class="info-item"><div class="info-value">${lastPlayed ? fmtDate(lastPlayed) : '–'}</div><div class="info-label">Letztes Spiel</div></div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-game">
+                            <span class="stat-dot" style="background:#569aa9;box-shadow:0 0 6px rgba(86,154,169,0.7)"></span>
+                            Rider
+                        </div>
+                        <div class="stat-value">${riderBest}</div>
+                        <div class="stat-unit">Bester Score · Flips</div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-games">Platz #${riderRank}</div>
+                        <div class="stat-games" style="margin-top:4px">Schnitt: ${riderAvg} · ${riderGames} Spiele</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-game">
+                            <span class="stat-dot" style="background:#ff4444;box-shadow:0 0 6px rgba(255,68,68,0.7)"></span>
+                            Red Pixels
+                        </div>
+                        <div class="stat-value">${rpBest}</div>
+                        <div class="stat-unit">Bester Score · Pts</div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-games">Platz #${rpRank}</div>
+                        <div class="stat-games" style="margin-top:4px">Schnitt: ${rpAvg} · ${rpGames} Spiele</div>
+                    </div>
+                </div>
+
+                <div class="profil-actions">
+                    <a href="/" class="btn-back">← Zurück</a>
+                    <button class="btn-logout" id="logout-btn">Abmelden</button>
+                </div>
+            `;
+
+            document.getElementById('logout-btn').addEventListener('click', logout);
+        } catch(e) {
+            el.innerHTML = `<p class="loading">${e.message}</p>`;
+        }
+    }
+</script>
+</body>
+</html>

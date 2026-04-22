@@ -9,6 +9,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
         import { getFirestore, collection, getDocs }
             from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+        import { getUser, logout, register, login } from '/auth.js';
 
         const app = initializeApp({
             apiKey: "AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
@@ -58,6 +59,43 @@
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
+            // ── Auth ──
+            const user = getUser();
+            const headerUser = document.getElementById('header-user');
+            const authOverlay = document.getElementById('auth-overlay');
+
+            if (user) {
+                headerUser.innerHTML = `Hallo, <span>${user.name}</span> <a href="/profil.html" style="color:rgba(255,255,255,0.4);font-size:0.7rem;border:1px solid rgba(255,255,255,0.15);border-radius:5px;padding:3px 8px;text-decoration:none">Profil</a> <button id="logout-btn">Abmelden</button>`;
+                document.getElementById('logout-btn').addEventListener('click', logout);
+            } else {
+                authOverlay.classList.add('show');
+            }
+
+            const tabs = document.querySelectorAll('.auth-tab');
+            tabs.forEach(t => t.addEventListener('click', () => {
+                tabs.forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+                document.getElementById('auth-error').textContent = '';
+            }));
+
+            async function doAuth() {
+                const name = document.getElementById('auth-name').value;
+                const pin  = document.getElementById('auth-pin').value;
+                const mode = document.querySelector('.auth-tab.active').dataset.mode;
+                const errEl = document.getElementById('auth-error');
+                errEl.textContent = '';
+                const res = mode === 'register'
+                    ? await register(db, name, pin)
+                    : await login(db, name, pin);
+                if (res.error) { errEl.textContent = res.error; return; }
+                authOverlay.classList.remove('show');
+                headerUser.innerHTML = `Hallo, <span>${res.name}</span> <a href="/profil.html" style="color:rgba(255,255,255,0.4);font-size:0.7rem;border:1px solid rgba(255,255,255,0.15);border-radius:5px;padding:3px 8px;text-decoration:none">Profil</a> <button id="logout-btn">Abmelden</button>`;
+                document.getElementById('logout-btn').addEventListener('click', logout);
+            }
+            document.getElementById('auth-submit').addEventListener('click', doAuth);
+            document.getElementById('auth-pin').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });
+            document.getElementById('auth-name').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('auth-pin').focus(); });
+
             try {
                 const snap = await getDocs(collection(db, 'red-pixel'));
                 const redPixels = [], rider = [];
@@ -80,9 +118,24 @@
 </head>
 <body>
 
+<div class="auth-overlay" id="auth-overlay">
+    <div class="auth-box">
+        <h2>1100pixels</h2>
+        <div class="auth-tabs">
+            <button class="auth-tab active" data-mode="login">Anmelden</button>
+            <button class="auth-tab" data-mode="register">Registrieren</button>
+        </div>
+        <input class="auth-input" id="auth-name" type="text" placeholder="Benutzername" maxlength="20" autocomplete="off" spellcheck="false">
+        <input class="auth-input" id="auth-pin" type="password" placeholder="PIN (4 Ziffern)" maxlength="4" inputmode="numeric">
+        <p class="auth-error" id="auth-error"></p>
+        <button class="auth-btn" id="auth-submit">Los</button>
+    </div>
+</div>
+
 <header>
     <img src="/images/logo.png" width="160" class="logo" alt="1100pixels">
     <p class="tagline">Pixel games made by Leo</p>
+    <div class="header-user" id="header-user"></div>
 </header>
 
 <main>
