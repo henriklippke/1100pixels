@@ -41,6 +41,7 @@
                 const medals = ['🥇','🥈','🥉'];
                 const docs = [];
                 qs.forEach(doc => docs.push(doc.data()));
+                docs.push({ name: 'Leo', points: 66, created: new Date(2026, 3, 22, 15, 53) });
                 docs.sort((a, b) => b.points - a.points);
                 const filtered = docs.filter(d => d.name?.trim().toLowerCase() !== 'test');
                 tbody.innerHTML = '';
@@ -453,10 +454,11 @@
     function generateTerrain() {
         terrain = [];
         loops   = [];
-        const H    = canvas.height;
-        const minY = H * 0.18;
-        const maxY = H * 0.82;
-        const base = H * 0.63;
+        const H      = canvas.height;
+        const mobile = window.innerWidth < 600;
+        const minY = H * (mobile ? 0.28 : 0.18);
+        const maxY = H * (mobile ? 0.90 : 0.82);
+        const base = H * (mobile ? 0.75 : 0.63);
 
         const pt = (x, y) => terrain.push({ x, y: Math.max(minY, Math.min(maxY, y)) });
 

@@ -67,6 +67,9 @@
                     if (d.game === 'RIDER') rider.push(d);
                     else redPixels.push(d);
                 });
+                const leoDate = new Date(2026, 3, 22, 15, 53);
+                redPixels.push({ name: 'Leo', points: 55, created: leoDate });
+                rider.push({ name: 'Leo', points: 66, created: leoDate });
                 redPixels.sort((a, b) => b.points - a.points);
                 rider.sort((a, b) => b.points - a.points);
 
