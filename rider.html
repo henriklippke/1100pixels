@@ -1431,15 +1431,6 @@
             ctx.restore();
         });
 
-        // Boost edge glow
-        if (boostActive) {
-            const eg = ctx.createRadialGradient(W/2, H/2, H*0.3, W/2, H/2, H);
-            eg.addColorStop(0, 'rgba(255,180,0,0)');
-            eg.addColorStop(1, 'rgba(255,120,0,0.18)');
-            ctx.fillStyle = eg;
-            ctx.fillRect(0, 0, W, H);
-        }
-
         // Neon grid
         drawGrid();
 
