@@ -99,6 +99,19 @@
         }
 
         /* ── Header ── */
+        #hud-gems {
+            position: fixed;
+            top: 14px;
+            right: 20px;
+            z-index: 101;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #00eeff;
+            text-shadow: 0 0 10px rgba(0,220,255,0.8);
+            letter-spacing: 1px;
+            pointer-events: none;
+        }
+
         .header {
             position: fixed;
             top: 0; left: 0; right: 0;
@@ -362,6 +375,7 @@
         <span class="hud-boost-charges" id="hud-boost-charges"></span>
     </div>
 </div>
+<div id="hud-gems">💎 <span id="hud-gem-count">0</span></div>
 
 <!-- Hint -->
 <div id="hint">Leertaste halten = Gas &amp; Drehen</div>
@@ -463,6 +477,46 @@
         }
     }
 
+    function drawGems() {
+        const now = performance.now() / 1000;
+        const W = canvas.width;
+        for (const g of gemObjects) {
+            if (g.collected) continue;
+            const sx = g.x - camX;
+            if (sx < -30 || sx > W + 30) continue;
+            const bob = Math.sin(now * 2.5 + g.x * 0.01) * 3;
+            ctx.save();
+            ctx.translate(sx, g.y + bob);
+            // glow
+            ctx.shadowColor = '#00eeff';
+            ctx.shadowBlur = 14;
+            // diamond shape
+            ctx.beginPath();
+            ctx.moveTo(0, -9);
+            ctx.lineTo(6, 0);
+            ctx.lineTo(0, 7);
+            ctx.lineTo(-6, 0);
+            ctx.closePath();
+            const grad = ctx.createLinearGradient(0, -9, 0, 7);
+            grad.addColorStop(0, '#aaffff');
+            grad.addColorStop(0.4, '#00ccff');
+            grad.addColorStop(1, '#0066cc');
+            ctx.fillStyle = grad;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(180,255,255,0.7)';
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+            // shine
+            ctx.beginPath();
+            ctx.moveTo(-2, -6);
+            ctx.lineTo(2, -3);
+            ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
     function drawParticles() {
         for (const p of particles) {
             const t = p.life / p.maxLife;
@@ -507,6 +561,8 @@
     // ── Game state ─────────────────────────────────────────────────
     let playerName = '';
     let gameRunning = false;
+    let gems = 0;
+    let gemObjects = []; // { x, y, collected }
 
     let vx, vy, angle, angVel;
     let px, py;          // position of vehicle center
@@ -899,8 +955,19 @@
     }
 
     // ── Init / Reset ───────────────────────────────────────────────
+    function generateGems() {
+        gemObjects = [];
+        for (let x = 400; x < 25000; x += 280 + Math.random() * 320) {
+            const y = terrainYAt(x) - 28;
+            gemObjects.push({ x, y, collected: false });
+        }
+    }
+
     function initGame() {
         generateTerrain();
+        generateGems();
+        gems = 0;
+        document.getElementById('hud-gem-count').textContent = '0';
 
         const startX = 80;
         const startY = terrainYAt(startX) - WHEEL_R - 4;
@@ -1228,6 +1295,19 @@
             if (Math.random() < 0.4) spawnParticles(px - 20, py + 2, 3, '#ffaa00', 120, 0.35);
         }
 
+        // Gem collection
+        for (const g of gemObjects) {
+            if (g.collected) continue;
+            const dx = px - g.x, dy = py - g.y;
+            if (dx * dx + dy * dy < 900) {
+                g.collected = true;
+                gems++;
+                document.getElementById('hud-gem-count').textContent = gems;
+                spawnParticles(g.x, g.y, 10, '#00eeff', 120, 0.5);
+                popups.push({ x: g.x, y: g.y - 30, text: '+1 💎', life: 0.9, maxLife: 0.9, color: '#00eeff' });
+            }
+        }
+
         // Wheelie tilt (visuell): Nase hoch wenn Boost + Boden
         const targetTilt = (boostActive && onGround) ? -0.52 : 0;
         wheelieTilt += (targetTilt - wheelieTilt) * Math.min(dt * 10, 1);
@@ -1391,6 +1471,9 @@
 
         // Loops
         drawLoops();
+
+        // Gems
+        drawGems();
 
         // Particles (behind vehicle)
         drawParticles();

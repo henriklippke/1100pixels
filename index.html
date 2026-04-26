@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/index.css">
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-        import { getFirestore, collection, getDocs }
+        import { getFirestore, collection, getDocs, deleteDoc, doc, query, where, updateDoc, increment }
             from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
         import { getUser, logout, register, login } from '/auth.js';
 
@@ -41,6 +41,8 @@
             return `${day}.${mon}.${yr} ${h}:${min}`;
         }
 
+        const isAdmin = (() => { try { const u = JSON.parse(localStorage.getItem('1100px_user')); return u?.name?.toLowerCase() === 'leo'; } catch { return false; } })();
+
         function fillTable(tbodyId, docs, scoreLabel) {
             const tbody = document.getElementById(tbodyId);
             if (!tbody) return;
@@ -53,12 +55,47 @@
             docs.forEach((d, i) => {
                 const tr = document.createElement('tr');
                 tr.className = i < 3 ? `rank-${i+1}` : '';
-                tr.innerHTML = `<td class="lb-rank">${i < 3 ? medals[i] : i+1}</td><td class="lb-name">${d.name}<span class="lb-name-date">${fmtDate(d.created)}</span></td><td class="lb-pts">${d.points} <span class="lb-unit">${scoreLabel}</span></td><td class="lb-date">${fmtDate(d.created)}</td>`;
+                const adminBtn = isAdmin && d.id
+                    ? `<button data-id="${d.id}" class="admin-kick" title="Eintrag löschen">✕</button>`
+                    : '';
+                tr.innerHTML = `<td class="lb-rank">${i < 3 ? medals[i] : i+1}</td><td class="lb-name">${d.name}<span class="lb-name-date">${fmtDate(d.created)}</span></td><td class="lb-pts">${d.points} <span class="lb-unit">${scoreLabel}</span></td><td class="lb-date">${fmtDate(d.created)}${adminBtn}</td>`;
                 tbody.appendChild(tr);
             });
+
+            if (isAdmin) {
+                tbody.querySelectorAll('.admin-kick').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        if (!confirm('Eintrag löschen?')) return;
+                        await deleteDoc(doc(db, 'red-pixel', btn.dataset.id));
+                        btn.closest('tr').remove();
+                    });
+                });
+            }
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
+            // ── Admin Panel ──
+            const adminPanel = document.getElementById('admin-panel');
+            if (isAdmin) {
+                adminPanel.style.display = 'block';
+                document.getElementById('admin-toggle').addEventListener('click', () => {
+                    adminPanel.classList.toggle('open');
+                });
+                document.getElementById('admin-give').addEventListener('click', async () => {
+                    const name = document.getElementById('admin-name').value.trim();
+                    const amount = parseInt(document.getElementById('admin-amount').value);
+                    const msgEl = document.getElementById('admin-msg');
+                    if (!name || !amount || amount < 1) { msgEl.textContent = 'Name und Anzahl eingeben.'; return; }
+                    const qs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', name.toLowerCase())));
+                    if (qs.empty) { msgEl.textContent = `"${name}" nicht gefunden.`; return; }
+                    await updateDoc(doc(db, 'users', qs.docs[0].id), { gems: increment(amount) });
+                    msgEl.textContent = `✓ ${amount} Gems an ${qs.docs[0].data().name} geschenkt!`;
+                    msgEl.style.color = '#00eeff';
+                    document.getElementById('admin-name').value = '';
+                    document.getElementById('admin-amount').value = '';
+                });
+            }
+
             // ── Auth ──
             const user = getUser();
             const headerUser = document.getElementById('header-user');
@@ -99,8 +136,8 @@
             try {
                 const snap = await getDocs(collection(db, 'red-pixel'));
                 const redPixels = [], rider = [];
-                snap.forEach(doc => {
-                    const d = doc.data();
+                snap.forEach(docSnap => {
+                    const d = { ...docSnap.data(), id: docSnap.id };
                     if (d.name?.trim().toLowerCase() === 'test') return;
                     if (d.game === 'RIDER') rider.push(d);
                     else redPixels.push(d);
@@ -129,6 +166,18 @@
         <input class="auth-input" id="auth-pin" type="password" placeholder="PIN (4 Ziffern)" maxlength="4" inputmode="numeric">
         <p class="auth-error" id="auth-error"></p>
         <button class="auth-btn" id="auth-submit">Los</button>
+    </div>
+</div>
+
+<!-- Admin Panel (nur für Leo) -->
+<div id="admin-panel">
+    <div id="admin-toggle">⚙</div>
+    <div id="admin-content">
+        <div class="admin-title">💎 Gems schenken</div>
+        <input id="admin-name" class="admin-input" type="text" placeholder="Spielername" autocomplete="off" spellcheck="false">
+        <input id="admin-amount" class="admin-input" type="number" placeholder="Anzahl" min="1" max="9999">
+        <button id="admin-give" class="admin-btn">Schenken</button>
+        <p id="admin-msg"></p>
     </div>
 </div>
 
