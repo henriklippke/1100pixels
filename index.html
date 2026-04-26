@@ -64,10 +64,15 @@
 
             if (isAdmin) {
                 tbody.querySelectorAll('.admin-kick').forEach(btn => {
-                    btn.addEventListener('click', async () => {
-                        if (!confirm('Eintrag löschen?')) return;
-                        await deleteDoc(doc(db, 'red-pixel', btn.dataset.id));
-                        btn.closest('tr').remove();
+                    btn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const id = btn.dataset.id;
+                        try {
+                            await deleteDoc(doc(db, 'red-pixel', id));
+                            btn.closest('tr').remove();
+                        } catch(err) {
+                            alert('Fehler: ' + err.message);
+                        }
                     });
                 });
             }
