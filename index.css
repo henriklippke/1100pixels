@@ -495,14 +495,12 @@ main {
 .admin-kick {
     background: none;
     border: none;
-    color: rgba(255,68,68,0.4);
+    color: rgba(255,68,68,0.5);
     font-size: 0.7rem;
     cursor: pointer;
-    padding: 0 0 0 6px;
-    opacity: 0;
-    transition: opacity 0.15s, color 0.15s;
+    padding: 0 0 0 8px;
+    transition: color 0.15s;
 }
-.lb-table tbody tr:hover .admin-kick { opacity: 1; }
 .admin-kick:hover { color: #ff4444; }
 
 .lb-name-date {

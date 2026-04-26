@@ -95,23 +95,6 @@
                     document.getElementById('admin-amount').value = '';
                 });
 
-                document.getElementById('admin-kick-btn').addEventListener('click', async () => {
-                    const name = document.getElementById('admin-kick-name').value.trim();
-                    const msgEl = document.getElementById('admin-msg');
-                    if (!name) { msgEl.textContent = 'Name eingeben.'; return; }
-                    if (!confirm(`Alle Einträge von "${name}" löschen?`)) return;
-                    const snap = await getDocs(collection(db, 'red-pixel'));
-                    let count = 0;
-                    const dels = [];
-                    snap.forEach(d => { if (d.data().name?.toLowerCase() === name.toLowerCase()) dels.push(deleteDoc(doc(db, 'red-pixel', d.id))); });
-                    await Promise.all(dels);
-                    count = dels.length;
-                    msgEl.textContent = count > 0 ? `✓ ${count} Einträge von "${name}" gelöscht.` : `Keine Einträge für "${name}" gefunden.`;
-                    msgEl.style.color = count > 0 ? '#ff6666' : 'rgba(255,255,255,0.4)';
-                    document.getElementById('admin-kick-name').value = '';
-                    // Tabellen neu laden
-                    location.reload();
-                });
             }
 
             // ── Auth ──
@@ -236,10 +219,6 @@
         <input id="admin-name" class="admin-input" type="text" placeholder="Spielername" autocomplete="off" spellcheck="false">
         <input id="admin-amount" class="admin-input" type="number" placeholder="Anzahl" min="1" max="9999">
         <button id="admin-give" class="admin-btn">Schenken</button>
-        <div style="height:1px;background:rgba(255,255,255,0.07);margin:4px 0"></div>
-        <div class="admin-title" style="margin-top:4px">🚫 Aus Bestenliste kicken</div>
-        <input id="admin-kick-name" class="admin-input" type="text" placeholder="Spielername" autocomplete="off" spellcheck="false">
-        <button id="admin-kick-btn" class="admin-btn" style="background:linear-gradient(135deg,#cc2222,#881111)">Kicken</button>
         <p id="admin-msg"></p>
     </div>
 </div>
