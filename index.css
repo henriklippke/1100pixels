@@ -523,6 +523,101 @@ main {
 .lb-table th:nth-child(3) { text-align: left; padding-left: 0; }
 .lb-table th:nth-child(4) { text-align: right; }
 
+/* ── Quest Panel ── */
+.slide-top {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+}
+
+.quest-panel {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.quest-panel-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.35);
+}
+
+.quest-item {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.quest-item.quest-done {
+    border-color: rgba(0,220,255,0.25);
+    background: rgba(0,200,255,0.04);
+}
+
+.quest-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.quest-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: white;
+}
+
+.quest-item.quest-done .quest-title { color: #00ddff; }
+
+.quest-reward {
+    font-size: 0.75rem;
+    color: #00ccff;
+    font-weight: 700;
+}
+
+.quest-desc {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.35);
+    line-height: 1.4;
+}
+
+.quest-bar-wrap {
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.quest-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #0088cc, #00ccff);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+}
+
+.quest-item.quest-done .quest-bar { background: linear-gradient(90deg, #00aacc, #00ffcc); }
+
+.quest-progress {
+    font-size: 0.68rem;
+    color: rgba(255,255,255,0.3);
+    text-align: right;
+}
+
+.quest-empty {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.2);
+    text-align: center;
+    padding: 16px 0;
+}
+
 /* ── Responsive ── */
 @media (max-width: 600px) {
     header { padding: 28px 16px 20px; }
@@ -568,6 +663,8 @@ main {
 
     /* Kein Podium auf Mobile */
     .podium { display: none; }
+
+    .slide-top { grid-template-columns: 1fr; }
 
     /* Mobile-freundliche Tabelle: Datum unter Name */
     .lb-date, .lb-table th:last-child { display: none; }

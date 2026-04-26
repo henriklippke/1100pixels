@@ -133,6 +133,41 @@
             document.getElementById('auth-pin').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });
             document.getElementById('auth-name').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('auth-pin').focus(); });
 
+            // ── Quests ──
+            const QUESTS = {
+                rider:    [ { id: 'r_20flips',  title: '20 Flips',   desc: 'Mache insgesamt 20 Flips in Rider',     target: 20,  gem: 10 } ],
+                redpixel: []
+            };
+
+            function renderQuests(containerId, quests, progress) {
+                const el = document.getElementById(containerId);
+                if (!el) return;
+                if (quests.length === 0) { el.innerHTML = '<p class="quest-empty">Bald verfügbar</p>'; return; }
+                el.innerHTML = quests.map(q => {
+                    const prog = Math.min(progress[q.id] || 0, q.target);
+                    const pct  = Math.round((prog / q.target) * 100);
+                    const done = prog >= q.target;
+                    return `<div class="quest-item ${done ? 'quest-done' : ''}">
+                        <div class="quest-top">
+                            <span class="quest-title">${done ? '✓ ' : ''}${q.title}</span>
+                            <span class="quest-reward">+${q.gem} 💎</span>
+                        </div>
+                        <div class="quest-desc">${q.desc}</div>
+                        <div class="quest-bar-wrap"><div class="quest-bar" style="width:${pct}%"></div></div>
+                        <div class="quest-progress">${prog} / ${q.target}</div>
+                    </div>`;
+                }).join('');
+            }
+
+            // Load quest progress for logged-in user
+            let questProgress = {};
+            if (user) {
+                const uqs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', user.name.toLowerCase())));
+                if (!uqs.empty) questProgress = uqs.docs[0].data().quests || {};
+            }
+            renderQuests('quests-rider',    QUESTS.rider,    questProgress);
+            renderQuests('quests-redpixel', QUESTS.redpixel, questProgress);
+
             try {
                 const snap = await getDocs(collection(db, 'red-pixel'));
                 const redPixels = [], rider = [];
@@ -192,6 +227,7 @@
 
         <!-- ── Rider ── -->
         <div class="slide">
+        <div class="slide-top">
         <a href="rider.html" class="game-card">
             <div class="game-thumb">
                 <svg class="rider-svg" viewBox="0 0 400 260" xmlns="http://www.w3.org/2000/svg">
@@ -303,6 +339,11 @@
                 </div>
             </div>
         </a>
+        <div class="quest-panel">
+            <div class="quest-panel-title">Quests</div>
+            <div id="quests-rider"></div>
+        </div>
+        </div>
         <div class="lb-panel slide-lb">
             <h3 class="lb-title"><span class="lb-dot cyan"></span>Rider</h3>
             <div class="lb-scroll">
@@ -317,6 +358,7 @@
 
         <!-- ── Red Pixels ── -->
         <div class="slide">
+        <div class="slide-top">
         <a href="RED-pixels.html" class="game-card">
             <div class="game-thumb">
                 <img src="/images/red.png" alt="Red Pixels">
@@ -335,6 +377,11 @@
                 </div>
             </div>
         </a>
+        <div class="quest-panel">
+            <div class="quest-panel-title">Quests</div>
+            <div id="quests-redpixel"></div>
+        </div>
+        </div>
         <div class="lb-panel slide-lb">
             <h3 class="lb-title"><span class="lb-dot red"></span>1100pixels</h3>
             <div class="lb-scroll">

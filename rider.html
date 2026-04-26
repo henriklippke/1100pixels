@@ -6,7 +6,7 @@
     <title>RIDER</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp }
+        import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, increment }
             from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -27,6 +27,13 @@
                     await addDoc(collection(db, 'red-pixel'), {
                         name, points, game: 'RIDER', created: serverTimestamp()
                     });
+                    // Update quest progress: total flips
+                    const uqs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', name.toLowerCase())));
+                    if (!uqs.empty) {
+                        await updateDoc(doc(db, 'users', uqs.docs[0].id), {
+                            'quests.r_20flips': increment(points)
+                        });
+                    }
                 }
             } catch(e) { console.error('Save error:', e); }
             await loadLeaderboard();
