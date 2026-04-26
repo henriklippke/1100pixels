@@ -93,6 +93,20 @@ a { color: white; text-decoration: none; }
     text-align: center;
 }
 
+/* ── Header Gems ── */
+#header-gems {
+    position: fixed;
+    top: 16px;
+    right: 20px;
+    z-index: 50;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #00ddff;
+    text-shadow: 0 0 10px rgba(0,200,255,0.7);
+    letter-spacing: 1px;
+    pointer-events: none;
+}
+
 /* ── Auth Modal ── */
 .auth-overlay {
     position: fixed;

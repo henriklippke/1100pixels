@@ -159,11 +159,17 @@
                 }).join('');
             }
 
-            // Load quest progress for logged-in user
+            // Load quest progress + gems for logged-in user
             let questProgress = {};
             if (user) {
                 const uqs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', user.name.toLowerCase())));
-                if (!uqs.empty) questProgress = uqs.docs[0].data().quests || {};
+                if (!uqs.empty) {
+                    const ud = uqs.docs[0].data();
+                    questProgress = ud.quests || {};
+                    document.getElementById('header-gem-count').textContent = ud.gems || 0;
+                }
+            } else {
+                document.getElementById('header-gems').style.display = 'none';
             }
             renderQuests('quests-rider',    QUESTS.rider,    questProgress);
             renderQuests('quests-redpixel', QUESTS.redpixel, questProgress);
@@ -215,6 +221,8 @@
         <p id="admin-msg"></p>
     </div>
 </div>
+
+<div id="header-gems">💎 <span id="header-gem-count">–</span></div>
 
 <header>
     <img src="/images/logo.png" width="160" class="logo" alt="1100pixels">
