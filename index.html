@@ -192,14 +192,23 @@
 
             // Load quest progress + gems for logged-in user
             let questProgress = {}, questsClaimed = {};
+            const timeout = ms => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
             if (user) {
-                const uqs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', user.name.toLowerCase())));
-                if (!uqs.empty) {
-                    userDocId = uqs.docs[0].id;
-                    const ud = uqs.docs[0].data();
-                    questProgress = ud.quests || {};
-                    questsClaimed = ud.questsClaimed || {};
-                    document.getElementById('header-gem-count').textContent = ud.gems || 0;
+                try {
+                    const uqs = await Promise.race([
+                        getDocs(query(collection(db, 'users'), where('nameLower', '==', user.name.toLowerCase()))),
+                        timeout(6000)
+                    ]);
+                    if (!uqs.empty) {
+                        userDocId = uqs.docs[0].id;
+                        const ud = uqs.docs[0].data();
+                        questProgress = ud.quests || {};
+                        questsClaimed = ud.questsClaimed || {};
+                        document.getElementById('header-gem-count').textContent = ud.gems || 0;
+                    }
+                } catch(e) {
+                    console.warn('User data load failed:', e.message);
+                    document.getElementById('header-gem-count').textContent = '?';
                 }
             } else {
                 document.getElementById('header-gems').style.display = 'none';
@@ -208,7 +217,10 @@
             renderQuests('quests-redpixel', QUESTS.redpixel, questProgress, questsClaimed);
 
             try {
-                const snap = await getDocs(collection(db, 'red-pixel'));
+                const snap = await Promise.race([
+                    getDocs(collection(db, 'red-pixel')),
+                    timeout(8000)
+                ]);
                 const redPixels = [], rider = [];
                 snap.forEach(docSnap => {
                     const d = { ...docSnap.data(), id: docSnap.id };
