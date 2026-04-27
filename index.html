@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/index.css">
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, deleteDoc, doc, query, where, updateDoc, increment }
+        import { getFirestore, collection, getDocs, deleteDoc, doc, query, where, updateDoc, increment, arrayUnion }
             from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
         import { getUser, logout, register, login } from '/auth.js';
 
@@ -63,17 +63,17 @@
             });
 
             if (isAdmin) {
-                tbody.querySelectorAll('.admin-kick').forEach(btn => {
-                    btn.addEventListener('click', async (e) => {
-                        e.stopPropagation();
-                        const id = btn.dataset.id;
-                        try {
-                            await deleteDoc(doc(db, 'red-pixel', id));
-                            btn.closest('tr').remove();
-                        } catch(err) {
-                            alert('Fehler: ' + err.message);
-                        }
-                    });
+                tbody.addEventListener('click', async (e) => {
+                    const btn = e.target.closest('.admin-kick');
+                    if (!btn) return;
+                    e.stopPropagation();
+                    const id = btn.dataset.id;
+                    try {
+                        await deleteDoc(doc(db, 'red-pixel', id));
+                        btn.closest('tr').remove();
+                    } catch(err) {
+                        alert('Fehler: ' + err.message);
+                    }
                 });
             }
         }
@@ -141,44 +141,71 @@
 
             // ── Quests ──
             const QUESTS = {
-                rider:    [ { id: 'r_20flips',  title: '20 Flips',   desc: 'Mache insgesamt 20 Flips in Rider',     target: 20,  gem: 10 } ],
+                rider: [
+                    { id: 'r_20flips',  title: '20 Flips',     desc: 'Mache insgesamt 20 Flips in Rider',       target: 20,  gem: 10 },
+                    { id: 'r_20loops',  title: '20 Loopings',  desc: 'Fahre insgesamt 20 Loopings in Rider',    target: 20,  gem: 25 },
+                    { id: 'r_10games',  title: '10 Runden',    desc: 'Spiele insgesamt 10 Runden Rider',        target: 10,  gem: 15 }
+                ],
                 redpixel: []
             };
 
-            function renderQuests(containerId, quests, progress) {
+            let userDocId = null;
+
+            function renderQuests(containerId, quests, progress, claimed) {
                 const el = document.getElementById(containerId);
                 if (!el) return;
                 if (quests.length === 0) { el.innerHTML = '<p class="quest-empty">Bald verfügbar</p>'; return; }
                 el.innerHTML = quests.map(q => {
-                    const prog = Math.min(progress[q.id] || 0, q.target);
-                    const pct  = Math.round((prog / q.target) * 100);
-                    const done = prog >= q.target;
+                    const prog     = Math.min(progress[q.id] || 0, q.target);
+                    const pct      = Math.round((prog / q.target) * 100);
+                    const done     = prog >= q.target;
+                    const isClaimed = claimed?.[q.id];
+                    const btn = done && !isClaimed && user
+                        ? `<button class="quest-claim-btn" data-id="${q.id}" data-gem="${q.gem}">Einlösen</button>`
+                        : done && isClaimed ? `<span class="quest-claimed">Erhalten ✓</span>` : '';
                     return `<div class="quest-item ${done ? 'quest-done' : ''}">
                         <div class="quest-top">
-                            <span class="quest-title">${done ? '✓ ' : ''}${q.title}</span>
+                            <span class="quest-title">${q.title}</span>
                             <span class="quest-reward">+${q.gem} 💎</span>
                         </div>
                         <div class="quest-desc">${q.desc}</div>
                         <div class="quest-bar-wrap"><div class="quest-bar" style="width:${pct}%"></div></div>
-                        <div class="quest-progress">${prog} / ${q.target}</div>
+                        <div class="quest-footer"><span class="quest-progress">${prog} / ${q.target}</span>${btn}</div>
                     </div>`;
                 }).join('');
+
+                el.querySelectorAll('.quest-claim-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        if (!userDocId) return;
+                        const qid = btn.dataset.id;
+                        const gem = parseInt(btn.dataset.gem);
+                        await updateDoc(doc(db, 'users', userDocId), {
+                            [`questsClaimed.${qid}`]: true,
+                            gems: increment(gem)
+                        });
+                        const cur = parseInt(document.getElementById('header-gem-count').textContent) || 0;
+                        document.getElementById('header-gem-count').textContent = cur + gem;
+                        btn.replaceWith(Object.assign(document.createElement('span'), { className: 'quest-claimed', textContent: 'Erhalten ✓' }));
+                    });
+                });
             }
 
             // Load quest progress + gems for logged-in user
-            let questProgress = {};
+            let questProgress = {}, questsClaimed = {};
             if (user) {
                 const uqs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', user.name.toLowerCase())));
                 if (!uqs.empty) {
+                    userDocId = uqs.docs[0].id;
                     const ud = uqs.docs[0].data();
                     questProgress = ud.quests || {};
+                    questsClaimed = ud.questsClaimed || {};
                     document.getElementById('header-gem-count').textContent = ud.gems || 0;
                 }
             } else {
                 document.getElementById('header-gems').style.display = 'none';
             }
-            renderQuests('quests-rider',    QUESTS.rider,    questProgress);
-            renderQuests('quests-redpixel', QUESTS.redpixel, questProgress);
+            renderQuests('quests-rider',    QUESTS.rider,    questProgress, questsClaimed);
+            renderQuests('quests-redpixel', QUESTS.redpixel, questProgress, questsClaimed);
 
             try {
                 const snap = await getDocs(collection(db, 'red-pixel'));
@@ -191,12 +218,140 @@
                 });
                 redPixels.sort((a, b) => b.points - a.points);
                 rider.sort((a, b) => b.points - a.points);
+                const riderFiltered = rider.filter(d => d.points >= 15);
 
                 fillPodium('p', redPixels);
-                fillPodium('r', rider);
+                fillPodium('r', riderFiltered);
                 fillTable('lb-redpixel', redPixels, 'Pts');
-                fillTable('lb-rider', rider, 'Flips');
+                fillTable('lb-rider', riderFiltered, 'Flips');
             } catch(e) { console.error(e); }
+
+            // ── Skin Shop ──
+            const SKINS = [
+                { id: 'default',   name: 'Standard',    price: 0,    color: '#00aaff', prop: 'Keine Boni',               emoji: '🔵' },
+                { id: 'heavy',     name: 'Heavy Metal', price: 50,   color: '#ff6600', prop: 'Schwerkraft +28%',         emoji: '🔩' },
+                { id: 'flipper',   name: 'Flipmaster',  price: 70,   color: '#00ff88', prop: 'Flip Speed +20%',          emoji: '🌀' },
+                { id: 'moon',      name: 'Moon Rider',  price: 90,   color: '#aa44ff', prop: 'Schwerkraft −22%',         emoji: '🌙' },
+                { id: 'turbo',     name: 'Turbo',       price: 110,  color: '#ff2244', prop: 'Speed +12%',               emoji: '⚡' },
+                { id: 'phantom',   name: 'Phantom',     price: 130,  color: '#aaddff', prop: 'Weniger Reibung',          emoji: '👻' },
+                { id: 'berserker', name: 'Berserker',   price: 160,  color: '#ff2200', prop: 'Boost nach 6 Flips',       emoji: '🔥' },
+                { id: 'neon',      name: 'Neon',        price: 200,  color: '#ff00dd', prop: 'Boost +50% länger',        emoji: '✨' },
+                { id: 'rocket',    name: 'Rocket',      price: 230,  color: '#ff5500', prop: 'Schub +30%',               emoji: '🚀' },
+                { id: 'eagle',     name: 'Eagle',       price: 280,  color: '#44aaff', prop: 'Boost Kraft +40%',         emoji: '🦅' },
+                { id: 'crusher',   name: 'Crusher',     price: 400,  color: '#ff8800', prop: 'Schwerkraft +20% & Flip +15%', emoji: '💥' },
+                { id: 'shadow',    name: 'Shadow',      price: 550,  color: '#9900ff', prop: 'Schwerkraft −12% & Speed +8%', emoji: '🌑' },
+                { id: 'storm',     name: 'Storm',       price: 700,  color: '#00ccff', prop: 'Schub +15% & Boost +25%',  emoji: '⛈️' },
+                { id: 'custom',    name: 'Custom Bike', price: 1000, color: '#ffcc00', prop: '2 wählbare Boni',          emoji: '🏆' },
+            ];
+            const CUSTOM_PROPS = [
+                { id: 'gravDown',   label: 'Schwerkraft −28%',    emoji: '🌙', group: 'grav'      },
+                { id: 'gravUp',     label: 'Schwerkraft +38%',    emoji: '🔩', group: 'grav'      },
+                { id: 'speed',      label: 'Speed +22%',           emoji: '⚡', group: 'speed'     },
+                { id: 'flip',       label: 'Flip Speed +32%',      emoji: '🌀', group: 'flip'      },
+                { id: 'thrust',     label: 'Schub +25%',           emoji: '🚀', group: 'thrust'    },
+                { id: 'boostDur',   label: 'Boost +45% länger',    emoji: '✨', group: 'boostDur'  },
+                { id: 'quickBoost', label: 'Boost nach 6 Flips',   emoji: '🔥', group: 'quickBoost'},
+                { id: 'boostStr',   label: 'Boost Kraft +35%',     emoji: '🦅', group: 'boostStr'  },
+            ];
+            let skinsUserDocId = null, skinsGems = 0, skinsOwned = ['default'], skinsActive = 'default', skinsCustomProps = [];
+
+            function renderPicker() {
+                const optsEl = document.getElementById('sk-picker-opts');
+                optsEl.innerHTML = CUSTOM_PROPS.map(p => {
+                    const sel = skinsCustomProps.includes(p.id);
+                    return `<button class="sk-prop-opt ${sel ? 'sk-prop-sel' : ''}" data-id="${p.id}" data-group="${p.group}">${p.emoji} ${p.label}</button>`;
+                }).join('');
+                document.getElementById('sk-save-btn').disabled = skinsCustomProps.length !== 2;
+                optsEl.querySelectorAll('.sk-prop-opt').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = btn.dataset.id, group = btn.dataset.group;
+                        if (skinsCustomProps.includes(id)) {
+                            skinsCustomProps = skinsCustomProps.filter(p => p !== id);
+                        } else {
+                            skinsCustomProps = skinsCustomProps.filter(p => (CUSTOM_PROPS.find(x => x.id === p)?.group) !== group);
+                            if (skinsCustomProps.length < 2) skinsCustomProps.push(id);
+                        }
+                        renderPicker();
+                    });
+                });
+            }
+
+            function renderSkinsGrid() {
+                const grid = document.getElementById('skins-grid');
+                document.getElementById('skins-gem-count').textContent = skinsGems;
+                grid.innerHTML = SKINS.map(s => {
+                    const owned = skinsOwned.includes(s.id), active = skinsActive === s.id;
+                    let subProp = s.prop;
+                    if (s.id === 'custom' && active && skinsCustomProps.length === 2)
+                        subProp = skinsCustomProps.map(id => CUSTOM_PROPS.find(p => p.id === id)?.label).join(' + ');
+                    const action = active && s.id !== 'custom'
+                        ? `<span class="sk-badge">Aktiv</span>`
+                        : active && s.id === 'custom'
+                        ? `<span class="sk-badge">Aktiv</span><button class="sk-equip" data-id="custom" style="margin-top:4px;font-size:0.55rem">Anpassen</button>`
+                        : owned
+                        ? `<button class="sk-equip" data-id="${s.id}">Ausrüsten</button>`
+                        : skinsGems >= s.price || s.price === 0
+                        ? `<button class="sk-buy" data-id="${s.id}" data-price="${s.price}">${s.price} 💎</button>`
+                        : `<span class="sk-locked">${s.price} 💎</span>`;
+                    return `<div class="sk-card ${active ? 'sk-active' : ''}">
+                        <div class="sk-icon">${s.emoji}</div>
+                        <div class="sk-name" style="color:${s.color}">${s.name}</div>
+                        <div class="sk-prop">${subProp}</div>
+                        ${action}
+                    </div>`;
+                }).join('');
+
+                const picker = document.getElementById('sk-picker');
+                if (skinsActive === 'custom' && skinsOwned.includes('custom')) { picker.style.display = ''; renderPicker(); }
+                else picker.style.display = 'none';
+
+                grid.querySelectorAll('.sk-buy').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        if (!skinsUserDocId) return;
+                        const price = parseInt(btn.dataset.price);
+                        btn.disabled = true;
+                        await updateDoc(doc(db, 'users', skinsUserDocId), { ownedSkins: arrayUnion(btn.dataset.id), gems: increment(-price) });
+                        skinsGems -= price; skinsOwned.push(btn.dataset.id);
+                        renderSkinsGrid();
+                    });
+                });
+                grid.querySelectorAll('.sk-equip').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        if (!skinsUserDocId) return;
+                        await updateDoc(doc(db, 'users', skinsUserDocId), { activeSkin: btn.dataset.id });
+                        localStorage.setItem('1100px_activeSkin', btn.dataset.id);
+                        skinsActive = btn.dataset.id; renderSkinsGrid();
+                    });
+                });
+            }
+
+            async function openSkinsModal() {
+                document.getElementById('skins-modal').classList.add('show');
+                if (skinsUserDocId) { renderSkinsGrid(); return; }
+                if (!user) { renderSkinsGrid(); return; }
+                const uqs2 = await getDocs(query(collection(db, 'users'), where('nameLower', '==', user.name.toLowerCase())));
+                if (!uqs2.empty) {
+                    skinsUserDocId   = uqs2.docs[0].id;
+                    const ud2        = uqs2.docs[0].data();
+                    skinsGems        = ud2.gems || 0;
+                    skinsOwned       = ud2.ownedSkins || ['default'];
+                    skinsActive      = ud2.activeSkin || 'default';
+                    skinsCustomProps = ud2.customSkinProps || [];
+                    localStorage.setItem('1100px_activeSkin', skinsActive);
+                    localStorage.setItem('1100px_customProps', JSON.stringify(skinsCustomProps));
+                }
+                renderSkinsGrid();
+            }
+
+            document.getElementById('skins-btn-img').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openSkinsModal(); });
+            document.getElementById('skins-modal-close').addEventListener('click', () => document.getElementById('skins-modal').classList.remove('show'));
+            document.getElementById('skins-modal-bg').addEventListener('click',    () => document.getElementById('skins-modal').classList.remove('show'));
+            document.getElementById('sk-save-btn').addEventListener('click', async () => {
+                if (!skinsUserDocId || skinsCustomProps.length !== 2) return;
+                await updateDoc(doc(db, 'users', skinsUserDocId), { customSkinProps: skinsCustomProps });
+                localStorage.setItem('1100px_customProps', JSON.stringify(skinsCustomProps));
+                document.getElementById('skins-modal').classList.remove('show');
+            });
         });
     </script>
 </head>
@@ -241,7 +396,6 @@
 
         <!-- ── Rider ── -->
         <div class="slide">
-        <div class="slide-top">
         <a href="rider.html" class="game-card">
             <div class="game-thumb">
                 <svg class="rider-svg" viewBox="0 0 400 260" xmlns="http://www.w3.org/2000/svg">
@@ -346,6 +500,8 @@
                         <div class="podium-place p3" id="r3"><span class="medal">🥉</span><span class="p-name">–</span><span class="p-pts"></span></div>
                     </div>
                     <span class="play-btn">▶ Spielen</span>
+                    <button class="quest-link-btn" id="quest-btn-rider">📜<span>Quests</span></button>
+                    <button class="skin-link-btn" id="skins-btn-img">🎨<span>Skins</span></button>
                     <div class="thumb-bottom">
                         <h2 class="game-title">Rider</h2>
                         <p class="game-desc">Fahre so weit wie möglich und mache Flips.</p>
@@ -353,11 +509,6 @@
                 </div>
             </div>
         </a>
-        <div class="quest-panel">
-            <div class="quest-panel-title">Quests</div>
-            <div id="quests-rider"></div>
-        </div>
-        </div>
         <div class="lb-panel slide-lb">
             <h3 class="lb-title"><span class="lb-dot cyan"></span>Rider</h3>
             <div class="lb-scroll">
@@ -372,7 +523,6 @@
 
         <!-- ── Red Pixels ── -->
         <div class="slide">
-        <div class="slide-top">
         <a href="RED-pixels.html" class="game-card">
             <div class="game-thumb">
                 <img src="/images/red.png" alt="Red Pixels">
@@ -384,6 +534,7 @@
                         <div class="podium-place p3" id="p3"><span class="medal">🥉</span><span class="p-name">–</span><span class="p-pts"></span></div>
                     </div>
                     <span class="play-btn">▶ Spielen</span>
+                    <button class="quest-link-btn" id="quest-btn-redpixel">📜<span>Quests</span></button>
                     <div class="thumb-bottom">
                         <h2 class="game-title">Red Pixels</h2>
                         <p class="game-desc">Finde die sich nicht ändernde rote Box.</p>
@@ -391,11 +542,6 @@
                 </div>
             </div>
         </a>
-        <div class="quest-panel">
-            <div class="quest-panel-title">Quests</div>
-            <div id="quests-redpixel"></div>
-        </div>
-        </div>
         <div class="lb-panel slide-lb">
             <h3 class="lb-title"><span class="lb-dot red"></span>1100pixels</h3>
             <div class="lb-scroll">
@@ -416,7 +562,57 @@
 
 </main>
 
+<div class="skins-modal" id="skins-modal">
+    <div class="skins-modal-bg" id="skins-modal-bg"></div>
+    <div class="skins-modal-box">
+        <div class="skins-modal-head">
+            <span class="skins-modal-title">🎨 Rider Skins</span>
+            <span class="skins-modal-gems">💎 <span id="skins-gem-count">–</span></span>
+            <button class="skins-modal-close" id="skins-modal-close">✕</button>
+        </div>
+        <div class="skins-grid" id="skins-grid"></div>
+        <div class="sk-picker" id="sk-picker" style="display:none">
+            <div class="sk-picker-label">Wähle genau 2 Eigenschaften (je 50% Stärke):</div>
+            <div class="sk-picker-opts" id="sk-picker-opts"></div>
+            <button class="sk-save-btn" id="sk-save-btn">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<div class="quest-modal" id="quest-modal">
+    <div class="quest-modal-bg" id="quest-modal-bg"></div>
+    <div class="quest-modal-box">
+        <div class="quest-modal-head">
+            <span class="quest-modal-title" id="quest-modal-title">Quests</span>
+            <button class="quest-modal-close" id="quest-modal-close">✕</button>
+        </div>
+        <div id="quests-rider"></div>
+        <div id="quests-redpixel" style="display:none"></div>
+    </div>
+</div>
+
 <script>
+    document.getElementById('quest-btn-rider').addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        document.getElementById('quests-rider').style.display = '';
+        document.getElementById('quests-redpixel').style.display = 'none';
+        document.getElementById('quest-modal-title').textContent = 'Rider – Quests';
+        document.getElementById('quest-modal').classList.add('show');
+    });
+    document.getElementById('quest-btn-redpixel').addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        document.getElementById('quests-rider').style.display = 'none';
+        document.getElementById('quests-redpixel').style.display = '';
+        document.getElementById('quest-modal-title').textContent = 'Red Pixels – Quests';
+        document.getElementById('quest-modal').classList.add('show');
+    });
+    document.getElementById('quest-modal-close').addEventListener('click', () => {
+        document.getElementById('quest-modal').classList.remove('show');
+    });
+    document.getElementById('quest-modal-bg').addEventListener('click', () => {
+        document.getElementById('quest-modal').classList.remove('show');
+    });
+
     const slider = document.getElementById('slider');
     const dots   = document.querySelectorAll('.dot');
     slider.addEventListener('scroll', () => {
