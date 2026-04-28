@@ -134,6 +134,20 @@
                 authOverlay.classList.remove('show');
                 headerUser.innerHTML = `Hallo, <span>${res.name}</span> <a href="/profil.html" style="color:rgba(255,255,255,0.4);font-size:0.7rem;border:1px solid rgba(255,255,255,0.15);border-radius:5px;padding:3px 8px;text-decoration:none">Profil</a> <button id="logout-btn">Abmelden</button>`;
                 document.getElementById('logout-btn').addEventListener('click', logout);
+                // Gems + Quest-Daten nach Login laden
+                document.getElementById('header-gems').style.display = '';
+                try {
+                    const uqs2 = await getDocs(query(collection(db, 'users'), where('nameLower', '==', res.name.toLowerCase())));
+                    if (!uqs2.empty) {
+                        userDocId = uqs2.docs[0].id;
+                        const ud2 = uqs2.docs[0].data();
+                        questProgress = ud2.quests || {};
+                        questsClaimed = ud2.questsClaimed || {};
+                        document.getElementById('header-gem-count').textContent = ud2.gems || 0;
+                        renderQuests('quests-rider',    QUESTS.rider,    questProgress, questsClaimed);
+                        renderQuests('quests-redpixel', QUESTS.redpixel, questProgress, questsClaimed);
+                    }
+                } catch(e) { console.warn('Post-login load failed:', e.message); }
             }
             document.getElementById('auth-submit').addEventListener('click', doAuth);
             document.getElementById('auth-pin').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });

@@ -112,16 +112,12 @@
 
         /* ── Header ── */
         #hud-gems {
-            position: fixed;
-            top: 14px;
-            right: 20px;
-            z-index: 101;
             font-size: 1rem;
             font-weight: 700;
             color: #00eeff;
             text-shadow: 0 0 10px rgba(0,220,255,0.8);
             letter-spacing: 1px;
-            pointer-events: none;
+            min-width: 80px;
         }
 
         .header {
@@ -379,6 +375,7 @@
 
 <!-- HUD -->
 <div class="header">
+    <div id="hud-gems">💎 <span id="hud-gem-count">0</span></div>
     <h2 class="hud-score">Flips: <span id="hud-score">0</span></h2>
     <h2 class="hud-title">Rider</h2>
     <div class="hud-level">
@@ -387,7 +384,6 @@
         <span class="hud-boost-charges" id="hud-boost-charges"></span>
     </div>
 </div>
-<div id="hud-gems">💎 <span id="hud-gem-count">0</span></div>
 
 <!-- Hint -->
 <div id="hint">Leertaste halten = Gas &amp; Drehen</div>
@@ -1254,19 +1250,21 @@
         const rContactY = py + Math.sin(angle) * (-AXLE_DIST) + Math.cos(angle) * WHEEL_R;
         const fContactY = py + Math.sin(angle) *   AXLE_DIST  + Math.cos(angle) * WHEEL_R;
 
-        const rOnGround = rContactY >= rTerrY;
-        const fOnGround = fContactY >= fTerrY;
+        let rOnGround = rContactY >= rTerrY;
+        let fOnGround = fContactY >= fTerrY;
         onGround = rOnGround || fOnGround;
 
         // Sticky ground: kurz über Terrain (bergab) → trotzdem am Boden bleiben
         if (!onGround && vy >= 0) {
             const rAbove = rTerrY - rContactY;
             const fAbove = fTerrY - fContactY;
-            if ((rAbove >= 0 && rAbove < 40) || (fAbove >= 0 && fAbove < 40)) {
+            if (rAbove >= 0 && rAbove < 40) {
                 onGround = true;
-                // Use average correction to avoid over-pushing at peaks
-                const correction = (Math.max(0, rAbove) + Math.max(0, fAbove)) / 2;
-                py += correction;
+                rOnGround = true;
+                vy = 0;
+            } else if (fAbove >= 0 && fAbove < 40) {
+                onGround = true;
+                fOnGround = true;
                 vy = 0;
             }
         }
@@ -1291,13 +1289,14 @@
             flipAccum = 0;
             airFrames = 0;
 
-            // Position auf Terrain setzen
+            // Position auf Terrain setzen (winkelkorrigiert)
+            const cosT = Math.cos(terrAngle), sinT = Math.sin(terrAngle);
             if (rOnGround && fOnGround) {
-                py = (rTerrY + fTerrY) / 2 - WHEEL_R;
+                py = (rTerrY + fTerrY) / 2 - cosT * WHEEL_R;
             } else if (rOnGround) {
-                py = rTerrY - WHEEL_R;
+                py = rTerrY + sinT * AXLE_DIST - cosT * WHEEL_R;
             } else {
-                py = fTerrY - WHEEL_R;
+                py = fTerrY - sinT * AXLE_DIST - cosT * WHEEL_R;
             }
 
             // Fahrzeug folgt Terrain-Winkel
