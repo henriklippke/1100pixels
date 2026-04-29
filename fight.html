@@ -84,11 +84,9 @@
         table.lb{width:100%;border-collapse:collapse;font-size:.82rem}
         table.lb td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.05)}
 
-        /* Difficulty buttons */
-        .diff-btn{flex:1;padding:10px;border-radius:9px;font-size:.85rem;font-weight:700;letter-spacing:2px;cursor:pointer;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.05);color:rgba(255,255,255,.5);transition:all .15s;text-transform:uppercase}
-        .diff-btn.active[data-diff="normal"]{background:rgba(0,200,255,.15);border-color:#00ccff;color:#00ccff;box-shadow:0 0 14px rgba(0,200,255,.3)}
-        .diff-btn.active[data-diff="hard"]{background:rgba(255,60,60,.15);border-color:#ff3333;color:#ff3333;box-shadow:0 0 14px rgba(255,60,60,.4)}
-        .diff-btn:hover{filter:brightness(1.3)}
+        /* Difficulty input */
+        .diff-wrap{margin-bottom:18px}
+        .diff-label{font-size:.75rem;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:6px;text-align:left}
 
         /* Controls legend */
         #ctrl-hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.25);font-size:.7rem;letter-spacing:2px;pointer-events:none;z-index:10;text-transform:uppercase;white-space:nowrap}
@@ -208,9 +206,9 @@
         <h1 style="color:#00ccff;text-shadow:0 0 20px rgba(0,200,255,.7)">GRID FIGHT</h1>
         <p class="modal-sub">Wirf den Gegner von der Plattform</p>
         <input class="modal-input" id="name-in" placeholder="Dein Name…" maxlength="20" autocomplete="off" spellcheck="false">
-        <div style="display:flex;gap:10px;margin-bottom:18px">
-            <button class="diff-btn active" id="diff-normal" data-diff="normal">NORMAL</button>
-            <button class="diff-btn" id="diff-hard" data-diff="hard">⚡ SCHWER</button>
+        <div class="diff-wrap">
+            <div class="diff-label">Schwierigkeit (0–100%)</div>
+            <input type="number" class="modal-input" id="diff-slider" min="0" max="100" value="50" placeholder="0 – 100" style="margin-bottom:0">
         </div>
         <button class="modal-btn" id="name-go">FIGHT!</button>
         <p style="margin-top:12px;font-size:.7rem;opacity:.3;letter-spacing:1px">Steuerung: A/D bewegen · W springen · J punch · K kick</p>
@@ -885,9 +883,9 @@ class Fighter {
 
 // ── AI ─────────────────────────────────────────────────────────────
 class AI {
-    constructor(f, hard=false){
+    constructor(f, pct=50){
         this.f=f; this.timer=0; this.mode='approach'; this.jumpCd=0;
-        this.hard=hard; this.dashCd=0; this.prevDir=0;
+        this.lvl=pct/100; this.dashCd=0; this.prevDir=0;
     }
     update(dt,opp){
         this.timer-=dt; this.jumpCd=Math.max(0,this.jumpCd-dt); this.dashCd=Math.max(0,this.dashCd-dt);
@@ -900,41 +898,29 @@ class AI {
 
         if(f.hitStun>0||f.state==='hit') return;
 
-        // Scale AI with player score: 0→slow, 150+→fast
-        const score = game?.playerScore || 0;
-        const lvl = Math.min(1, score / 150); // 0.0 to 1.0
-        const reactionFast = 0.14 - lvl*0.08;   // 0.14s → 0.06s
-        const reactionSlow = 0.20 - lvl*0.10;   // 0.20s → 0.10s
-        const timerBase = this.hard
-            ? reactionFast + Math.random()*reactionSlow
-            : 0.18+Math.random()*0.28;
+        // AI level 0..1 from difficulty %
+        const lvl = this.lvl;
+        const reactionTime = 0.35 - lvl*0.28 + Math.random()*(0.25 - lvl*0.18);
+        const timerBase = Math.max(0.05, reactionTime);
 
         // Change decision
         if(this.timer<=0){
             const r=Math.random();
             this.timer=timerBase;
-            if(this.hard){
-                // Aggression scales with lvl
-                const dashThresh = 300 - lvl*100; // approach from further away
-                const smashChance = 0.25 + lvl*0.25;
-                if(dist>dashThresh) this.mode='dash_approach';
-                else if(dist>150) this.mode=r<(0.4+lvl*0.2)?'dash_approach':'attack_jab';
-                else if(dist<55) this.mode=['attack_kick','attack_jab','smash','attack_kick'][Math.floor(r*4)];
+            const dashThresh = 350 - lvl*180;
+            const smashChance = lvl*0.45;
+            const aggressiveMode = lvl >= 0.4;
+            if(aggressiveMode && dist>dashThresh) this.mode='dash_approach';
+            else if(dist>280) this.mode=lvl>0.3?'dash_approach':'approach';
+            else if(dist>150) this.mode=r<(0.2+lvl*0.4)?'dash_approach':'attack_jab';
+            else if(dist<55) this.mode=['attack_kick','attack_jab','smash','attack_kick'][Math.floor(r*4)];
+            else {
+                if(r<smashChance) this.mode='smash';
                 else {
-                    const pool=['attack_jab','attack_kick','attack_jab','jump'];
-                    if(r<smashChance) this.mode='smash';
-                    else this.mode=pool[Math.floor(Math.random()*pool.length)];
-                }
-            } else {
-                if(dist>280) this.mode='approach';
-                else if(dist<65) this.mode=['attack_kick','retreat','attack_jab','retreat'][Math.floor(r*4)];
-                else if(dist<150){
-                    const modes=['attack_jab','approach','attack_kick','smash','jump'];
-                    const weights=[.3,.25,.22,.13,.1];
+                    const pool=['attack_jab','approach','attack_kick','jump','retreat'];
+                    const w=[.35-.1*lvl,.2,.25,.1+.05*lvl,.1-.05*lvl];
                     let acc=0; const rv=Math.random();
-                    for(let i=0;i<modes.length;i++){acc+=weights[i];if(rv<acc){this.mode=modes[i];break;}}
-                } else {
-                    this.mode=r<.55?'approach':r<.75?'jump':'attack_jab';
+                    for(let i=0;i<pool.length;i++){acc+=w[i];if(rv<acc){this.mode=pool[i];break;}}
                 }
             }
         }
@@ -943,9 +929,9 @@ class AI {
         if(this.mode==='approach'||this.mode==='dash_approach') f.keys[dir>0?'r':'l']=true;
         if(this.mode==='retreat') f.keys[dir>0?'l':'r']=true;
         if(this.mode==='jump'&&f.onGround&&this.jumpCd<=0){
-            f.keys.u=true; this.jumpCd=this.hard?0.4:0.8;
+            f.keys.u=true; this.jumpCd=0.8-lvl*0.4;
         }
-        const atkRange = this.hard ? 130 + lvl*50 : 130;
+        const atkRange = 130 + lvl*50;
         if(this.mode==='attack_jab'&&dist<atkRange){
             f.keys[dir>0?'r':'l']=true; f.keys.j=true;
         }
@@ -957,7 +943,7 @@ class AI {
         }
 
         // Edge awareness (runs before dash so dash can be cancelled)
-        const margin=this.hard?50:80;
+        const margin=80-lvl*30;
         const platforms=game.platforms;
         const mainPl=platforms[0];
         const nearEdgeL = mainPl && f.x < mainPl.x + margin;
@@ -969,9 +955,9 @@ class AI {
             if(!onPl||(nearEdgeR&&f.keys.r)){f.keys.r=false;f.keys.l=true;}
         }
 
-        // Hard: dash toward player — only if edge is far enough away
+        // Dash toward player — only if level high enough and edge is safe
         const dashDistThresh = 200 - lvl*60;
-        if(this.hard && this.mode==='dash_approach' && dist>dashDistThresh && f.onGround && this.dashCd<=0){
+        if(lvl>=0.3 && this.mode==='dash_approach' && dist>dashDistThresh && f.onGround && this.dashCd<=0){
             const dashSafe = dir>0 ? !nearEdgeR : !nearEdgeL;
             if(dashSafe){
                 f.dashing=0.06; f.dashDir=dir; f.vx=dir*1800;
@@ -979,23 +965,20 @@ class AI {
             }
         }
 
-        // Hard: random air attack
-        if(this.hard && !f.onGround && dist<180 && Math.random()<0.04) f.keys.j=true;
+        // Air attack
+        if(lvl>=0.4 && !f.onGround && dist<180 && Math.random()<0.02+lvl*0.04) f.keys.j=true;
 
-        // Recovery: when knocked off platform, use jumps + dash to get back
-        if(!f.onGround && f.y > (mainPl?.y||H) - 20 && f.jumpsLeft>0 && this.hard){
-            // Jump back up
+        // Recovery: when knocked off platform
+        if(!f.onGround && f.y > (mainPl?.y||H) - 20 && f.jumpsLeft>0 && lvl>=0.4){
             if(f.vy>0) f.keys.u=true;
-            // Dash toward platform center
             const platCx = mainPl ? mainPl.x + mainPl.w/2 : W/2;
             const toPlatDir = platCx > f.x ? 1 : -1;
             f.keys[toPlatDir>0?'r':'l']=true;
-            if(this.dashCd<=0 && Math.random()<0.3){
+            if(this.dashCd<=0 && Math.random()<0.2+lvl*0.2){
                 f.dashing=0.06; f.dashDir=toPlatDir; f.vx=toPlatDir*1800;
                 this.dashCd=0.8;
             }
-        } else if(!f.onGround && f.y > (mainPl?.y||H) - 20 && f.jumpsLeft>0 && Math.random()<0.25){
-            // Normal mode: occasional recovery jump
+        } else if(!f.onGround && f.y > (mainPl?.y||H) - 20 && f.jumpsLeft>0 && Math.random()<0.15+lvl*0.2){
             if(f.vy>0) f.keys.u=true;
             const platCx = mainPl ? mainPl.x + mainPl.w/2 : W/2;
             f.keys[platCx>f.x?'r':'l']=true;
@@ -1021,8 +1004,8 @@ class Game {
         this.playerScore=0;
         this.camX=0; this.camY=0;
     }
-    init(name, hard=false){
-        this.playerName=name; this.hard=hard;
+    init(name, pct=50){
+        this.playerName=name; this.diffPct=pct;
         document.getElementById('h-pname').textContent=name.toUpperCase().slice(0,12);
         this.buildPlatforms();
         this.startMatch();
@@ -1040,7 +1023,7 @@ class Game {
         const startY=pl.y;
         this.player=new Fighter(cx-140,startY-1,true, this.playerName,'#ffffff','#aaaaaa');
         this.enemy =new Fighter(cx+140,startY-1,false,'KI','#ff2222','#cc0000');
-        this.ai=new AI(this.enemy, this.hard);
+        this.ai=new AI(this.enemy, this.diffPct);
         particles=[]; projectiles=[]; this.freeze=0; this.shakeAmt=0; this.playerScore=0;
         this.phase='countdown'; this.countTimer=3;
         this.announce('3','#fff',1);
@@ -1165,7 +1148,7 @@ class Game {
         document.getElementById('go-title').className='win'+(won?'':' lose');
         document.getElementById('go-score').textContent=won?score:'Verloren';
         document.getElementById('go-modal').classList.add('show');
-        if(won&&this.hard&&window.saveResult) window.saveResult(this.playerName,score);
+        if(won&&this.diffPct>=50&&window.saveResult) window.saveResult(this.playerName,score);
         else if(window.loadLB) window.loadLB();
     }
 
@@ -1355,7 +1338,18 @@ function loop(ts){
 requestAnimationFrame(loop);
 
 // ── Start / Restart ────────────────────────────────────────────────
-let selectedDiff = 'normal';
+let selectedPct = 50;
+
+// Difficulty input
+const diffSlider = document.getElementById('diff-slider');
+diffSlider.addEventListener('change', ()=>{
+    let v = parseInt(diffSlider.value);
+    if(isNaN(v)) v=50;
+    v = Math.max(0, Math.min(100, v));
+    diffSlider.value = v;
+    selectedPct = v;
+});
+diffSlider.addEventListener('input', ()=>{ selectedPct = Math.max(0,Math.min(100,parseInt(diffSlider.value)||50)); });
 
 function startGame(name){
     document.getElementById('name-modal').classList.remove('show');
@@ -1366,20 +1360,11 @@ function startGame(name){
         if(screen.orientation?.lock) screen.orientation.lock('landscape').catch(()=>{});
     }
     game=new Game();
-    game.init(name, selectedDiff==='hard');
+    game.init(name, selectedPct);
 }
 
 const nameGo=document.getElementById('name-go');
 const nameIn=document.getElementById('name-in');
-
-// Difficulty selection
-document.querySelectorAll('.diff-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-        document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
-        selectedDiff=btn.dataset.diff;
-    });
-});
 
 // Pre-fill from localStorage
 const saved=(() => {try{return JSON.parse(localStorage.getItem('1100px_user'));}catch{return null;}})();
