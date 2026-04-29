@@ -55,8 +55,8 @@
         .hud-stocks{display:flex;gap:5px}
         .hud-stocks.right{justify-content:flex-end}
         .stock-dot{width:12px;height:12px;border-radius:50%}
-        .stock-dot.p{background:#00ccff;box-shadow:0 0 8px #00ccff}
-        .stock-dot.e{background:#ff4444;box-shadow:0 0 8px #ff4444}
+        .stock-dot.p{background:#ffffff;box-shadow:0 0 8px #ffffff}
+        .stock-dot.e{background:#ff2222;box-shadow:0 0 8px #ff2222}
         .stock-dot.dead{background:rgba(255,255,255,.15)}
 
         /* Announcer */
@@ -88,25 +88,97 @@
         #ctrl-hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.25);font-size:.7rem;letter-spacing:2px;pointer-events:none;z-index:10;text-transform:uppercase;white-space:nowrap}
 
         /* Mobile controls */
-        #mob{position:fixed;bottom:0;left:0;right:0;display:none;justify-content:space-between;align-items:flex-end;padding:12px 16px 16px;z-index:15;pointer-events:none}
+        #mob{position:fixed;bottom:0;left:0;right:0;display:none;justify-content:space-between;align-items:flex-end;padding:10px 18px 18px;z-index:15;pointer-events:none}
         #mob.show{display:flex}
-        .mob-group{display:flex;gap:8px;pointer-events:all}
-        .mob-btn{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.2);color:#fff;font-size:1.2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;-webkit-user-select:none;active:background:rgba(255,255,255,.25)}
-        .mob-btn.active{background:rgba(0,200,255,.3);border-color:#00ccff}
-        .mob-btn.atk-p{border-color:rgba(0,200,255,.5)}
-        .mob-btn.atk-k{border-color:rgba(255,100,0,.5)}
-        .mob-jump{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.2);color:#fff;font-size:1.2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;-webkit-user-select:none;margin-bottom:8px}
-        .mob-jump.active{background:rgba(0,200,255,.3);border-color:#00ccff}
+        .mob-group{display:flex;gap:10px;pointer-events:all}
+
+        /* D-pad buttons */
+        .mob-btn{
+            width:62px;height:62px;border-radius:50%;
+            background:radial-gradient(circle at 35% 35%, rgba(255,255,255,.18), rgba(0,0,0,.4));
+            border:2.5px solid rgba(255,255,255,.3);
+            box-shadow:0 4px 16px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.15);
+            color:rgba(255,255,255,.9);font-size:1.4rem;font-weight:900;
+            display:flex;align-items:center;justify-content:center;
+            cursor:pointer;user-select:none;-webkit-user-select:none;
+            transition:transform .08s, box-shadow .08s;
+            pointer-events:all;
+        }
+        .mob-btn:active,.mob-btn.active{
+            transform:scale(.88);
+            background:radial-gradient(circle at 35% 35%, rgba(0,200,255,.5), rgba(0,80,140,.6));
+            border-color:#00ccff;
+            box-shadow:0 0 20px rgba(0,200,255,.6), inset 0 1px 0 rgba(255,255,255,.2);
+        }
+
+        /* Attack buttons — bigger, colored */
+        .mob-btn.atk-p{
+            width:72px;height:72px;
+            background:radial-gradient(circle at 35% 35%, rgba(0,200,255,.3), rgba(0,60,100,.5));
+            border-color:rgba(0,200,255,.7);
+            box-shadow:0 0 14px rgba(0,200,255,.3), inset 0 1px 0 rgba(255,255,255,.15);
+            color:#00ccff;font-size:1rem;letter-spacing:1px;font-weight:900;
+        }
+        .mob-btn.atk-p:active,.mob-btn.atk-p.active{
+            background:radial-gradient(circle at 35% 35%, rgba(0,200,255,.7), rgba(0,120,200,.6));
+            box-shadow:0 0 30px rgba(0,200,255,.8);
+            transform:scale(.88);
+        }
+        .mob-btn.atk-k{
+            width:72px;height:72px;
+            background:radial-gradient(circle at 35% 35%, rgba(255,60,60,.3), rgba(100,0,0,.5));
+            border-color:rgba(255,60,60,.7);
+            box-shadow:0 0 14px rgba(255,60,60,.3), inset 0 1px 0 rgba(255,255,255,.15);
+            color:#ff4444;font-size:1rem;letter-spacing:1px;font-weight:900;
+        }
+        .mob-btn.atk-k:active,.mob-btn.atk-k.active{
+            background:radial-gradient(circle at 35% 35%, rgba(255,60,60,.7), rgba(180,0,0,.6));
+            box-shadow:0 0 30px rgba(255,60,60,.8);
+            transform:scale(.88);
+        }
+
+        /* Jump button */
+        .mob-jump{
+            width:66px;height:66px;border-radius:50%;
+            background:radial-gradient(circle at 35% 35%, rgba(255,220,0,.25), rgba(80,50,0,.5));
+            border:2.5px solid rgba(255,200,0,.5);
+            box-shadow:0 0 14px rgba(255,200,0,.2), inset 0 1px 0 rgba(255,255,255,.15);
+            color:rgba(255,220,0,.9);font-size:1.5rem;
+            display:flex;align-items:center;justify-content:center;
+            cursor:pointer;user-select:none;-webkit-user-select:none;
+            margin-bottom:8px;transition:transform .08s, box-shadow .08s;
+            pointer-events:all;
+        }
+        .mob-jump:active,.mob-jump.active{
+            transform:scale(.88);
+            background:radial-gradient(circle at 35% 35%, rgba(255,220,0,.6), rgba(140,90,0,.6));
+            box-shadow:0 0 28px rgba(255,200,0,.7);
+        }
 
         @media(max-width:600px){
             .modal-box{padding:28px 22px} .modal-box h1{font-size:1.7rem} .modal-score{font-size:2.2rem}
             #hud{padding:6px 10px 0} .hud-dmg{font-size:1.7rem} #ann{font-size:2.4rem}
             #mob{display:none} /* shown via JS */
         }
+
+        /* Portrait warning overlay */
+        #rotate-overlay{display:none;position:fixed;inset:0;background:#07111f;z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+        #rotate-overlay .rot-icon{font-size:4rem;animation:spin 1.5s ease-in-out infinite alternate}
+        #rotate-overlay p{color:#fff;font-size:1.1rem;letter-spacing:2px;text-transform:uppercase;opacity:.7}
+        @keyframes spin{from{transform:rotate(-20deg)}to{transform:rotate(20deg)}}
+        @media(orientation:portrait) and (max-width:900px){
+            #rotate-overlay{display:flex}
+        }
     </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+
+<!-- Rotate overlay -->
+<div id="rotate-overlay">
+    <div class="rot-icon">📱</div>
+    <p>Bitte Handy drehen</p>
+</div>
 
 <!-- HUD -->
 <div id="hud">
@@ -152,16 +224,16 @@
 
 <!-- Mobile controls -->
 <div id="mob">
-    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:all">
-        <div class="mob-jump" id="mb-up">↑</div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:all">
+        <div class="mob-jump" id="mb-up">⬆</div>
         <div class="mob-group">
-            <div class="mob-btn" id="mb-l">←</div>
-            <div class="mob-btn" id="mb-r">→</div>
+            <div class="mob-btn" id="mb-l">◀</div>
+            <div class="mob-btn" id="mb-r">▶</div>
         </div>
     </div>
-    <div class="mob-group" style="align-items:flex-end">
-        <div class="mob-btn atk-p" id="mb-j">P</div>
-        <div class="mob-btn atk-k" id="mb-k">K</div>
+    <div class="mob-group" style="align-items:flex-end;gap:14px">
+        <div class="mob-btn atk-k" id="mb-k">KICK</div>
+        <div class="mob-btn atk-p" id="mb-j">HIT</div>
     </div>
 </div>
 
@@ -173,20 +245,27 @@ const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
 let W, H;
 
+const GAME_W = 1100; // logical game width
+const GAME_H = 620;  // logical game height
+let scale = 1;
+
 function resize() {
-    W = canvas.width  = window.innerWidth;
-    H = canvas.height = window.innerHeight;
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    scale = Math.min(window.innerWidth / GAME_W, window.innerHeight / GAME_H);
+    W = GAME_W;
+    H = GAME_H;
 }
 resize();
 window.addEventListener('resize', resize);
 
 // ── Constants ──────────────────────────────────────────────────────
 const GRAVITY    = 1900;
-const JUMP_VY    = -720;
+const JUMP_VY    = -1050;
 const WALK_SPD   = 370;
 const AIR_SPD    = 300;
 const MAX_FALL   = 1100;
-const HEAD_R     = 18;
+const HEAD_R     = 20;
 const BLAST_L    = -160;
 const BLAST_R    = () => W + 160;
 const BLAST_T    = -180;
@@ -386,13 +465,18 @@ function getPose(f) {
             p.hd.x=-ext*10; p.nk.x=-ext*7; p.hp.x=-ext*3;
         }
         if (atk==='kick') {
-            // High roundhouse — knee up then full extension
+            // Horizontal roundhouse — body leans BACK, leg flies out sideways (like reference image)
             const leg=Math.sin(Math.min(ap*1.1,1)*Math.PI);
-            p.rk={x:10+leg*32,y:-20-leg*16}; p.rf={x:14+leg*80,y:-6-leg*20};
-            p.lk={x:-9,y:-8}; p.lf={x:-13,y:0};
-            p.le={x:-14,y:-50}; p.la={x:-20,y:-60};
-            p.re={x:20,y:-38}; p.ra={x:16,y:-28};
-            p.hd.x=leg*5; p.nk.x=leg*4; p.hp.x=leg*2;
+            // Body tilts backward as leg extends
+            p.hd.x=-leg*12; p.nk.x=-leg*9; p.hp.x=-leg*5;
+            p.hd.y=-66-leg*4;
+            // Plant leg bends for balance
+            p.lk={x:-12,y:-10}; p.lf={x:-16,y:0};
+            // Kicking leg: knee rises then fully horizontal
+            p.rk={x:8+leg*40,y:-26-leg*4}; p.rf={x:10+leg*90,y:-26+leg*8};
+            // Arms spread wide for balance (like image)
+            p.le={x:-18-leg*14,y:-46-leg*8}; p.la={x:-28-leg*24,y:-36-leg*10};
+            p.re={x:22+leg*8,y:-44-leg*6};  p.ra={x:30+leg*14,y:-34-leg*8};
         }
         if (atk==='smash') {
             // Wind-up then full-body power punch
@@ -488,77 +572,99 @@ function getPose(f) {
     return p;
 }
 
-const LW = 11;    // limb width — thick like the reference image
-const JR = 6.5;   // joint dot radius
+const LW = 14;    // limb width — thick silhouette style
+const JR = 8;     // joint dot radius
 
 function dot(x,y){ctx.beginPath();ctx.arc(x,y,JR,0,Math.PI*2);ctx.fill();}
 
 function drawFighter(f) {
     const flash = f.hitFlash>0 && Math.floor(f.hitFlash*22)%2===0;
-    const col = flash ? '#fff' : f.color;
-    const glo = flash ? '#fff' : f.glowColor;
-    const p = getPose(f);
-    const isSmashCharge = f.state==='attack' && f.attackData?.id==='smash' && f.attackProgress<0.4;
-    const isDashing = f.dashing>0;
+    const col   = flash ? '#fff' : f.color;
+    const p     = getPose(f);
+    const atk   = f.attackData ? f.attackData.id : '';
+    const ap    = f.attackProgress || 0;
+    const isSmashCharge = f.state==='attack' && atk==='smash' && ap<0.4;
+    const isKicking = f.state==='attack' && (atk==='kick'||atk==='airK');
+    const kickExt = isKicking ? Math.sin(Math.min(ap*1.1,1)*Math.PI) : 0;
 
     ctx.save();
     ctx.translate(f.x, f.y);
     if (f.dir===-1) ctx.scale(-1,1);
 
     // Dash afterimages
-    if (isDashing) {
-        for(let g=1;g<=2;g++){
-            ctx.globalAlpha=g===1?0.22:0.10;
-            ctx.shadowColor=glo; ctx.shadowBlur=6;
+    if (f.dashing>0) {
+        for(let g=1;g<=3;g++){
+            ctx.globalAlpha=0.28/g;
             ctx.strokeStyle=col; ctx.fillStyle=col;
             ctx.lineWidth=LW; ctx.lineCap='round';
-            const off=f.dir*-30*g;
+            ctx.shadowBlur=0;
+            const off=f.dir*-32*g;
             segs(ctx,{x:p.nk.x+off,y:p.nk.y},{x:p.hp.x+off,y:p.hp.y});
         }
         ctx.globalAlpha=1;
     }
 
-    ctx.shadowColor=glo; ctx.shadowBlur=flash?30:(isSmashCharge?22:16);
-    ctx.strokeStyle=col; ctx.fillStyle=col;
-    ctx.lineWidth=LW; ctx.lineCap='round'; ctx.lineJoin='round';
-
     // Smash charge aura
     if (isSmashCharge) {
-        const chargeT = f.attackProgress/0.4;
+        const c = ap/0.4;
         ctx.save();
-        ctx.globalAlpha=chargeT*0.75;
-        ctx.shadowColor='#ffcc00'; ctx.shadowBlur=36;
-        ctx.strokeStyle='#ffcc00'; ctx.fillStyle='rgba(255,200,0,0.35)';
-        ctx.lineWidth=LW+4;
+        ctx.globalAlpha=c*0.8;
+        ctx.shadowColor='#ffcc00'; ctx.shadowBlur=40;
+        ctx.strokeStyle='#ffcc00'; ctx.fillStyle='rgba(255,200,0,0.4)';
+        ctx.lineWidth=LW+6; ctx.lineCap='round';
         segs(ctx,p.rs,p.re,p.ra);
-        ctx.beginPath(); ctx.arc(p.ra.x,p.ra.y,10+chargeT*8,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.ra.x,p.ra.y,10+c*10,0,Math.PI*2); ctx.fill();
         ctx.restore();
-        ctx.shadowColor=glo; ctx.shadowBlur=16;
-        ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=LW;
     }
 
-    // Back limbs
+    // Kick speed lines (like the reference image)
+    if (isKicking && kickExt>0.3) {
+        ctx.save();
+        ctx.globalAlpha=kickExt*0.7;
+        ctx.strokeStyle=col; ctx.lineWidth=3; ctx.lineCap='round';
+        for(let i=0;i<5;i++){
+            const oy=(i-2)*10, len=30+i*14;
+            ctx.beginPath();
+            ctx.moveTo(p.rf.x+8, p.rf.y+oy);
+            ctx.lineTo(p.rf.x+8+len, p.rf.y+oy);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    // ── Draw solid silhouette ──
+    ctx.shadowBlur = flash ? 20 : 0;
+    ctx.shadowColor = flash ? '#fff' : 'transparent';
+    ctx.strokeStyle = col;
+    ctx.fillStyle   = col;
+    ctx.lineWidth   = LW;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+
+    // Back leg
     segs(ctx, p.lh,p.lk,p.lf);
     dot(p.lk.x,p.lk.y);
+    dot(p.lf.x,p.lf.y);
+    // Back arm
     segs(ctx, p.ls,p.le,p.la);
     dot(p.le.x,p.le.y);
+    dot(p.la.x,p.la.y);
 
-    // Torso
+    // Torso + shoulder + hip bars
     seg(ctx,p.nk,p.hp);
-    // Shoulder bar
     seg(ctx,p.ls,p.rs);
-    // Hip bar
     seg(ctx,p.lh,p.rh);
 
-    // Head
+    // Head (large solid circle)
     ctx.beginPath(); ctx.arc(p.hd.x,p.hd.y,HEAD_R,0,Math.PI*2); ctx.fill();
 
-    // Front limbs
+    // Front leg
     segs(ctx, p.rh,p.rk,p.rf);
     dot(p.rk.x,p.rk.y);
+    dot(p.rf.x,p.rf.y);
+    // Front arm
     segs(ctx, p.rs,p.re,p.ra);
     dot(p.re.x,p.re.y);
-    // Fist dot
     dot(p.ra.x,p.ra.y);
 
     ctx.restore();
@@ -626,9 +732,9 @@ class Fighter {
         for(const d of ['l','r']){
             this.tapTimer[d]=Math.max(0,this.tapTimer[d]-dt);
             if(this.pressed(d)){
-                if(this.tapTimer[d]>0&&this.tapCount[d]>=1&&this.dashing<=0&&this.onGround&&this.hitStun<=0){
-                    this.dashing=0.22; this.dashDir=d==='r'?1:-1;
-                    this.vx=this.dashDir*2200;
+                if(this.tapTimer[d]>0&&this.tapCount[d]>=1&&this.dashing<=0&&this.hitStun<=0&&this.isP){
+                    this.dashing=0.015; this.dashDir=d==='r'?1:-1;
+                    this.vx=this.dashDir*450;
                     this.tapCount[d]=0; this.tapTimer[d]=0;
                 } else {
                     this.tapCount[d]=1; this.tapTimer[d]=0.22;
@@ -636,9 +742,9 @@ class Fighter {
             }
         }
 
-        // Movement — allowed even during attacks (partial)
+        // Movement — allowed even during attacks (partial), blocked during dash
         const tgtVx = this.keys.l?-WALK_SPD:this.keys.r?WALK_SPD:0;
-        if(this.hitStun<=0) {
+        if(this.hitStun<=0 && this.dashing<=0) {
             const accel = this.state==='attack' ? 4 : (this.onGround?14:6);
             if(this.onGround) {
                 this.vx += (tgtVx-this.vx)*Math.min(1,dt*accel);
@@ -717,9 +823,13 @@ class Fighter {
 
         // Physics
         if(!this.onGround) this.vy=Math.min(this.vy+GRAVITY*dt,MAX_FALL);
-        if(this.onGround) this.vx*=Math.pow(0.72,dt*60);
-        else              this.vx*=Math.pow(0.97,dt*60);
-        this.vx=Math.max(-700,Math.min(700,this.vx));
+        if(this.dashing>0){
+            this.vx=this.dashDir*3800; // lock speed during dash, no friction
+        } else {
+            if(this.onGround) this.vx*=Math.pow(0.72,dt*60);
+            else              this.vx*=Math.pow(0.97,dt*60);
+        }
+        this.vx=Math.max(-3800,Math.min(3800,this.vx));
         this.x+=this.vx*dt; this.y+=this.vy*dt;
 
         // Platform collision
@@ -843,7 +953,7 @@ class Game {
         this.endTimer=0;
         this.playerName='';
         this.shakeAmt=0;
-        this.announceText=''; this.announceColor='#fff'; this.announceTimer=0;
+        this.announceText=''; this.announceColor='#fff'; this.announceTimer=0; this.announceTotalDur=1;
     }
     init(name){
         this.playerName=name;
@@ -854,16 +964,16 @@ class Game {
     buildPlatforms(){
         const cx=W*0.5, py=Math.min(H*0.73,H-140);
         this.platforms=[
-            {x:cx-300,y:py,  w:600},          // main
-            {x:cx-420,y:py-130,w:160},         // left high
-            {x:cx+260,y:py-130,w:160},         // right high
+            {x:cx-300,y:py,      w:600},       // main
+            {x:cx-420,y:py-130,  w:160},       // left high
+            {x:cx+260,y:py-130,  w:160},       // right high
         ];
     }
     startMatch(){
         const cx=W*0.5, pl=this.platforms[0];
         const startY=pl.y;
-        this.player=new Fighter(cx-140,startY-1,true, this.playerName,'#00ccff','#0066ff');
-        this.enemy =new Fighter(cx+140,startY-1,false,'KI','#ff4444','#cc1111');
+        this.player=new Fighter(cx-140,startY-1,true, this.playerName,'#ffffff','#aaaaaa');
+        this.enemy =new Fighter(cx+140,startY-1,false,'KI','#ff2222','#cc0000');
         this.ai=new AI(this.enemy);
         particles=[]; projectiles=[]; this.freeze=0; this.shakeAmt=0;
         this.phase='countdown'; this.countTimer=3;
@@ -888,11 +998,29 @@ class Game {
         }
     }
     announce(txt,col,dur){
-        this.announceText=txt; this.announceColor=col; this.announceTimer=dur||1.2;
+        this.announceText=txt; this.announceColor=col;
+        this.announceTimer=dur||1.2; this.announceTotalDur=dur||1.2;
         const el=document.getElementById('ann');
-        el.textContent=txt; el.style.color=col; el.classList.remove('hidden');
+        el.textContent=''; el.classList.add('hidden'); // use canvas only
     }
     hideAnnounce(){document.getElementById('ann').classList.add('hidden');}
+    drawAnnounce(){
+        if(!this.announceText||this.announceTimer<=0) return;
+        const prog = 1 - this.announceTimer/this.announceTotalDur; // 0→1 over time
+        // Start huge (e.g. 320px) shrink to ~80px
+        const fontSize = 140 - prog*80;
+        const alpha    = Math.min(1, this.announceTimer*3);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.textAlign   = 'center';
+        ctx.textBaseline= 'middle';
+        ctx.font        = `900 ${fontSize}px 'Segoe UI',system-ui,sans-serif`;
+        ctx.fillStyle   = this.announceColor;
+        ctx.shadowColor = this.announceColor;
+        ctx.shadowBlur  = 60;
+        ctx.fillText(this.announceText, W/2, H/2);
+        ctx.restore();
+    }
 
     checkHit(attacker,defender){
         if(!attacker.atkBox||attacker.hasHit) return;
@@ -1034,12 +1162,19 @@ class Game {
 
     render(){
         ctx.save();
+
+        // Background (full canvas)
+        ctx.fillStyle='#07111f'; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+        // Center + scale game to fit screen
+        const ox = (canvas.width  - GAME_W*scale)/2;
+        const oy = (canvas.height - GAME_H*scale)/2;
+        ctx.translate(ox, oy);
+        ctx.scale(scale, scale);
+
         if(this.shakeAmt>0.5){
             ctx.translate((Math.random()-.5)*this.shakeAmt,(Math.random()-.5)*this.shakeAmt);
         }
-
-        // Background
-        ctx.fillStyle='#07111f'; ctx.fillRect(0,0,W,H);
 
         // Grid
         ctx.save();
@@ -1083,6 +1218,9 @@ class Game {
         }
 
         ctx.restore();
+
+        // Countdown/announce zoom
+        this.drawAnnounce();
     }
 }
 
@@ -1092,6 +1230,7 @@ const keyMap={
     'ArrowRight':'r','KeyD':'r',
     'ArrowUp':'u','KeyW':'u','Space':'u',
     'ArrowDown':'d','KeyS':'d',
+    'ShiftLeft':'j','ShiftRight':'j',
     'KeyZ':'j','KeyJ':'j',
     'KeyX':'k','KeyK':'k',
 };
@@ -1138,6 +1277,14 @@ requestAnimationFrame(loop);
 // ── Start / Restart ────────────────────────────────────────────────
 function startGame(name){
     document.getElementById('name-modal').classList.remove('show');
+    // Fullscreen on mobile
+    if('ontouchstart' in window || window.innerWidth<900){
+        const el=document.documentElement;
+        if(el.requestFullscreen) el.requestFullscreen();
+        else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        // Lock landscape if supported
+        if(screen.orientation?.lock) screen.orientation.lock('landscape').catch(()=>{});
+    }
     game=new Game();
     game.init(name);
 }
