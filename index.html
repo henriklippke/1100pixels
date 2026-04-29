@@ -86,19 +86,26 @@
                 document.getElementById('admin-toggle').addEventListener('click', () => {
                     adminPanel.classList.toggle('open');
                 });
-                document.getElementById('admin-give').addEventListener('click', async () => {
+                const adminAction = async (mode) => {
                     const name = document.getElementById('admin-name').value.trim();
                     const amount = parseInt(document.getElementById('admin-amount').value);
                     const msgEl = document.getElementById('admin-msg');
-                    if (!name || !amount || amount < 1) { msgEl.textContent = 'Name und Anzahl eingeben.'; return; }
+                    if (!name || isNaN(amount) || amount < 0) { msgEl.textContent = 'Name und Anzahl eingeben.'; return; }
                     const qs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', name.toLowerCase())));
                     if (qs.empty) { msgEl.textContent = `"${name}" nicht gefunden.`; return; }
-                    await updateDoc(doc(db, 'users', qs.docs[0].id), { gems: increment(amount) });
-                    msgEl.textContent = `✓ ${amount} Gems an ${qs.docs[0].data().name} geschenkt!`;
+                    if (mode === 'give') {
+                        await updateDoc(doc(db, 'users', qs.docs[0].id), { gems: increment(amount) });
+                        msgEl.textContent = `✓ ${amount} Gems an ${qs.docs[0].data().name} geschenkt!`;
+                    } else {
+                        await updateDoc(doc(db, 'users', qs.docs[0].id), { gems: amount });
+                        msgEl.textContent = `✓ ${qs.docs[0].data().name} hat jetzt ${amount} Gems.`;
+                    }
                     msgEl.style.color = '#00eeff';
                     document.getElementById('admin-name').value = '';
                     document.getElementById('admin-amount').value = '';
-                });
+                };
+                document.getElementById('admin-give').addEventListener('click', () => adminAction('give'));
+                document.getElementById('admin-set').addEventListener('click', () => adminAction('set'));
 
             }
 
@@ -404,10 +411,13 @@
 <div id="admin-panel">
     <div id="admin-toggle">⚙</div>
     <div id="admin-content">
-        <div class="admin-title">💎 Gems schenken</div>
+        <div class="admin-title">💎 Gems verwalten</div>
         <input id="admin-name" class="admin-input" type="text" placeholder="Spielername" autocomplete="off" spellcheck="false">
-        <input id="admin-amount" class="admin-input" type="number" placeholder="Anzahl" min="1" max="9999">
-        <button id="admin-give" class="admin-btn">Schenken</button>
+        <input id="admin-amount" class="admin-input" type="number" placeholder="Anzahl" min="0" max="99999">
+        <div style="display:flex;gap:6px">
+            <button id="admin-give" class="admin-btn">Schenken</button>
+            <button id="admin-set" class="admin-btn" style="background:rgba(255,80,80,0.15);border-color:rgba(255,80,80,0.4)">Setzen</button>
+        </div>
         <p id="admin-msg"></p>
     </div>
 </div>
@@ -646,20 +656,20 @@
                         <line x1="208" y1="162" x2="215" y2="155" stroke="rgba(255,200,0,0.7)" stroke-width="1.5"/>
                     </g>
                     <!-- Title -->
-                    <text x="200" y="30" font-family="'Segoe UI',monospace" font-size="18" font-weight="900" fill="#ff4444" filter="url(#glf2)" text-anchor="middle" letter-spacing="3">BRAWLER</text>
+                    <text x="200" y="30" font-family="'Segoe UI',monospace" font-size="18" font-weight="900" fill="#ff4444" filter="url(#glf2)" text-anchor="middle" letter-spacing="3">GRID FIGHT</text>
                 </svg>
                 <div class="scanlines"></div>
                 <div class="thumb-overlay">
                     <span class="play-btn">▶ Spielen</span>
                     <div class="thumb-bottom">
-                        <h2 class="game-title">Brawler</h2>
+                        <h2 class="game-title">Grid Fight</h2>
                         <p class="game-desc">Kämpfe gegen den KI-Gegner und wirf ihn von der Plattform.</p>
                     </div>
                 </div>
             </div>
         </a>
         <div class="lb-panel slide-lb">
-            <h3 class="lb-title"><span class="lb-dot red"></span>Brawler</h3>
+            <h3 class="lb-title"><span class="lb-dot red"></span>Grid Fight</h3>
             <div class="lb-scroll">
                 <table class="lb-table lb-fixed">
                     <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>

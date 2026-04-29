@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>BRAWLER</title>
+    <title>GRID FIGHT</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
         import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp }
@@ -16,14 +16,14 @@
         };
         const db = getFirestore(initializeApp(cfg));
         window.saveResult = async (name, score) => {
-            try { if (name.toLowerCase() !== 'test') await addDoc(collection(db,'red-pixel'),{name,points:score,game:'BRAWLER',created:serverTimestamp()}); } catch(e){}
+            try { if (name.toLowerCase() !== 'test') await addDoc(collection(db,'red-pixel'),{name,points:score,game:'GRID FIGHT',created:serverTimestamp()}); } catch(e){}
             loadLB();
         };
         async function loadLB() {
             const el = document.getElementById('lb-body'); if (!el) return;
             el.innerHTML = '<tr><td colspan="4" style="opacity:.4">Laden…</td></tr>';
             try {
-                const qs = await getDocs(query(collection(db,'red-pixel'),where('game','==','BRAWLER')));
+                const qs = await getDocs(query(collection(db,'red-pixel'),where('game','==','GRID FIGHT')));
                 const rows = []; qs.forEach(d=>{ const x=d.data(); if(x.name?.toLowerCase()!=='test') rows.push(x); });
                 rows.sort((a,b)=>b.points-a.points);
                 const medals=['🥇','🥈','🥉']; el.innerHTML='';
@@ -83,6 +83,12 @@
         .lb-wrap{max-height:200px;overflow-y:auto;margin-top:18px;scrollbar-width:thin;scrollbar-color:rgba(0,200,255,.3) transparent}
         table.lb{width:100%;border-collapse:collapse;font-size:.82rem}
         table.lb td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.05)}
+
+        /* Difficulty buttons */
+        .diff-btn{flex:1;padding:10px;border-radius:9px;font-size:.85rem;font-weight:700;letter-spacing:2px;cursor:pointer;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.05);color:rgba(255,255,255,.5);transition:all .15s;text-transform:uppercase}
+        .diff-btn.active[data-diff="normal"]{background:rgba(0,200,255,.15);border-color:#00ccff;color:#00ccff;box-shadow:0 0 14px rgba(0,200,255,.3)}
+        .diff-btn.active[data-diff="hard"]{background:rgba(255,60,60,.15);border-color:#ff3333;color:#ff3333;box-shadow:0 0 14px rgba(255,60,60,.4)}
+        .diff-btn:hover{filter:brightness(1.3)}
 
         /* Controls legend */
         #ctrl-hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.25);font-size:.7rem;letter-spacing:2px;pointer-events:none;z-index:10;text-transform:uppercase;white-space:nowrap}
@@ -184,7 +190,7 @@
 <div id="hud">
     <div class="hud-side">
         <div class="hud-name" id="h-pname">DU</div>
-        <div class="hud-dmg p" id="h-pdmg">0%</div>
+        <div class="hud-dmg p" id="h-pdmg">0 Pts</div>
         <div class="hud-stocks" id="h-pst"></div>
     </div>
     <div class="hud-side right">
@@ -199,9 +205,13 @@
 <!-- Name Modal -->
 <div class="modal show" id="name-modal">
     <div class="modal-box">
-        <h1 style="color:#00ccff;text-shadow:0 0 20px rgba(0,200,255,.7)">BRAWLER</h1>
+        <h1 style="color:#00ccff;text-shadow:0 0 20px rgba(0,200,255,.7)">GRID FIGHT</h1>
         <p class="modal-sub">Wirf den Gegner von der Plattform</p>
         <input class="modal-input" id="name-in" placeholder="Dein Name…" maxlength="20" autocomplete="off" spellcheck="false">
+        <div style="display:flex;gap:10px;margin-bottom:18px">
+            <button class="diff-btn active" id="diff-normal" data-diff="normal">NORMAL</button>
+            <button class="diff-btn" id="diff-hard" data-diff="hard">⚡ SCHWER</button>
+        </div>
         <button class="modal-btn" id="name-go">FIGHT!</button>
         <p style="margin-top:12px;font-size:.7rem;opacity:.3;letter-spacing:1px">Steuerung: A/D bewegen · W springen · J punch · K kick</p>
     </div>
@@ -224,16 +234,18 @@
 
 <!-- Mobile controls -->
 <div id="mob">
-    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:all">
-        <div class="mob-jump" id="mb-up">⬆</div>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;pointer-events:all">
         <div class="mob-group">
             <div class="mob-btn" id="mb-l">◀</div>
             <div class="mob-btn" id="mb-r">▶</div>
         </div>
     </div>
-    <div class="mob-group" style="align-items:flex-end;gap:14px">
-        <div class="mob-btn atk-k" id="mb-k">KICK</div>
-        <div class="mob-btn atk-p" id="mb-j">HIT</div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:all">
+        <div class="mob-jump" id="mb-up">⬆</div>
+        <div class="mob-group" style="gap:14px">
+            <div class="mob-btn atk-k" id="mb-k">KICK</div>
+            <div class="mob-btn atk-p" id="mb-j">HIT</div>
+        </div>
     </div>
 </div>
 
@@ -261,7 +273,7 @@ window.addEventListener('resize', resize);
 
 // ── Constants ──────────────────────────────────────────────────────
 const GRAVITY    = 1900;
-const JUMP_VY    = -1050;
+const JUMP_VY    = -1150;
 const WALK_SPD   = 370;
 const AIR_SPD    = 300;
 const MAX_FALL   = 1100;
@@ -589,6 +601,8 @@ function drawFighter(f) {
 
     ctx.save();
     ctx.translate(f.x, f.y);
+
+
     if (f.dir===-1) ctx.scale(-1,1);
 
     // Dash afterimages
@@ -871,9 +885,12 @@ class Fighter {
 
 // ── AI ─────────────────────────────────────────────────────────────
 class AI {
-    constructor(f){this.f=f;this.timer=0;this.mode='approach';this.jumpCd=0;}
+    constructor(f, hard=false){
+        this.f=f; this.timer=0; this.mode='approach'; this.jumpCd=0;
+        this.hard=hard; this.dashCd=0; this.prevDir=0;
+    }
     update(dt,opp){
-        this.timer-=dt; this.jumpCd=Math.max(0,this.jumpCd-dt);
+        this.timer-=dt; this.jumpCd=Math.max(0,this.jumpCd-dt); this.dashCd=Math.max(0,this.dashCd-dt);
         const f=this.f, dx=opp.x-f.x, dist=Math.abs(dx), dir=dx>0?1:-1;
         f.dir=dir;
 
@@ -883,61 +900,108 @@ class AI {
 
         if(f.hitStun>0||f.state==='hit') return;
 
+        // Scale AI with player score: 0→slow, 150+→fast
+        const score = game?.playerScore || 0;
+        const lvl = Math.min(1, score / 150); // 0.0 to 1.0
+        const reactionFast = 0.14 - lvl*0.08;   // 0.14s → 0.06s
+        const reactionSlow = 0.20 - lvl*0.10;   // 0.20s → 0.10s
+        const timerBase = this.hard
+            ? reactionFast + Math.random()*reactionSlow
+            : 0.18+Math.random()*0.28;
+
         // Change decision
         if(this.timer<=0){
             const r=Math.random();
-            this.timer=0.18+Math.random()*0.28;
-            if(dist>280) this.mode='approach';
-            else if(dist<65){
-                this.mode=['attack_kick','retreat','attack_jab','retreat'][Math.floor(r*4)];
-            } else if(dist<150){
-                const modes=['attack_jab','approach','attack_kick','smash','jump'];
-                const weights=[.3,.25,.22,.13,.1];
-                let acc=0; const rv=Math.random();
-                for(let i=0;i<modes.length;i++){acc+=weights[i];if(rv<acc){this.mode=modes[i];break;}}
+            this.timer=timerBase;
+            if(this.hard){
+                // Aggression scales with lvl
+                const dashThresh = 300 - lvl*100; // approach from further away
+                const smashChance = 0.25 + lvl*0.25;
+                if(dist>dashThresh) this.mode='dash_approach';
+                else if(dist>150) this.mode=r<(0.4+lvl*0.2)?'dash_approach':'attack_jab';
+                else if(dist<55) this.mode=['attack_kick','attack_jab','smash','attack_kick'][Math.floor(r*4)];
+                else {
+                    const pool=['attack_jab','attack_kick','attack_jab','jump'];
+                    if(r<smashChance) this.mode='smash';
+                    else this.mode=pool[Math.floor(Math.random()*pool.length)];
+                }
             } else {
-                this.mode=r<.55?'approach':r<.75?'jump':'attack_jab';
+                if(dist>280) this.mode='approach';
+                else if(dist<65) this.mode=['attack_kick','retreat','attack_jab','retreat'][Math.floor(r*4)];
+                else if(dist<150){
+                    const modes=['attack_jab','approach','attack_kick','smash','jump'];
+                    const weights=[.3,.25,.22,.13,.1];
+                    let acc=0; const rv=Math.random();
+                    for(let i=0;i<modes.length;i++){acc+=weights[i];if(rv<acc){this.mode=modes[i];break;}}
+                } else {
+                    this.mode=r<.55?'approach':r<.75?'jump':'attack_jab';
+                }
             }
         }
 
         // Execute mode
-        if(this.mode==='approach') f.keys[dir>0?'r':'l']=true;
-        if(this.mode==='retreat')  f.keys[dir>0?'l':'r']=true;
+        if(this.mode==='approach'||this.mode==='dash_approach') f.keys[dir>0?'r':'l']=true;
+        if(this.mode==='retreat') f.keys[dir>0?'l':'r']=true;
         if(this.mode==='jump'&&f.onGround&&this.jumpCd<=0){
-            f.keys.u=true; this.jumpCd=0.8;
+            f.keys.u=true; this.jumpCd=this.hard?0.4:0.8;
         }
-        if(this.mode==='attack_jab'&&dist<130){
-            f.keys[dir>0?'r':'l']=true;
-            f.keys.j=true;
+        const atkRange = this.hard ? 130 + lvl*50 : 130;
+        if(this.mode==='attack_jab'&&dist<atkRange){
+            f.keys[dir>0?'r':'l']=true; f.keys.j=true;
         }
-        if(this.mode==='attack_kick'&&dist<110){
+        if(this.mode==='attack_kick'&&dist<atkRange-20){
             f.keys.k=true;
         }
-        if(this.mode==='smash'&&dist<145){
-            f.keys[dir>0?'r':'l']=true;
-            f.keys.j=true; f.keys.k=true;
+        if(this.mode==='smash'&&dist<atkRange+20){
+            f.keys[dir>0?'r':'l']=true; f.keys.j=true; f.keys.k=true;
         }
 
-        // Edge awareness: don't walk off
-        const margin=80;
+        // Edge awareness (runs before dash so dash can be cancelled)
+        const margin=this.hard?50:80;
         const platforms=game.platforms;
+        const mainPl=platforms[0];
+        const nearEdgeL = mainPl && f.x < mainPl.x + margin;
+        const nearEdgeR = mainPl && f.x > mainPl.x + mainPl.w - margin;
         if(f.onGround){
             let onPl=false;
-            for(const pl of platforms){
-                if(f.x>=pl.x&&f.x<=pl.x+pl.w){onPl=true;break;}
-            }
-            if(!onPl||(f.x<(platforms[0]?.x||0)+margin&&f.keys.l)){
-                f.keys.l=false; f.keys.r=true;
-            }
-            if(!onPl||(f.x>(platforms[0]?.x||0)+(platforms[0]?.w||0)-margin&&f.keys.r)){
-                f.keys.r=false; f.keys.l=true;
+            for(const pl of platforms) if(f.x>=pl.x&&f.x<=pl.x+pl.w){onPl=true;break;}
+            if(!onPl||(nearEdgeL&&f.keys.l)){f.keys.l=false;f.keys.r=true;}
+            if(!onPl||(nearEdgeR&&f.keys.r)){f.keys.r=false;f.keys.l=true;}
+        }
+
+        // Hard: dash toward player — only if edge is far enough away
+        const dashDistThresh = 200 - lvl*60;
+        if(this.hard && this.mode==='dash_approach' && dist>dashDistThresh && f.onGround && this.dashCd<=0){
+            const dashSafe = dir>0 ? !nearEdgeR : !nearEdgeL;
+            if(dashSafe){
+                f.dashing=0.06; f.dashDir=dir; f.vx=dir*1800;
+                this.dashCd=1.4+Math.random()*0.8;
             }
         }
 
-        // Occasional up-smash
-        if(this.mode==='attack_jab'&&dist<100&&!f.onGround){
-            f.keys.u=true;
+        // Hard: random air attack
+        if(this.hard && !f.onGround && dist<180 && Math.random()<0.04) f.keys.j=true;
+
+        // Recovery: when knocked off platform, use jumps + dash to get back
+        if(!f.onGround && f.y > (mainPl?.y||H) - 20 && f.jumpsLeft>0 && this.hard){
+            // Jump back up
+            if(f.vy>0) f.keys.u=true;
+            // Dash toward platform center
+            const platCx = mainPl ? mainPl.x + mainPl.w/2 : W/2;
+            const toPlatDir = platCx > f.x ? 1 : -1;
+            f.keys[toPlatDir>0?'r':'l']=true;
+            if(this.dashCd<=0 && Math.random()<0.3){
+                f.dashing=0.06; f.dashDir=toPlatDir; f.vx=toPlatDir*1800;
+                this.dashCd=0.8;
+            }
+        } else if(!f.onGround && f.y > (mainPl?.y||H) - 20 && f.jumpsLeft>0 && Math.random()<0.25){
+            // Normal mode: occasional recovery jump
+            if(f.vy>0) f.keys.u=true;
+            const platCx = mainPl ? mainPl.x + mainPl.w/2 : W/2;
+            f.keys[platCx>f.x?'r':'l']=true;
         }
+
+        if(this.mode==='attack_jab'&&dist<100&&!f.onGround) f.keys.u=true;
     }
 }
 
@@ -954,9 +1018,11 @@ class Game {
         this.playerName='';
         this.shakeAmt=0;
         this.announceText=''; this.announceColor='#fff'; this.announceTimer=0; this.announceTotalDur=1;
+        this.playerScore=0;
+        this.camX=0; this.camY=0;
     }
-    init(name){
-        this.playerName=name;
+    init(name, hard=false){
+        this.playerName=name; this.hard=hard;
         document.getElementById('h-pname').textContent=name.toUpperCase().slice(0,12);
         this.buildPlatforms();
         this.startMatch();
@@ -965,8 +1031,8 @@ class Game {
         const cx=W*0.5, py=Math.min(H*0.73,H-140);
         this.platforms=[
             {x:cx-300,y:py,      w:600},       // main
-            {x:cx-420,y:py-130,  w:160},       // left high
-            {x:cx+260,y:py-130,  w:160},       // right high
+            {x:cx-420,y:py-110,  w:160},       // left high
+            {x:cx+260,y:py-110,  w:160},       // right high
         ];
     }
     startMatch(){
@@ -974,15 +1040,15 @@ class Game {
         const startY=pl.y;
         this.player=new Fighter(cx-140,startY-1,true, this.playerName,'#ffffff','#aaaaaa');
         this.enemy =new Fighter(cx+140,startY-1,false,'KI','#ff2222','#cc0000');
-        this.ai=new AI(this.enemy);
-        particles=[]; projectiles=[]; this.freeze=0; this.shakeAmt=0;
+        this.ai=new AI(this.enemy, this.hard);
+        particles=[]; projectiles=[]; this.freeze=0; this.shakeAmt=0; this.playerScore=0;
         this.phase='countdown'; this.countTimer=3;
         this.announce('3','#fff',1);
         this.updateHUD();
     }
     updateHUD(){
         const p=this.player, e=this.enemy;
-        document.getElementById('h-pdmg').textContent=Math.round(p.dmg)+'%';
+        document.getElementById('h-pdmg').textContent=this.playerScore+' Pts';
         document.getElementById('h-edmg').textContent=Math.round(e.dmg)+'%';
         const ps=document.getElementById('h-pst'), es=document.getElementById('h-est');
         ps.innerHTML=''; es.innerHTML='';
@@ -1041,6 +1107,7 @@ class Game {
             this.freeze=bigHit?0.08:0.048;
             this.shakeAmt=bigHit?18:a.kb>6?12:6;
             attacker.combo++;  attacker.comboTimer=2;
+            if(attacker.isP) this.playerScore += bigHit ? 8 : 3;
             spawnHit(defender.x, defender.y-35, defender.color, bigHit);
             this.updateHUD();
         }
@@ -1074,6 +1141,7 @@ class Game {
 
     handleKO(f){
         f.stocks--;
+        if(!f.isP) this.playerScore += 25; // KO bonus
         spawnKO(f.x,f.y-30,f.color);
         this.shakeAmt=20;
         this.updateHUD();
@@ -1092,13 +1160,12 @@ class Game {
 
     showGameOver(){
         const won=this.enemy.stocks<=0;
-        const score=won?(this.enemy.stocks*25+Math.min(100,Math.round(this.enemy.dmg))):
-                        (this.player.stocks*8);
+        const score=this.playerScore;
         document.getElementById('go-title').textContent=won?'🏆 SIEG!':'💀 NIEDERLAGE';
         document.getElementById('go-title').className='win'+(won?'':' lose');
         document.getElementById('go-score').textContent=won?score:'Verloren';
         document.getElementById('go-modal').classList.add('show');
-        if(won&&window.saveResult) window.saveResult(this.playerName,score);
+        if(won&&this.hard&&window.saveResult) window.saveResult(this.playerName,score);
         else if(window.loadLB) window.loadLB();
     }
 
@@ -1143,6 +1210,16 @@ class Game {
         this.player.update(dt,this.platforms);
         this.enemy.update(dt,this.platforms);
 
+        // Camera follow player (smooth lerp, clamped to world bounds)
+        if(this.player){
+            const targetX = this.player.x - GAME_W/2;
+            const targetY = this.player.y - GAME_H*0.55;
+            const clampX  = Math.max(-180, Math.min(180, targetX));
+            const clampY  = Math.max(-120, Math.min(80,  targetY));
+            this.camX += (clampX - this.camX) * Math.min(1, dt*2.5);
+            this.camY += (clampY - this.camY) * Math.min(1, dt*2);
+        }
+
         // Auto-face opponent when idle
         if(this.player.state==='idle'){
             this.player.dir=this.enemy.x>this.player.x?1:-1;
@@ -1175,6 +1252,9 @@ class Game {
         if(this.shakeAmt>0.5){
             ctx.translate((Math.random()-.5)*this.shakeAmt,(Math.random()-.5)*this.shakeAmt);
         }
+
+        // Camera pan
+        ctx.translate(-this.camX, -this.camY);
 
         // Grid
         ctx.save();
@@ -1275,22 +1355,31 @@ function loop(ts){
 requestAnimationFrame(loop);
 
 // ── Start / Restart ────────────────────────────────────────────────
+let selectedDiff = 'normal';
+
 function startGame(name){
     document.getElementById('name-modal').classList.remove('show');
-    // Fullscreen on mobile
     if('ontouchstart' in window || window.innerWidth<900){
         const el=document.documentElement;
         if(el.requestFullscreen) el.requestFullscreen();
         else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-        // Lock landscape if supported
         if(screen.orientation?.lock) screen.orientation.lock('landscape').catch(()=>{});
     }
     game=new Game();
-    game.init(name);
+    game.init(name, selectedDiff==='hard');
 }
 
 const nameGo=document.getElementById('name-go');
 const nameIn=document.getElementById('name-in');
+
+// Difficulty selection
+document.querySelectorAll('.diff-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+        document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedDiff=btn.dataset.diff;
+    });
+});
 
 // Pre-fill from localStorage
 const saved=(() => {try{return JSON.parse(localStorage.getItem('1100px_user'));}catch{return null;}})();
