@@ -1255,11 +1255,7 @@
         onGround = rOnGround || fOnGround;
 
         // Sticky ground: kurz über Terrain (bergab) → trotzdem am Boden bleiben
-        // Aber NICHT wenn wir gerade eine steile Rampe hochfahren
-        const rSlope = Math.atan2(terrainYAt(rearWX+10)  - terrainYAt(rearWX-10),  20);
-        const fSlope = Math.atan2(terrainYAt(frontWX+10) - terrainYAt(frontWX-10), 20);
-        const onSteepRamp = Math.min(rSlope, fSlope) < -0.13 && vx > 140;
-        if (!onGround && vy >= 0 && !onSteepRamp) {
+        if (!onGround && vy >= 0) {
             const rAbove = rTerrY - rContactY;
             const fAbove = fTerrY - fContactY;
             if (rAbove >= 0 && rAbove < 40) {
@@ -1307,14 +1303,12 @@
             angle  = terrAngle;
             angVel = 0;
 
-            // Sprung: steilsten Einzelrad-Winkel nutzen (nicht nur Mittelwert)
-            // → erkennt Ramp-Peak auch wenn Vorderrad schon drüber ist
-            const steepest  = Math.min(rSlope, fSlope, terrAngle);
-            const isRampUp   = steepest < -0.13;   // ~7.5° auf irgendeinem Rad
-            const fastEnough = vx > 140;
+            // Sprung ab ~9° bergauf UND genug Geschwindigkeit
+            const isRampUp   = terrAngle < -0.15;
+            const fastEnough = vx > 180;
             // Bergab: vy dem Terrain-Winkel folgen → kein Bounce
             const baseVy = (isRampUp && fastEnough)
-                ? Math.max(Math.min(vx * Math.sin(steepest), -95), -185)
+                ? Math.min(vx * Math.sin(terrAngle), -130)
                 : (terrAngle > 0 ? vx * Math.tan(terrAngle) : 0);
             vy = baseVy;
 
