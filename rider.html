@@ -1314,7 +1314,7 @@
             const fastEnough = vx > 140;
             // Bergab: vy dem Terrain-Winkel folgen → kein Bounce
             const baseVy = (isRampUp && fastEnough)
-                ? Math.max(Math.min(vx * Math.sin(steepest), -55), -160)
+                ? Math.max(Math.min(vx * Math.sin(steepest), -95), -185)
                 : (terrAngle > 0 ? vx * Math.tan(terrAngle) : 0);
             vy = baseVy;
 
