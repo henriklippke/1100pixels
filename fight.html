@@ -6,7 +6,7 @@
     <title>GRID FIGHT</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp }
+        import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, setDoc, getDoc, onSnapshot, updateDoc, deleteDoc }
             from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
         const cfg = {
             apiKey:"AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
@@ -14,7 +14,11 @@
             storageBucket:"pixels-e2f82.firebasestorage.app",
             messagingSenderId:"311496840709", appId:"1:311496840709:web:3a94601ef40cbd0c946e6c"
         };
-        const db = getFirestore(initializeApp(cfg));
+        const _app = initializeApp(cfg);
+        const db = getFirestore(_app);
+        window._db = db;
+        window._fsDoc = doc; window._fsSet = setDoc; window._fsGet = getDoc;
+        window._fsSnap = onSnapshot; window._fsUpd = updateDoc; window._fsDel = deleteDoc;
         window.saveResult = async (name, score) => {
             try { if (name.toLowerCase() !== 'test') await addDoc(collection(db,'red-pixel'),{name,points:score,game:'GRID FIGHT',created:serverTimestamp()}); } catch(e){}
             loadLB();
@@ -237,7 +241,14 @@
         @media(orientation:portrait) and (max-width:900px){
             #rotate-overlay{display:flex}
         }
+
+        /* ── Battle ── */
+        #battle-qr-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.93);backdrop-filter:blur(8px);z-index:300;justify-content:center;align-items:center}
+        #battle-qr-modal.show{display:flex}
+        #battle-badge{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(255,204,0,.18);border:1px solid rgba(255,204,0,.5);color:#ffcc44;font-size:.7rem;letter-spacing:2px;padding:4px 12px;border-radius:20px;z-index:50;display:none;pointer-events:none;white-space:nowrap}
+        #battle-badge.show{display:block}
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -256,7 +267,7 @@
         <div class="hud-stocks" id="h-pst"></div>
     </div>
     <div class="hud-side right">
-        <div class="hud-name">GEGNER</div>
+        <div class="hud-name" id="h-ename">GEGNER</div>
         <div class="hud-dmg e" id="h-edmg">0%</div>
         <div class="hud-stocks right" id="h-est"></div>
     </div>
@@ -274,7 +285,8 @@
             <div class="diff-label">Schwierigkeit (0–100%)</div>
             <input type="number" class="modal-input" id="diff-slider" min="0" max="100" value="50" placeholder="0 – 100" style="margin-bottom:0">
         </div>
-        <button class="modal-btn" id="name-go">FIGHT!</button>
+        <button class="modal-btn" id="name-go">VS KI · FIGHT!</button>
+        <button class="modal-btn" id="battle-go" style="background:rgba(255,204,0,.12);border-color:rgba(255,204,0,.45);color:#ffcc44;margin-top:8px">⚔ ONLINE BATTLE</button>
         <p style="margin-top:12px;font-size:.7rem;opacity:.3;letter-spacing:1px">Steuerung: A/D bewegen · W springen · J punch · K kick</p>
     </div>
 </div>
@@ -291,6 +303,22 @@
             <table class="lb"><thead><tr><td>#</td><td>Name</td><td>Score</td><td>Datum</td></tr></thead>
             <tbody id="lb-body"><tr><td colspan="4" style="opacity:.4">Laden…</td></tr></tbody></table>
         </div>
+    </div>
+</div>
+
+<!-- Battle badge (shown during battle) -->
+<div id="battle-badge">⚔ BATTLE</div>
+
+<!-- Battle QR Modal -->
+<div id="battle-qr-modal">
+    <div class="modal-box" style="text-align:center;max-width:340px;width:90vw">
+        <h1 style="color:#ffcc44;text-shadow:0 0 20px rgba(255,204,0,.7);font-size:1.8rem;letter-spacing:4px">⚔ BATTLE</h1>
+        <p class="modal-sub">Gegner scannen lassen</p>
+        <div id="battle-qr-canvas" style="background:#fff;padding:10px;border-radius:8px;display:inline-block;margin:10px 0 8px"></div>
+        <p style="color:rgba(255,255,255,.3);font-size:.68rem;letter-spacing:2px;margin-bottom:4px">RAUM-CODE</p>
+        <p id="battle-room-code" style="color:#ffcc44;font-size:1.8rem;font-weight:bold;letter-spacing:8px;margin-bottom:14px"></p>
+        <p id="battle-status-text" style="color:rgba(255,255,255,.45);font-size:.8rem;letter-spacing:1px;min-height:20px;margin-bottom:16px">Warte auf Gegner…</p>
+        <button class="modal-btn sec" onclick="cancelBattle()">Abbrechen</button>
     </div>
 </div>
 
@@ -1145,18 +1173,25 @@ class Game {
     }
     updateHUD(){
         const p=this.player, e=this.enemy;
-        document.getElementById('h-pdmg').textContent=this.playerScore+' Pts';
-        document.getElementById('h-edmg').textContent=Math.round(e.dmg)+'%';
+        const myF  = battleMode ? (battlePlayer===1?p:e) : p;
+        const oppF = battleMode ? (battlePlayer===1?e:p) : e;
+        if (battleMode) {
+            document.getElementById('h-pdmg').textContent=Math.round(myF.dmg)+'%';
+            document.getElementById('h-edmg').textContent=Math.round(oppF.dmg)+'%';
+        } else {
+            document.getElementById('h-pdmg').textContent=this.playerScore+' Pts';
+            document.getElementById('h-edmg').textContent=Math.round(e.dmg)+'%';
+        }
         const ps=document.getElementById('h-pst'), es=document.getElementById('h-est');
         ps.innerHTML=''; es.innerHTML='';
         for(let i=0;i<3;i++){
             const d=document.createElement('div');
-            d.className='stock-dot p'+(i>=p.stocks?' dead':'');
+            d.className='stock-dot p'+(i>=(myF.stocks)?' dead':'');
             ps.appendChild(d);
         }
         for(let i=0;i<3;i++){
             const d=document.createElement('div');
-            d.className='stock-dot e'+(i>=e.stocks?' dead':'');
+            d.className='stock-dot e'+(i>=(oppF.stocks)?' dead':'');
             es.appendChild(d);
         }
     }
@@ -1238,26 +1273,39 @@ class Game {
     }
 
     handleKO(f){
+        if (battleMode) {
+            const myF = battlePlayer===1 ? this.player : this.enemy;
+            if (f !== myF) return;
+        }
         f.stocks--;
-        if(!f.isP) this.playerScore += 25; // KO bonus
+        if(!battleMode && !f.isP) this.playerScore += 25;
         spawnKO(f.x,f.y-30,f.color);
         this.shakeAmt=20;
-        this.screenFlash=0.45; this.screenFlashColor=f.isP?'rgba(255,40,40,0.55)':'rgba(0,220,255,0.55)';
+        const isMine = battleMode ? true : f.isP;
+        this.screenFlash=0.45; this.screenFlashColor=isMine?'rgba(255,40,40,0.55)':'rgba(0,220,255,0.55)';
         this.updateHUD();
         if(f.stocks<=0){
+            if (battleMode) {
+                const winner = battlePlayer===1 ? 'p2' : 'p1';
+                window._fsUpd(window._fsDoc(window._db,'battles',battleRoomId),{winner}).catch(()=>{});
+                this.announce('NIEDERLAGE','#ff4444',2.5);
+                this.phase='ending'; this.endTimer=2.5;
+                return;
+            }
             const win=f.isP?'NIEDERLAGE':'SIEG!';
             const col=f.isP?'#ff4444':'#00ccff';
             this.announce(win,col,3);
             this.phase='ending'; this.endTimer=2.5;
         } else {
             f.x=-999; f.y=-999;
-            this.announce(f.isP?'ZURÜCK!':'KO!',f.isP?'#ff8844':'#00ccff',1.5);
+            this.announce('ZURÜCK!','#ff8844',1.5);
             this.respawnTarget=f; this.respawnTimer=1.8;
             this.phase='respawning';
         }
     }
 
     showGameOver(){
+        if (battleMode) return;
         const won=this.enemy.stocks<=0;
         const score=this.playerScore;
         document.getElementById('go-title').textContent=won?'🏆 SIEG!':'💀 NIEDERLAGE';
@@ -1310,7 +1358,7 @@ class Game {
         updateAmbient(dt,gt);
         updateAfterimages(dt);
 
-        this.ai.update(dt,this.player);
+        if (!battleMode) this.ai.update(dt,this.player);
         this.player.update(dt,this.platforms);
         this.enemy.update(dt,this.platforms);
 
@@ -1329,8 +1377,8 @@ class Game {
             this.player.dir=this.enemy.x>this.player.x?1:-1;
         }
 
-        this.checkHit(this.player,this.enemy);
-        this.checkHit(this.enemy,this.player);
+        if (!battleMode || battlePlayer===1) this.checkHit(this.player,this.enemy);
+        if (!battleMode || battlePlayer===2) this.checkHit(this.enemy,this.player);
         this.checkProjectiles(dt);
 
         // Blast zones
@@ -1471,14 +1519,17 @@ const keyMap={
     'KeyZ':'j','KeyJ':'j',
     'KeyX':'k','KeyK':'k',
 };
+function inputFighter(){return battleMode&&battlePlayer===2?game?.enemy:game?.player;}
 window.addEventListener('keydown',e=>{
     const k=keyMap[e.code];
-    if(k&&game?.player){game.player.keys[k]=true; if(k==='u'||k==='d') e.preventDefault();}
+    const f=inputFighter();
+    if(k&&f){f.keys[k]=true; if(k==='u'||k==='d') e.preventDefault();}
     if(e.code==='Space') e.preventDefault();
 });
 window.addEventListener('keyup',e=>{
     const k=keyMap[e.code];
-    if(k&&game?.player) game.player.keys[k]=false;
+    const f=inputFighter();
+    if(k&&f) f.keys[k]=false;
 });
 
 // ── Mobile Controls ────────────────────────────────────────────────
@@ -1495,16 +1546,16 @@ function setupMobile(){
         const el=document.getElementById(id);
         el.addEventListener('touchstart',e=>{
             e.preventDefault();
-            if(game?.player) game.player.keys[key]=true;
+            const f=inputFighter(); if(f) f.keys[key]=true;
             el.classList.add('active');
         },{passive:false});
         el.addEventListener('touchend',e=>{
             e.preventDefault();
-            if(game?.player) game.player.keys[key]=false;
+            const f2=inputFighter(); if(f2) f2.keys[key]=false;
             el.classList.remove('active');
         },{passive:false});
         el.addEventListener('touchcancel',()=>{
-            if(game?.player) game.player.keys[key]=false;
+            const f3=inputFighter(); if(f3) f3.keys[key]=false;
             el.classList.remove('active');
         });
     });
@@ -1538,14 +1589,15 @@ function setupMobile(){
         if(dx < -DEAD)      joyDot.style.boxShadow='0 0 22px rgba(100,160,255,.9),0 0 44px rgba(80,140,255,.4)';
         else if(dx > DEAD)  joyDot.style.boxShadow='0 0 22px rgba(100,160,255,.9),0 0 44px rgba(80,140,255,.4)';
         else                joyDot.style.boxShadow='0 0 20px rgba(180,200,255,.9),0 0 40px rgba(100,140,255,.4)';
-        if(game?.player){
-            game.player.keys.l = dx < -DEAD;
-            game.player.keys.r = dx >  DEAD;
+        const jif=inputFighter();
+        if(jif){
+            jif.keys.l = dx < -DEAD;
+            jif.keys.r = dx >  DEAD;
             if(dy < -JUMP_TH && !jumpFired){
                 jumpFired=true;
                 joyDot.style.boxShadow='0 0 28px rgba(255,240,100,1),0 0 50px rgba(255,200,0,.5)';
-                game.player.keys.u=true;
-                setTimeout(()=>{if(game?.player)game.player.keys.u=false;},80);
+                jif.keys.u=true;
+                setTimeout(()=>{const jif2=inputFighter();if(jif2)jif2.keys.u=false;},80);
             }
             if(dy > -JUMP_TH*0.5) jumpFired=false;
         }
@@ -1578,13 +1630,173 @@ function setupMobile(){
             joyId=null;
             joyVis.style.display='none';
             joyHint.style.opacity='';
-            if(game?.player){game.player.keys.l=false;game.player.keys.r=false;}
+            const jf=inputFighter(); if(jf){jf.keys.l=false;jf.keys.r=false;}
         }
     }
     joyZone.addEventListener('touchend',joyEnd,{passive:false});
     joyZone.addEventListener('touchcancel',joyEnd);
 }
 setupMobile();
+
+// ── Battle / Online Multiplayer ────────────────────────────────────
+let battleMode   = false;
+let battlePlayer = 0;   // 1=host(player) 2=joiner(enemy)
+let battleRoomId = '';
+let battleUnsubMeta = null;
+let battleUnsubOpp  = null;
+let battleSyncTimer = 0;
+const BATTLE_HZ = 10;  // state updates per second
+
+function battleSerialize(f){
+    if(!f) return {};
+    return {x:+f.x.toFixed(1),y:+f.y.toFixed(1),vx:+f.vx.toFixed(1),vy:+f.vy.toFixed(1),
+        fac:f.facing?1:0,dir:f.dir,st:f.state,at:+f.animTime.toFixed(2),
+        ak:f.attackData?f.attackData.id:'',ap:+((f.attackProgress||0).toFixed(2)),
+        stt:+((f.stateTimer||0).toFixed(2)),
+        dmg:+f.dmg.toFixed(1),stk:f.stocks,hs:+((f.hitStun||0).toFixed(2)),
+        inv:+((f.invincible||0).toFixed(2))};
+}
+
+function battleApply(f,s){
+    if(!f||!s) return;
+    f.x=s.x; f.y=s.y; f.vx=s.vx; f.vy=s.vy;
+    f.facing=s.fac===1; f.dir=s.dir||1;
+    f.state=s.st||'idle'; f.animTime=s.at||0;
+    f.attackData=s.ak?(ATK[s.ak]||null):null;
+    f.attackProgress=s.ap||0; f.stateTimer=s.stt||0;
+    f.dmg=s.dmg||0; f.stocks=s.stk!=null?s.stk:f.stocks;
+    f.hitStun=s.hs||0;
+    if(game) game.updateHUD();
+}
+
+function battleRemote(){ return battlePlayer===1?game?.enemy:game?.player; }
+
+async function battleSendState(){
+    if(!battleRoomId||!game) return;
+    const f = battlePlayer===1?game.player:game.enemy;
+    if(!f) return;
+    const id=`${battleRoomId}_p${battlePlayer}`;
+    try{ await window._fsSet(window._fsDoc(window._db,'fights',id),battleSerialize(f)); }catch(e){}
+}
+
+function battleListenOpp(){
+    const oppNum=battlePlayer===1?2:1;
+    const id=`${battleRoomId}_p${oppNum}`;
+    if(battleUnsubOpp) battleUnsubOpp();
+    battleUnsubOpp=window._fsSnap(window._fsDoc(window._db,'fights',id),snap=>{
+        if(!snap.exists()||!game) return;
+        battleApply(battleRemote(),snap.data());
+    });
+}
+
+function battleOnUpdate(dt){
+    battleSyncTimer+=dt;
+    if(battleSyncTimer>=1/BATTLE_HZ){
+        battleSyncTimer=0;
+        battleSendState();
+    }
+}
+
+async function battleCreateRoom(playerName){
+    const roomId=Math.random().toString(36).substr(2,5).toUpperCase();
+    battleRoomId=roomId; battlePlayer=1; battleMode=true;
+    await window._fsSet(window._fsDoc(window._db,'battles',roomId),
+        {p1:playerName,p2:null,status:'waiting',winner:null});
+    const url=location.origin+location.pathname+'?battle='+roomId;
+    document.getElementById('battle-room-code').textContent=roomId;
+    const qEl=document.getElementById('battle-qr-canvas');
+    qEl.innerHTML='';
+    new QRCode(qEl,{text:url,width:180,height:180,colorDark:'#000',colorLight:'#fff'});
+    document.getElementById('name-modal').classList.remove('show');
+    document.getElementById('battle-qr-modal').classList.add('show');
+    document.getElementById('battle-status-text').textContent='Warte auf Gegner…';
+    let _p1started=false;
+    if(battleUnsubMeta) battleUnsubMeta();
+    battleUnsubMeta=window._fsSnap(window._fsDoc(window._db,'battles',roomId),snap=>{
+        if(!snap.exists()) return;
+        const d=snap.data();
+        if(d.p2&&!_p1started){
+            _p1started=true;
+            document.getElementById('battle-status-text').textContent=d.p2+' ist dabei! 🎮';
+            setTimeout(()=>{
+                document.getElementById('battle-qr-modal').classList.remove('show');
+                battleStartGame(d.p1,d.p2);
+            },1200);
+        }
+        if(d.winner&&_p1started) battleShowResult(d.winner,d.p1,d.p2||'Gegner');
+    });
+}
+
+async function battleJoin(playerName,roomId){
+    battleRoomId=roomId; battlePlayer=2; battleMode=true;
+    let p1Name='Gegner';
+    try{
+        const snap=await window._fsGet(window._fsDoc(window._db,'battles',roomId));
+        if(!snap.exists()){
+            alert('Battle nicht gefunden!');
+            history.replaceState({},'',location.pathname);
+            battleMode=false; battlePlayer=0;
+            document.getElementById('name-modal').classList.add('show');
+            return;
+        }
+        p1Name=snap.data().p1||'Gegner';
+    }catch(e){}
+    await window._fsUpd(window._fsDoc(window._db,'battles',roomId),{p2:playerName}).catch(()=>{});
+    battleStartGame(p1Name,playerName);
+    if(battleUnsubMeta) battleUnsubMeta();
+    battleUnsubMeta=window._fsSnap(window._fsDoc(window._db,'battles',roomId),snap=>{
+        if(!snap.exists()) return;
+        const d=snap.data();
+        if(d.winner) battleShowResult(d.winner,d.p1||'P1',d.p2||playerName);
+    });
+}
+
+function battleStartGame(p1Name,p2Name){
+    document.getElementById('name-modal').classList.remove('show');
+    if('ontouchstart' in window||window.innerWidth<900){
+        const el=document.documentElement;
+        if(el.requestFullscreen) el.requestFullscreen();
+        if(screen.orientation?.lock) screen.orientation.lock('landscape').catch(()=>{});
+    }
+    const myName  =battlePlayer===1?p1Name:p2Name;
+    const oppName =battlePlayer===1?p2Name:p1Name;
+    game=new Game();
+    game.init(myName,0);
+    game.ai=null;
+    document.getElementById('h-pname').textContent=myName.toUpperCase().slice(0,12);
+    document.getElementById('h-ename').textContent=oppName.toUpperCase().slice(0,12);
+    document.getElementById('battle-badge').classList.add('show');
+    battleListenOpp();
+}
+
+function battleShowResult(winner,p1Name,p2Name){
+    if(!battleMode) return;
+    if(battleUnsubMeta){battleUnsubMeta();battleUnsubMeta=null;}
+    if(battleUnsubOpp) {battleUnsubOpp(); battleUnsubOpp=null;}
+    if(game) game.phase='gameover';
+    const iWon=(battlePlayer===1&&winner==='p1')||(battlePlayer===2&&winner==='p2');
+    document.getElementById('go-title').textContent=iWon?'🏆 SIEG!':'💀 NIEDERLAGE';
+    document.getElementById('go-title').className='win'+(iWon?'':' lose');
+    document.getElementById('go-score').textContent=iWon?'Du hast gewonnen!':'Du hast verloren';
+    document.getElementById('go-modal').classList.add('show');
+    document.getElementById('battle-badge').classList.remove('show');
+    // Cleanup state docs
+    ['1','2'].forEach(n=>{
+        window._fsDel(window._fsDoc(window._db,'fights',`${battleRoomId}_p${n}`)).catch(()=>{});
+    });
+    battleMode=false; battlePlayer=0; battleRoomId='';
+}
+
+function cancelBattle(){
+    if(battleRoomId){
+        window._fsDel(window._fsDoc(window._db,'battles',battleRoomId)).catch(()=>{});
+    }
+    if(battleUnsubMeta){battleUnsubMeta();battleUnsubMeta=null;}
+    document.getElementById('battle-qr-modal').classList.remove('show');
+    document.getElementById('name-modal').classList.add('show');
+    battleMode=false; battlePlayer=0; battleRoomId='';
+}
+window.cancelBattle=cancelBattle;
 
 // ── Game Loop ──────────────────────────────────────────────────────
 let lastTime=null;
@@ -1593,6 +1805,7 @@ function loop(ts){
     const dt=Math.min((ts-lastTime)/1000,0.05);
     lastTime=ts;
     if(game) game.update(dt);
+    if(battleMode) battleOnUpdate(dt);
     if(game) game.render();
     requestAnimationFrame(loop);
 }
@@ -1632,16 +1845,36 @@ const nameIn=document.getElementById('name-in');
 const saved=(() => {try{return JSON.parse(localStorage.getItem('1100px_user'));}catch{return null;}})();
 if(saved?.name) nameIn.value=saved.name;
 
+const _battleParam=new URLSearchParams(location.search).get('battle');
+if(_battleParam){
+    document.querySelector('#name-modal .modal-sub').textContent='⚔ Battle-Einladung – gib deinen Namen ein';
+    document.getElementById('name-go').style.display='none';
+    document.getElementById('battle-go').textContent='⚔ BEITRETEN';
+    document.getElementById('diff-slider').closest('.diff-wrap').style.display='none';
+}
+
 nameGo.addEventListener('click',()=>{
     const n=nameIn.value.trim();
     if(!n){nameIn.style.borderColor='#ff4444';setTimeout(()=>nameIn.style.borderColor='',500);return;}
     startGame(n);
 });
-nameIn.addEventListener('keydown',e=>{if(e.key==='Enter')nameGo.click();});
+nameIn.addEventListener('keydown',e=>{if(e.key==='Enter'&&!_battleParam)nameGo.click();});
+nameIn.addEventListener('keydown',e=>{if(e.key==='Enter'&&_battleParam)document.getElementById('battle-go').click();});
+
+document.getElementById('battle-go').addEventListener('click',()=>{
+    const n=nameIn.value.trim();
+    if(!n){nameIn.style.borderColor='#ff4444';setTimeout(()=>nameIn.style.borderColor='',500);return;}
+    if(_battleParam){
+        battleJoin(n,_battleParam);
+    } else {
+        battleCreateRoom(n);
+    }
+});
 
 document.getElementById('go-again').addEventListener('click',()=>{
     document.getElementById('go-modal').classList.remove('show');
-    if(game) game.startMatch();
+    if(!battleMode&&game) game.startMatch();
+    else document.getElementById('name-modal').classList.add('show');
 });
 
 })();

@@ -6,7 +6,7 @@
     <title>RIDER</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, increment }
+        import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, increment, setDoc, onSnapshot, getDoc, deleteDoc }
             from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -90,9 +90,62 @@
         window.storeResult    = storeResult;
         window.loadLeaderboard = loadLeaderboard;
         window.getUser = getUser;
+
+        // Battle helpers
+        window._db          = db;
+        window._fsDoc       = doc;
+        window._fsSet       = setDoc;
+        window._fsGet       = getDoc;
+        window._fsUpdate    = updateDoc;
+        window._fsDel       = deleteDoc;
+        window._fsSnapshot  = onSnapshot;
+        window._fsTimestamp = serverTimestamp;
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        /* ── Battle ── */
+        #battle-qr-modal {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.93);
+            backdrop-filter: blur(8px);
+            z-index: 1100;
+            justify-content: center;
+            align-items: center;
+        }
+        #battle-qr-modal .modal-box {
+            max-width: 340px;
+            width: 90vw;
+        }
+        #battle-hud {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.75);
+            border: 1px solid rgba(255,68,68,0.45);
+            border-radius: 10px;
+            padding: 10px 16px;
+            z-index: 200;
+            font-size: 0.82rem;
+            line-height: 1.8;
+            letter-spacing: 1px;
+        }
+        #battle-result {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.93);
+            backdrop-filter: blur(8px);
+            z-index: 1200;
+            justify-content: center;
+            align-items: center;
+        }
+        #battle-result .modal-box { max-width: 360px; width: 90vw; }
+        .battle-won  { color: #44ff88; text-shadow: 0 0 20px rgba(68,255,136,0.7); }
+        .battle-lost { color: #ff4444; text-shadow: 0 0 20px rgba(255,68,68,0.7); }
+        .battle-tie  { color: #ffcc44; text-shadow: 0 0 20px rgba(255,204,68,0.7); }
 
         body {
             background: #0a1628;
