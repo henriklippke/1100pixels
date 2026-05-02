@@ -1295,7 +1295,7 @@ class Game {
         if(f.stocks<=0){
             if (battleMode) {
                 const winner = battlePlayer===1 ? 'p2' : 'p1';
-                window._fsUpd(window._fsDoc(window._db,'battles',battleRoomId),{winner}).catch(()=>{});
+                window._fsUpd(window._fsDoc(window._db,'red-pixel','bt_'+battleRoomId),{winner}).catch(()=>{});
                 this.announce('NIEDERLAGE','#ff4444',2.5);
                 this.phase='ending'; this.endTimer=2.5;
                 return;
@@ -1684,14 +1684,14 @@ async function battleSendState(){
     const f = battlePlayer===1?game.player:game.enemy;
     if(!f) return;
     const id=`${battleRoomId}_p${battlePlayer}`;
-    try{ await window._fsSet(window._fsDoc(window._db,'fights',id),battleSerialize(f)); }catch(e){}
+    try{ await window._fsSet(window._fsDoc(window._db,'red-pixel','fs_'+id),battleSerialize(f)); }catch(e){}
 }
 
 function battleListenOpp(){
     const oppNum=battlePlayer===1?2:1;
     const id=`${battleRoomId}_p${oppNum}`;
     if(battleUnsubOpp) battleUnsubOpp();
-    battleUnsubOpp=window._fsSnap(window._fsDoc(window._db,'fights',id),snap=>{
+    battleUnsubOpp=window._fsSnap(window._fsDoc(window._db,'red-pixel','fs_'+id),snap=>{
         if(!snap.exists()||!game) return;
         battleApply(battleRemote(),snap.data());
     });
@@ -1717,8 +1717,8 @@ async function battleCreateRoom(playerName){
     const roomId=Math.random().toString(36).substr(2,5).toUpperCase();
     battleRoomId=roomId; battlePlayer=1; battleMode=true;
     try{
-    await window._fsSet(window._fsDoc(window._db,'battles',roomId),
-        {p1:playerName,p2:null,status:'waiting',winner:null});
+    await window._fsSet(window._fsDoc(window._db,'red-pixel','bt_'+roomId),
+        {p1:playerName,p2:null,status:'waiting',winner:null,game:'BATTLE'});
     const url=location.origin+location.pathname+'?battle='+roomId;
     document.getElementById('battle-room-code').textContent=roomId;
     const qEl=document.getElementById('battle-qr-canvas');
@@ -1729,7 +1729,7 @@ async function battleCreateRoom(playerName){
     document.getElementById('battle-status-text').textContent='Warte auf Gegner…';
     let _p1started=false;
     if(battleUnsubMeta) battleUnsubMeta();
-    battleUnsubMeta=window._fsSnap(window._fsDoc(window._db,'battles',roomId),snap=>{
+    battleUnsubMeta=window._fsSnap(window._fsDoc(window._db,'red-pixel','bt_'+roomId),snap=>{
         if(!snap.exists()) return;
         const d=snap.data();
         if(d.p2&&!_p1started){
@@ -1745,7 +1745,7 @@ async function battleCreateRoom(playerName){
     }catch(err){
         btn.textContent=orig; btn.disabled=false;
         battleMode=false; battlePlayer=0; battleRoomId='';
-        alert('Fehler beim Erstellen: '+err.message+'\n\nTipp: Firestore-Regeln müssen "battles" und "fights" erlauben.');
+        alert('Fehler: '+err.message);
     }
 }
 
@@ -1753,7 +1753,7 @@ async function battleJoin(playerName,roomId){
     battleRoomId=roomId; battlePlayer=2; battleMode=true;
     let p1Name='Gegner';
     try{
-        const snap=await window._fsGet(window._fsDoc(window._db,'battles',roomId));
+        const snap=await window._fsGet(window._fsDoc(window._db,'red-pixel','bt_'+roomId));
         if(!snap.exists()){
             alert('Battle nicht gefunden!');
             history.replaceState({},'',location.pathname);
@@ -1763,10 +1763,10 @@ async function battleJoin(playerName,roomId){
         }
         p1Name=snap.data().p1||'Gegner';
     }catch(e){}
-    await window._fsUpd(window._fsDoc(window._db,'battles',roomId),{p2:playerName}).catch(()=>{});
+    await window._fsUpd(window._fsDoc(window._db,'red-pixel','bt_'+roomId),{p2:playerName}).catch(()=>{});
     battleStartGame(p1Name,playerName);
     if(battleUnsubMeta) battleUnsubMeta();
-    battleUnsubMeta=window._fsSnap(window._fsDoc(window._db,'battles',roomId),snap=>{
+    battleUnsubMeta=window._fsSnap(window._fsDoc(window._db,'red-pixel','bt_'+roomId),snap=>{
         if(!snap.exists()) return;
         const d=snap.data();
         if(d.winner) battleShowResult(d.winner,d.p1||'P1',d.p2||playerName);
@@ -1804,14 +1804,15 @@ function battleShowResult(winner,p1Name,p2Name){
     document.getElementById('battle-badge').classList.remove('show');
     // Cleanup state docs
     ['1','2'].forEach(n=>{
-        window._fsDel(window._fsDoc(window._db,'fights',`${battleRoomId}_p${n}`)).catch(()=>{});
+        window._fsDel(window._fsDoc(window._db,'red-pixel',`fs_${battleRoomId}_p${n}`)).catch(()=>{});
     });
+    window._fsDel(window._fsDoc(window._db,'red-pixel','bt_'+battleRoomId)).catch(()=>{});
     battleMode=false; battlePlayer=0; battleRoomId='';
 }
 
 function cancelBattle(){
     if(battleRoomId){
-        window._fsDel(window._fsDoc(window._db,'battles',battleRoomId)).catch(()=>{});
+        window._fsDel(window._fsDoc(window._db,'red-pixel','bt_'+battleRoomId)).catch(()=>{});
     }
     if(battleUnsubMeta){battleUnsubMeta();battleUnsubMeta=null;}
     document.getElementById('battle-qr-modal').classList.remove('show');
