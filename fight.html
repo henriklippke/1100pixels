@@ -68,7 +68,7 @@
         #ann.hidden{opacity:0}
 
         /* Modals */
-        .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:100;justify-content:center;align-items:center;flex-direction:column}
+        .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:500;justify-content:center;align-items:center;flex-direction:column}
         .modal.show{display:flex}
         .modal-box{background:linear-gradient(135deg,#0d1f33,#1a0d20);border:1px solid rgba(0,200,255,.3);border-radius:18px;padding:40px 50px;text-align:center;min-width:320px;max-width:90vw}
         .modal-box h1{font-size:2.2rem;letter-spacing:5px;text-transform:uppercase;margin-bottom:8px}
@@ -126,6 +126,11 @@
             position:fixed;left:0;top:0;width:50%;height:100%;
             pointer-events:all;z-index:14;touch-action:none;
         }
+        /* Hide mobile controls behind modals */
+        .modal.show ~ #joy-hint,
+        body:has(.modal.show) #mob,
+        body:has(.modal.show) #mob-right,
+        body:has(.modal.show) #joy-zone { pointer-events:none !important; }
         /* Joystick visual — outer ring */
         #joy-vis{
             position:fixed;display:none;pointer-events:none;z-index:16;
@@ -229,7 +234,10 @@
         #mob-atk-row{display:flex;gap:13px;align-items:center}
 
         @media(max-width:600px){
-            .modal-box{padding:28px 22px} .modal-box h1{font-size:1.7rem} .modal-score{font-size:2.2rem}
+            .modal-box{padding:20px 18px} .modal-box h1{font-size:1.5rem;margin-bottom:4px} .modal-score{font-size:2.2rem}
+            .modal-sub{margin-bottom:12px} .diff-wrap{margin-bottom:10px} .diff-label{font-size:.68rem}
+            .modal-input{padding:9px 12px;font-size:1rem;margin-bottom:10px}
+            .modal-btn{padding:10px 20px;font-size:.85rem}
             #hud{padding:6px 10px 0} .hud-dmg{font-size:1.7rem} #ann{font-size:2.4rem}
         }
 
@@ -277,7 +285,7 @@
 
 <!-- Name Modal -->
 <div class="modal show" id="name-modal">
-    <div class="modal-box">
+    <div class="modal-box" style="overflow-y:auto;max-height:92vh">
         <h1 style="color:#00ccff;text-shadow:0 0 20px rgba(0,200,255,.7)">GRID FIGHT</h1>
         <p class="modal-sub">Wirf den Gegner von der Plattform</p>
         <input class="modal-input" id="name-in" placeholder="Dein Name…" maxlength="20" autocomplete="off" spellcheck="false">
@@ -1698,8 +1706,17 @@ function battleOnUpdate(dt){
 }
 
 async function battleCreateRoom(playerName){
+    const btn=document.getElementById('battle-go');
+    const orig=btn.textContent;
+    btn.textContent='⏳ Erstelle Raum…'; btn.disabled=true;
+    if(!window._fsSet||!window._fsDoc||!window._db){
+        btn.textContent=orig; btn.disabled=false;
+        alert('Firebase noch nicht geladen – kurz warten und nochmal versuchen!');
+        return;
+    }
     const roomId=Math.random().toString(36).substr(2,5).toUpperCase();
     battleRoomId=roomId; battlePlayer=1; battleMode=true;
+    try{
     await window._fsSet(window._fsDoc(window._db,'battles',roomId),
         {p1:playerName,p2:null,status:'waiting',winner:null});
     const url=location.origin+location.pathname+'?battle='+roomId;
@@ -1725,6 +1742,11 @@ async function battleCreateRoom(playerName){
         }
         if(d.winner&&_p1started) battleShowResult(d.winner,d.p1,d.p2||'Gegner');
     });
+    }catch(err){
+        btn.textContent=orig; btn.disabled=false;
+        battleMode=false; battlePlayer=0; battleRoomId='';
+        alert('Fehler beim Erstellen: '+err.message+'\n\nTipp: Firestore-Regeln müssen "battles" und "fights" erlauben.');
+    }
 }
 
 async function battleJoin(playerName,roomId){
