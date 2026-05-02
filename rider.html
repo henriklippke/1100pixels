@@ -1017,6 +1017,12 @@
     }
 
     function initGame() {
+        resizeCanvas(); // Sicherstellen dass Canvas-Größe korrekt ist vor Map-Generierung
+        if (canvas.width < 100 || canvas.height < 100) {
+            // Canvas noch nicht bereit – kurz warten und nochmal versuchen
+            setTimeout(initGame, 50);
+            return;
+        }
         generateTerrain();
         generateGems();
         gems = 0;
