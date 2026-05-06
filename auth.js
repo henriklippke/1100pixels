@@ -19,7 +19,7 @@ export function logout() {
 
 export async function register(db, name, pin) {
     const trimmed = name.trim();
-    if (!trimmed || pin.length !== 4) return { error: 'Name und 4-stellige PIN erforderlich.' };
+    if (!trimmed || pin.length < 4) return { error: 'Name und mind. 4-stelliger Code erforderlich.' };
     const qs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', trimmed.toLowerCase())));
     if (!qs.empty) return { error: 'Name bereits vergeben.' };
     const hashed = await hashPin(pin);
@@ -31,6 +31,20 @@ export async function register(db, name, pin) {
     });
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ name: trimmed }));
     return { ok: true, name: trimmed };
+}
+
+export async function changePin(db, name, oldPin, newPin) {
+    if (newPin.length < 4) return { error: 'Neuer Code muss mind. 4 Zeichen haben.' };
+    const trimmed = name.trim();
+    const qs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', trimmed.toLowerCase())));
+    if (qs.empty) return { error: 'Account nicht gefunden.' };
+    const oldHashed = await hashPin(oldPin);
+    const docSnap = qs.docs[0];
+    if (docSnap.data().pin !== oldHashed) return { error: 'Alter Code falsch.' };
+    const newHashed = await hashPin(newPin);
+    const { updateDoc } = await import("https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js");
+    await updateDoc(docSnap.ref, { pin: newHashed });
+    return { ok: true };
 }
 
 export async function login(db, name, pin) {

@@ -691,37 +691,37 @@
     let terrain = [];   // array of {x, y}, variable spacing
     let loops   = [];   // array of {cx, cy, R} — separate circular track objects
 
-    function generateTerrain() {
-        terrain = [];
-        loops   = [];
-        const H      = canvas.height;
-        const mobile = window.innerWidth < 600;
-        const minY = H * (mobile ? 0.28 : 0.18);
-        const maxY = H * (mobile ? 0.90 : 0.82);
-        const base = H * (mobile ? 0.75 : 0.63);
+    let _terrainCursor = null;
 
-        const pt = (x, y) => terrain.push({ x, y: Math.max(minY, Math.min(maxY, y)) });
+    function _addTerrainSegs(startX, startY, startSeg, count, minY, maxY) {
+        const H          = canvas.height;
+        const pt         = (x, y) => terrain.push({ x, y: Math.max(minY, Math.min(maxY, y)) });
+        const targetBase = minY + (maxY - minY) * 0.72; // aim for lower third of play area
+        let x = startX, y = startY;
 
-        // Underground edge + flat start
-        pt(-1000, base + 600);
-        pt(-1000, base);
-        pt(0,     base);
-        pt(500,   base);
-
-        let x = 500;
-        let y = base;
-
-        for (let seg = 0; seg < 120; seg++) {
+        for (let i = 0; i < count; i++) {
+            const seg  = startSeg + i;
             const diff = Math.min(seg / 50, 1);
-            const r    = Math.random();
 
-            if (r < 0.08) {
+            // If track crept too high, force a smooth descent back toward baseline
+            if (y < targetBase - 80) {
+                const drop  = Math.min(targetBase - y, 100 + Math.random() * 120);
+                const descW = 200 + Math.random() * 200;
+                pt(x, y); pt(x + descW, y + drop);
+                x += descW;
+                y = Math.max(minY, Math.min(maxY, y + drop));
+                continue;
+            }
+
+            const r = Math.random();
+
+            if (r < 0.04) {
                 // ── Flat ──────────────────────────────────────────
                 const w = 180 + Math.random() * 220;
                 pt(x, y); pt(x + w, y);
                 x += w;
 
-            } else if (r < 0.14) {
+            } else if (r < 0.10) {
                 // ── Lange Auffahrt (langer diagonaler Anstieg) ────
                 // Sanft ansteigend → langer flacher Gipfel → Abstieg
                 const riseW  = 200 + Math.random() * 180;
@@ -913,7 +913,7 @@
                 pt(x + gap + rampW + dipR + 90, y);
                 x += gap + rampW + dipR + 90;
 
-            } else if (r < 0.94) {
+            } else if (r < 0.91) {
                 // ── Steile Zickzack-Rampen ────────────────────────
                 // Wechselnde steile Auf- und Abfahrten wie auf dem Bild
                 const count = 2 + Math.floor(Math.random() * 3);
@@ -928,7 +928,7 @@
                     x += g + w;
                 }
 
-            } else if (r < 0.91) {
+            } else if (r < 0.94) {
                 // ── Doppelte Halfpipe (2 Mulden hintereinander) ───
                 const count = 2;
                 for (let i = 0; i < count; i++) {
@@ -948,7 +948,7 @@
                 pt(x + 60, y);
                 x += 60;
 
-            } else if (r < 0.94) {
+            } else if (r < 0.96) {
                 // ── Sanfte Doppelmulde (zwei weiche U-Täler) ──────
                 for (let i = 0; i < 2; i++) {
                     const w = 140 + Math.random() * 100;
@@ -962,7 +962,7 @@
                 }
                 pt(x, y);
 
-            } else if (r < 0.97) {
+            } else if (r < 0.975) {
                 // ── Treppenstufen (gestaffelte Plateaus) ──────────
                 {
                     const numSteps = 2 + Math.floor(Math.random() * 3);
@@ -981,7 +981,7 @@
                     pt(x, y);
                 }
 
-            } else if (r < 0.99) {
+            } else if (r < 0.985) {
                 // ── Rampen-Loop (Auffahrt + Loop als separates Objekt) ─
                 {
                     const gap   = 60  + Math.random() * 80;
@@ -1029,9 +1029,51 @@
             }
 
             y = Math.max(minY, Math.min(maxY, y));
+            // Gentle pull back toward target level each segment
+            y += (targetBase - y) * 0.1;
+            y = Math.max(minY, Math.min(maxY, y));
+        }
+        return { x, y, seg: startSeg + count };
+    }
+
+    function generateTerrain() {
+        terrain = [];
+        loops   = [];
+        const H      = canvas.height;
+        const mobile = window.innerWidth < 600;
+        const minY   = H * (mobile ? 0.28 : 0.18);
+        const maxY   = H * (mobile ? 0.90 : 0.82);
+        const base   = H * (mobile ? 0.75 : 0.63);
+        const pt     = (x, y) => terrain.push({ x, y: Math.max(minY, Math.min(maxY, y)) });
+
+        pt(-1000, base + 600);
+        pt(-1000, base);
+        pt(0,     base);
+        pt(500,   base);
+
+        const r0 = _addTerrainSegs(500, base, 0, 120, minY, maxY);
+        _terrainCursor = { x: r0.x, y: r0.y, seg: r0.seg, minY, maxY };
+        terrain.push({ x: r0.x + 800, y: r0.y });
+    }
+
+    function extendTerrain() {
+        if (!_terrainCursor) return;
+        terrain.pop(); // remove old trailing flat
+        const { x, y, seg, minY, maxY } = _terrainCursor;
+        const r = _addTerrainSegs(x, y, seg, 40, minY, maxY);
+        _terrainCursor = { x: r.x, y: r.y, seg: r.seg, minY, maxY };
+        terrain.push({ x: r.x + 800, y: r.y }); // new trailing flat
+
+        // Spawn gems over new terrain
+        for (let gx = x; gx < r.x + 800; gx += 280 + Math.random() * 320) {
+            gemObjects.push({ x: gx, y: terrainYAt(gx) - 28, collected: false });
         }
 
-        pt(x + 800, y); // langer Abschluss
+        // Trim terrain far behind player to save memory
+        const trimX = px - 6000;
+        let tc = 0;
+        while (3 + tc < terrain.length - 20 && terrain[3 + tc].x < trimX) tc++;
+        if (tc > 0) terrain.splice(3, tc);
     }
 
     // Binary-search Lookup (variable Segment-Breiten)
@@ -1313,15 +1355,22 @@
         let fOnGround = fContactY >= fTerrY;
         onGround = rOnGround || fOnGround;
 
+        // Pit-edge detection: if terrain ahead drops sharply (>100px over axle span), go airborne
+        const terrainDrop = fTerrY - rTerrY;
+        if (onGround && terrainDrop > 100) {
+            onGround = false; fOnGround = false;
+        }
+
         // Sticky ground: kurz über Terrain (bergab) → trotzdem am Boden bleiben
         if (!onGround && vy >= 0) {
             const rAbove = rTerrY - rContactY;
             const fAbove = fTerrY - fContactY;
-            if (rAbove >= 0 && rAbove < 40) {
+            const pitAhead = terrainDrop > 100;
+            if (rAbove >= 0 && rAbove < 40 && !pitAhead) {
                 onGround = true;
                 rOnGround = true;
                 vy = 0;
-            } else if (fAbove >= 0 && fAbove < 40) {
+            } else if (fAbove >= 0 && fAbove < 40 && !pitAhead) {
                 onGround = true;
                 fOnGround = true;
                 vy = 0;
@@ -1366,9 +1415,10 @@
             const isRampUp   = terrAngle < -0.15;
             const fastEnough = vx > 180;
             // Bergab: vy dem Terrain-Winkel folgen → kein Bounce
+            // Cap at MAX_VX*2.5 so a near-vertical pit wall never gives explosive vy
             const baseVy = (isRampUp && fastEnough)
                 ? Math.min(vx * Math.sin(terrAngle), -130)
-                : (terrAngle > 0 ? vx * Math.tan(terrAngle) : 0);
+                : (terrAngle > 0 ? Math.min(vx * Math.tan(terrAngle), MAX_VX * 2.5) : 0);
             vy = baseVy;
 
             // Gas / Bremse
@@ -1443,6 +1493,9 @@
 
         // Camera follows player
         camX = px - canvas.width * 0.30;
+
+        // Extend terrain when player gets close to the end
+        if (_terrainCursor && px > _terrainCursor.x - 3000) extendTerrain();
 
         // Crash if fell off bottom of screen
         if (py > canvas.height + 100) {

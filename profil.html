@@ -188,6 +188,56 @@
             letter-spacing: 2px;
         }
 
+        .pw-section {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            padding: 28px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .pw-title {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: rgba(255,255,255,0.35);
+            margin-bottom: 4px;
+        }
+        .pw-input {
+            width: 100%;
+            box-sizing: border-box;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 13px 16px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        .pw-input:focus { border-color: rgba(255,68,68,0.4); }
+        .btn-pw-save {
+            padding: 14px;
+            background: rgba(255,68,68,0.1);
+            border: 1px solid rgba(255,68,68,0.25);
+            border-radius: 12px;
+            color: #ff5555;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .pw-msg {
+            font-size: 0.8rem;
+            text-align: center;
+            min-height: 1.2em;
+        }
+        .pw-msg.ok { color: #55cc77; }
+        .pw-msg.err { color: #ff5555; }
+
     </style>
 </head>
 <body>
@@ -204,7 +254,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
     import { getFirestore, collection, getDocs, query, where }
         from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-    import { getUser, logout } from '/auth.js';
+    import { getUser, logout, changePin } from '/auth.js';
 
     const app = initializeApp({
         apiKey: "AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
@@ -321,6 +371,14 @@
                     </div>
                 </div>
 
+                <div class="pw-section">
+                    <div class="pw-title">Code ändern</div>
+                    <input class="pw-input" id="pw-old" type="password" inputmode="numeric" placeholder="Alter Code" maxlength="20">
+                    <input class="pw-input" id="pw-new" type="password" inputmode="numeric" placeholder="Neuer Code" maxlength="20">
+                    <button class="btn-pw-save" id="pw-save-btn">Speichern</button>
+                    <div class="pw-msg" id="pw-msg"></div>
+                </div>
+
                 <div class="profil-actions">
                     <a href="/" class="btn-back">← Zurück</a>
                     <button class="btn-logout" id="logout-btn">Abmelden</button>
@@ -328,6 +386,24 @@
             `;
 
             document.getElementById('logout-btn').addEventListener('click', logout);
+
+            document.getElementById('pw-save-btn').addEventListener('click', async () => {
+                const oldPin = document.getElementById('pw-old').value;
+                const newPin = document.getElementById('pw-new').value;
+                const msg = document.getElementById('pw-msg');
+                msg.textContent = '…';
+                msg.className = 'pw-msg';
+                const res = await changePin(db, user.name, oldPin, newPin);
+                if (res.ok) {
+                    msg.textContent = 'Code geändert!';
+                    msg.className = 'pw-msg ok';
+                    document.getElementById('pw-old').value = '';
+                    document.getElementById('pw-new').value = '';
+                } else {
+                    msg.textContent = res.error;
+                    msg.className = 'pw-msg err';
+                }
+            });
         } catch(e) {
             el.innerHTML = `<p class="loading">${e.message}</p>`;
         }

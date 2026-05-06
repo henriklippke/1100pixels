@@ -391,7 +391,8 @@ const ATK = {
     airK:   {id:'airK',  dmg:12, kb:7,   ks:.11,  deg:38,  su:.07, ac:.10, tot:.36, rng:84, yr:58},
     airSlam:{id:'airSlam',dmg:16,kb:10,  ks:.14,  deg:-75, su:.08, ac:.12, tot:.44, rng:60, yr:80, dn:true},
     spike:  {id:'spike', dmg:13, kb:7,   ks:.11,  deg:-82, su:.09, ac:.11, tot:.44, rng:54, yr:64, dn:true},
-    sweep:   {id:'sweep',   dmg:9,  kb:5,   ks:.08,  deg:10,  su:.10, ac:.10, tot:.40, rng:70, yr:30},
+    sweep:     {id:'sweep',     dmg:9,  kb:5,   ks:.08,  deg:10,  su:.10, ac:.10, tot:.40, rng:70, yr:30},
+    blastKick: {id:'blastKick', dmg:16, kb:15,  ks:.16,  deg:7,   su:.12, ac:.14, tot:.55, rng:92, yr:56},
     stretch: {id:'stretch', dmg:10, kb:6,   ks:.09,  deg:18,  su:.06, ac:.14, tot:.42, rng:240,yr:46},
     fireball:{id:'fireball',dmg:0,  kb:0,   ks:0,    deg:0,   su:.14, ac:.01, tot:.44, rng:0,  yr:0, special:true},
 };
@@ -718,6 +719,19 @@ function getPose(f) {
             p.re={x:22,y:-36}; p.ra={x:28,y:-44};
             p.le={x:-17,y:-32}; p.la={x:-23,y:-40};
         }
+        if (atk==='blastKick') {
+            // Full-speed running side kick — body lunges forward, leg rockets out horizontally, arms swept back
+            const ext3=Math.sin(Math.min(ap*1.15,1)*Math.PI);
+            p.hd.x=ext3*20; p.nk.x=ext3*16; p.hp.x=ext3*8;
+            p.hd.y=-66+ext3*6;
+            // Plant leg crouches low for launch
+            p.lk={x:-10+ext3*6,y:-14+ext3*12}; p.lf={x:-14+ext3*10,y:-2+ext3*16};
+            // Kicking leg shoots out fully horizontal with massive extension
+            p.rk={x:14+ext3*44,y:-32+ext3*10}; p.rf={x:18+ext3*98,y:-26+ext3*14};
+            // Both arms slam back for counter-balance
+            p.re={x:22-ext3*34,y:-44-ext3*4}; p.ra={x:28-ext3*54,y:-34-ext3*8};
+            p.le={x:-18-ext3*26,y:-40-ext3*6}; p.la={x:-24-ext3*42,y:-30-ext3*10};
+        }
     }
     if (s==='hit') {
         p.hd.x=-hit*16; p.nk.x=-hit*12;
@@ -740,7 +754,8 @@ function drawFighter(f) {
     const atk   = f.attackData ? f.attackData.id : '';
     const ap    = f.attackProgress || 0;
     const isSmashCharge = f.state==='attack' && atk==='smash' && ap<0.4;
-    const isKicking = f.state==='attack' && (atk==='kick'||atk==='airK');
+    const isKicking = f.state==='attack' && (atk==='kick'||atk==='airK'||atk==='blastKick');
+    const isBlastKick = f.state==='attack' && atk==='blastKick';
     const kickExt = isKicking ? Math.sin(Math.min(ap*1.1,1)*Math.PI) : 0;
 
     ctx.save();
@@ -775,17 +790,25 @@ function drawFighter(f) {
         ctx.restore();
     }
 
-    // Kick speed lines (like the reference image)
+    // Kick speed lines
     if (isKicking && kickExt>0.3) {
         ctx.save();
-        ctx.globalAlpha=kickExt*0.7;
-        ctx.strokeStyle=col; ctx.lineWidth=3; ctx.lineCap='round';
-        for(let i=0;i<5;i++){
-            const oy=(i-2)*10, len=30+i*14;
+        ctx.globalAlpha=kickExt*(isBlastKick?0.9:0.7);
+        ctx.strokeStyle=isBlastKick?'#ffaa00':col;
+        ctx.lineWidth=isBlastKick?5:3; ctx.lineCap='round';
+        const lineCount=isBlastKick?9:5;
+        for(let i=0;i<lineCount;i++){
+            const oy=(i-lineCount/2)*10, len=(isBlastKick?55:30)+i*14;
             ctx.beginPath();
             ctx.moveTo(p.rf.x+8, p.rf.y+oy);
             ctx.lineTo(p.rf.x+8+len, p.rf.y+oy);
             ctx.stroke();
+        }
+        if(isBlastKick){
+            // Shockwave ring at foot on impact
+            ctx.globalAlpha=kickExt*0.5;
+            ctx.strokeStyle='#ffcc44'; ctx.lineWidth=3;
+            ctx.beginPath(); ctx.arc(p.rf.x+20,p.rf.y,18+kickExt*22,0,Math.PI*2); ctx.stroke();
         }
         ctx.restore();
     }
@@ -894,6 +917,7 @@ class Fighter {
                     this.dashing=0.015; this.dashDir=d==='r'?1:-1;
                     this.vx=this.dashDir*450;
                     this.tapCount[d]=0; this.tapTimer[d]=0;
+                    this.syncNow=true;
                 } else {
                     this.tapCount[d]=1; this.tapTimer[d]=0.22;
                 }
@@ -918,6 +942,7 @@ class Fighter {
             if(this.pressed('u')&&this.jumpsLeft>0){
                 this.vy=JUMP_VY; this.jumpsLeft--;
                 this.state='jump'; this.onGround=false;
+                this.syncNow=true;
             }
 
             // Attacks
@@ -942,13 +967,14 @@ class Fighter {
                     if(!this.onGround&&this.keys.d) atk=ATK.airSlam;
                     else if(!this.onGround&&this.airAttacks<4) atk=ATK.airK;
                     else if(this.keys.d&&this.onGround) atk=ATK.sweep;
-                    else if(this.onGround) atk=ATK.kick;
+                    else if(this.onGround) atk=(Math.abs(this.vx)>200)?ATK.blastKick:ATK.kick;
                 }
                 if(atk){
                     this.state='attack'; this.attackData=atk;
                     this.attackProgress=0; this.stateTimer=0; this.hasHit=false;
                     if(tgtVx!==0&&atk.id!=='smash') this.dir=tgtVx>0?1:-1;
                     if(!this.onGround) this.airAttacks++;
+                    this.syncNow=true;
                 }
             }
         }
@@ -973,8 +999,8 @@ class Fighter {
             if(inActive){
                 const hx=this.x+this.dir*38, hy=this.y-44;
                 spawnTrail(hx,hy,this.color);
-                if(a.id==='kick'||a.id==='smash'||a.id==='airK'){
-                    this.x+=this.dir*110*dt;
+                if(a.id==='kick'||a.id==='smash'||a.id==='airK'||a.id==='blastKick'){
+                    this.x+=this.dir*(a.id==='blastKick'?180:110)*dt;
                 }
             }
         }
@@ -1171,8 +1197,8 @@ class Game {
     startMatch(){
         const cx=W*0.5, pl=this.platforms[0];
         const startY=pl.y;
-        this.player=new Fighter(cx-140,startY-1,true, this.playerName,'#ffffff','#aaaaaa');
-        this.enemy =new Fighter(cx+140,startY-1,false,'KI','#ff2222','#cc0000');
+        this.player=new Fighter(cx-140,startY-1,true, this.playerName,'#ff2222','#cc0000');
+        this.enemy =new Fighter(cx+140,startY-1,false,'KI','#4488ff','#2255cc');
         this.ai=new AI(this.enemy, this.diffPct);
         particles=[]; projectiles=[]; this.freeze=0; this.shakeAmt=0; this.playerScore=0; this.screenFlash=0;
         this.phase='countdown'; this.countTimer=3;
@@ -1653,7 +1679,7 @@ let battleRoomId = '';
 let battleUnsubMeta = null;
 let battleUnsubOpp  = null;
 let battleSyncTimer = 0;
-const BATTLE_HZ = 10;  // state updates per second
+const BATTLE_HZ = 20;  // state updates per second (50ms interval)
 
 function battleSerialize(f){
     if(!f) return {};
@@ -1698,6 +1724,10 @@ function battleListenOpp(){
 }
 
 function battleOnUpdate(dt){
+    // Immediate sync when an action just started (attack/jump/dash)
+    const myF = battlePlayer===1?game?.player:game?.enemy;
+    if(myF?.syncNow){ myF.syncNow=false; battleSendState(); return; }
+
     battleSyncTimer+=dt;
     if(battleSyncTimer>=1/BATTLE_HZ){
         battleSyncTimer=0;
@@ -1785,6 +1815,11 @@ function battleStartGame(p1Name,p2Name){
     game=new Game();
     game.init(myName,0);
     game.ai=null;
+    // P2 controls game.enemy — keep them red, make opponent blue
+    if(battlePlayer===2){
+        game.player.color='#4488ff'; game.player.glowColor='#2255cc';
+        game.enemy.color ='#ff2222'; game.enemy.glowColor ='#cc0000';
+    }
     document.getElementById('h-pname').textContent=myName.toUpperCase().slice(0,12);
     document.getElementById('h-ename').textContent=oppName.toUpperCase().slice(0,12);
     document.getElementById('battle-badge').classList.add('show');
