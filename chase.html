@@ -67,6 +67,54 @@
             to   { transform: scale(1.35); }
         }
 
+        /* Minimap */
+        #minimap {
+            position: fixed;
+            top: 60px;
+            left: 12px;
+            width: 140px;
+            height: 140px;
+            border: 2px solid rgba(255,255,255,0.3);
+            background: rgba(8,12,22,0.7);
+            z-index: 100;
+            pointer-events: none;
+            box-shadow: 0 0 10px rgba(0,0,0,0.6);
+            image-rendering: pixelated;
+        }
+
+        /* HP bar */
+        #hp-wrap {
+            position: fixed;
+            top: 60px;
+            right: 12px;
+            width: 140px;
+            height: 12px;
+            background: rgba(0,0,0,0.65);
+            border: 2px solid rgba(255,68,68,0.4);
+            z-index: 100;
+            pointer-events: none;
+        }
+        #hp-wrap::before {
+            content: 'HP';
+            position: absolute;
+            top: -14px;
+            right: 0;
+            font-size: 0.6rem;
+            color: rgba(255,80,80,0.8);
+            letter-spacing: 2px;
+        }
+        #hp-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ff2222 0%, #ffcc44 60%, #44ff88 100%);
+            transition: width 0.15s;
+            box-shadow: 0 0 10px rgba(255,68,68,0.5);
+        }
+        #hp-bar.low { animation: hpLowPulse 0.4s infinite alternate; }
+        @keyframes hpLowPulse {
+            from { filter: brightness(1); }
+            to   { filter: brightness(1.5); }
+        }
+
         /* Boost meter — below header */
         #boost-wrap {
             position: fixed;
@@ -302,58 +350,48 @@
         }
         #leaderboard tbody tr:first-child td { color: #ffcc44; }
 
-        /* ── Joystick ── */
+        /* ── Floating Joystick ── */
         #joystick {
-            display: none;
             position: fixed;
-            bottom: 36px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 150px;
-            height: 150px;
+            left: -1000px;
+            top: -1000px;
+            width: 160px;
+            height: 160px;
             border-radius: 50%;
-            background: rgba(255,255,255,0.05);
-            border: 3px solid rgba(255,255,255,0.22);
-            box-shadow: inset 0 0 36px rgba(0,0,0,0.45);
+            background: rgba(255,255,255,0.06);
+            border: 3px solid rgba(255,255,255,0.28);
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.5);
             z-index: 95;
-            touch-action: none;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.08s;
             user-select: none;
             -webkit-user-select: none;
         }
-        #joystick.show { display: block; }
-        #joystick::after {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.25);
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-        }
+        #joystick.active { opacity: 1; }
         #joystick-thumb {
             position: absolute;
-            width: 68px;
-            height: 68px;
+            width: 72px;
+            height: 72px;
             border-radius: 50%;
-            background: rgba(255,255,255,0.18);
-            border: 2px solid rgba(255,255,255,0.5);
-            left: calc(50% - 34px);
-            top: calc(50% - 34px);
+            background: rgba(255,255,255,0.22);
+            border: 2px solid rgba(255,255,255,0.55);
+            left: calc(50% - 36px);
+            top: calc(50% - 36px);
             transform: translate(0, 0);
-            transition: transform 0.06s, background 0.1s, border-color 0.1s, box-shadow 0.1s;
+            transition: transform 0.04s, background 0.1s, border-color 0.1s, box-shadow 0.1s;
             pointer-events: none;
-            box-shadow: 0 0 18px rgba(0,0,0,0.5);
+            box-shadow: 0 0 20px rgba(0,0,0,0.55);
         }
         #joystick-thumb.nitro {
-            background: rgba(255,80,170,0.55);
+            background: rgba(255,80,170,0.6);
             border-color: rgba(255,120,220,1);
-            box-shadow: 0 0 28px rgba(255,80,170,0.95);
+            box-shadow: 0 0 32px rgba(255,80,170,1);
         }
         #joystick-thumb.rev {
-            background: rgba(255,204,68,0.5);
+            background: rgba(255,204,68,0.55);
             border-color: rgba(255,220,100,1);
-            box-shadow: 0 0 22px rgba(255,204,68,0.8);
+            box-shadow: 0 0 24px rgba(255,204,68,0.85);
         }
 
         /* ── Touch Controls (legacy, hidden) ── */
@@ -449,6 +487,7 @@
 
             #boost-wrap { top: 52px; width: 180px; height: 10px; }
             #boost-wrap::before { font-size: 0.55rem; top: -12px; letter-spacing: 2px; }
+            #minimap { width: 96px; height: 96px; top: 52px; left: 8px; }
 
             .tc-side { width: 100px; height: 100px; font-size: 2.3rem; }
             .tc-small { width: 64px; height: 64px; font-size: 0.7rem; }
@@ -473,8 +512,12 @@
     <div class="hud-wanted" id="hud-wanted">★☆☆☆☆</div>
 </div>
 
-<!-- Boost Meter -->
+<!-- Boost + HP Meters -->
 <div id="boost-wrap"><div id="boost-bar" style="width:100%"></div></div>
+<div id="hp-wrap"><div id="hp-bar" style="width:100%"></div></div>
+
+<!-- Minimap -->
+<canvas id="minimap" width="140" height="140"></canvas>
 
 <!-- Countdown -->
 <div id="countdown">3</div>
@@ -615,6 +658,13 @@
     const PIXEL_SCALE = 2;
     let W = 0, H = 0;
 
+    // Minimap
+    const miniCanvas = document.getElementById('minimap');
+    const miniCtx    = miniCanvas.getContext('2d');
+    const MINI_SIZE  = 140;
+    const MINI_RANGE = 1800;
+    const MINI_SCALE = MINI_SIZE / MINI_RANGE;
+
     function resize() {
         const realW = window.innerWidth;
         const realH = window.innerHeight;
@@ -703,6 +753,26 @@
         return ((h ^ (h >>> 16)) >>> 0) / 4294967296 < TUNNEL_PROB;
     }
 
+    const TUNNEL_MARGIN = 36;  // matches drawTunnel* m
+    function isInTunnelAt(x, y) {
+        const bx = Math.floor(x / PITCH);
+        const by = Math.floor(y / PITCH);
+        const mx = x - bx * PITCH;
+        const my = y - by * PITCH;
+
+        // Horizontal tunnel: on horizontal street, x past the intersection within margin
+        if (my >= 0 && my < STREET_W &&
+            mx >= STREET_W + TUNNEL_MARGIN && mx <= PITCH - TUNNEL_MARGIN) {
+            if (isTunnelH(bx, by)) return true;
+        }
+        // Vertical tunnel
+        if (mx >= 0 && mx < STREET_W &&
+            my >= STREET_W + TUNNEL_MARGIN && my <= PITCH - TUNNEL_MARGIN) {
+            if (isTunnelV(bx, by)) return true;
+        }
+        return false;
+    }
+
     // ── Physics ────────────────────────────────────────────────────
     const ACCEL          = 360;
     const REVERSE        = -180;
@@ -716,6 +786,7 @@
     // ── State ──────────────────────────────────────────────────────
     let player, cops, particles, pickups;
     let camX = 0, camY = 0;
+    let cameraZoom = 1;
     let lastT = 0;
     let elapsed = 0;
     let score = 0;
@@ -743,19 +814,31 @@
     });
     document.addEventListener('keyup', e => { keys[e.code] = false; });
 
-    // Joystick (touch)
+    // Floating Joystick (touch)
     const joyEl    = document.getElementById('joystick');
     const joyThumb = document.getElementById('joystick-thumb');
-    const JOY_MAX  = 50;
+    const JOY_MAX  = 60;
+    const JOY_BASE = 160;
     let joyActive  = false;
     let joyDX = 0, joyDY = 0;
+    let joyCenterX = 0, joyCenterY = 0;
+    let joyPointerId = null;
 
-    function updateJoy(clientX, clientY) {
-        const rect = joyEl.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top  + rect.height / 2;
-        let dx = clientX - cx;
-        let dy = clientY - cy;
+    function spawnJoy(clientX, clientY, pointerId) {
+        joyActive = true;
+        joyPointerId = pointerId;
+        joyCenterX = clientX;
+        joyCenterY = clientY;
+        joyEl.style.left = (clientX - JOY_BASE / 2) + 'px';
+        joyEl.style.top  = (clientY - JOY_BASE / 2) + 'px';
+        joyEl.classList.add('active');
+        joyDX = 0; joyDY = 0;
+        joyThumb.style.transform = 'translate(0,0)';
+        joyThumb.classList.remove('nitro', 'rev');
+    }
+    function moveJoy(clientX, clientY) {
+        let dx = clientX - joyCenterX;
+        let dy = clientY - joyCenterY;
         const d = Math.hypot(dx, dy);
         if (d > JOY_MAX) {
             dx = dx / d * JOY_MAX;
@@ -764,32 +847,20 @@
         joyDX = dx / JOY_MAX;
         joyDY = dy / JOY_MAX;
         joyThumb.style.transform = `translate(${dx}px, ${dy}px)`;
-        const mag = Math.hypot(joyDX, joyDY);
-        joyThumb.classList.toggle('nitro', mag > 0.85);
+        joyThumb.classList.toggle('nitro', joyDY < -0.5);
+        joyThumb.classList.toggle('rev',   joyDY >  0.5);
     }
     function endJoy() {
         joyActive = false;
+        joyPointerId = null;
         joyDX = 0; joyDY = 0;
-        joyThumb.style.transform = 'translate(0, 0)';
-        joyThumb.classList.remove('nitro');
+        joyEl.classList.remove('active');
+        joyThumb.classList.remove('nitro', 'rev');
     }
-    joyEl.addEventListener('pointerdown', e => {
-        e.preventDefault();
-        joyActive = true;
-        try { joyEl.setPointerCapture(e.pointerId); } catch {}
-        updateJoy(e.clientX, e.clientY);
-    });
-    joyEl.addEventListener('pointermove', e => {
-        if (!joyActive) return;
-        updateJoy(e.clientX, e.clientY);
-    });
-    joyEl.addEventListener('pointerup',     endJoy);
-    joyEl.addEventListener('pointercancel', endJoy);
 
     const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
     if (isTouch) {
-        joyEl.classList.add('show');
-        document.getElementById('hint').textContent = 'Joystick: ziehen wohin du fahren willst · ganz raus = NITRO';
+        document.getElementById('hint').textContent = 'Tippen + ziehen zum Lenken · Daumen hoch = NITRO · runter = Bremsen';
     } else {
         document.getElementById('hint').textContent = 'WASD/Pfeile · LEERTASTE = Handbremse/Drift · SHIFT = NITRO';
     }
@@ -816,7 +887,10 @@
             velAngle: 0,
             speed: 0,
             w: 24, l: 42,
-            alive: true
+            alive: true,
+            inTunnel: false,
+            hp: 100,
+            invuln: 0
         };
         cops = [];
         particles = [];
@@ -836,6 +910,7 @@
         boostActive = false;
         driftTimer = 0;
         dyingTimer = 0;
+        cameraZoom = 1;
         gameState = 'idle';
     }
 
@@ -861,8 +936,21 @@
             steer: 2.2 + tier * 0.18,
             rotor: Math.random() * Math.PI * 2,
             siren: 0,
-            tier
+            tier,
+            state: 'chase',
+            sx: 0, sy: 0,
+            searchRefresh: 0
         });
+    }
+
+    function scatterCop(c) {
+        c.state = 'search';
+        // Spread helis to random points across a wide search area around player
+        const ang = Math.random() * Math.PI * 2;
+        const d = 600 + Math.random() * 900;
+        c.sx = player.x + Math.cos(ang) * d;
+        c.sy = player.y + Math.sin(ang) * d;
+        c.searchRefresh = 1.5 + Math.random();
     }
 
     function spawnPickup() {
@@ -901,6 +989,7 @@
         if (gameState !== 'playing') return;
 
         elapsed += dt;
+        if (player.invuln > 0) player.invuln -= dt;
 
         // Multiplier decays unless we keep doing stuff
         if (multiplierFreeze > 0) multiplierFreeze -= dt;
@@ -909,9 +998,8 @@
         // Base score grows by 10 * multiplier per second
         score += dt * 10 * multiplier;
 
-        // Boost (Shift key or joystick pushed all the way out)
-        const joyMag = Math.hypot(joyDX, joyDY);
-        const wantsBoost = keys.ShiftLeft || keys.ShiftRight || (isTouch && joyMag > 0.85);
+        // Boost (Shift key or joystick pushed up)
+        const wantsBoost = keys.ShiftLeft || keys.ShiftRight || (isTouch && joyDY < -0.5);
         boostActive = wantsBoost && boost > 1;
         if (boostActive) {
             boost = Math.max(0, boost - dt * 32);
@@ -922,12 +1010,13 @@
         // Player input
         const accelInput = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
         const keySteer   = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
-        // On touch: relative steering input is 0 — we set angle directly below
-        const steerInput = isTouch ? 0 : keySteer;
+        // On touch: joystick X axis = relative steering (gradient)
+        const steerInput = isTouch ? joyDX : keySteer;
         const handbrake  = keys.Space;
 
-        // Touch always auto-gas (drive in joystick direction)
-        const effectiveAccel = isTouch ? 1 : accelInput;
+        // On touch: auto-gas unless joystick pulled down → brake/reverse
+        const tRev = isTouch && joyDY > 0.5;
+        const effectiveAccel = isTouch ? (tRev ? -1 : 1) : accelInput;
 
         const accelMul = boostActive ? 1.7 : 1.0;
         const maxSpeedEff = boostActive ? MAX_SPEED * 1.55 : MAX_SPEED;
@@ -964,16 +1053,6 @@
         const steerEff = handbrake ? STEER_RATE * 1.25 : STEER_RATE;
         const dirSign = player.speed >= 0 ? 1 : -1;
         player.angle += steerInput * steerEff * speedFactor * dt * dirSign;
-
-        // Touch: absolute direction control — steer toward joystick angle
-        if (isTouch && joyMag > 0.2) {
-            const target = Math.atan2(joyDY, joyDX);
-            let diff = target - player.angle;
-            while (diff > Math.PI)  diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            const maxTurn = 5.5 * dt * speedFactor;
-            player.angle += Math.max(-maxTurn, Math.min(maxTurn, diff));
-        }
 
         // Drift: velocity angle catches up to heading. Lower grip = more drift.
         if (Math.abs(player.speed) > 30) {
@@ -1029,10 +1108,44 @@
             const dx = player.x - c.x;
             const dy = player.y - c.y;
             const d  = Math.hypot(dx, dy);
-            if (d > 1500) { cops.splice(i, 1); continue; }
+            if (d > 1800) { cops.splice(i, 1); continue; }
 
-            // Heading rotates toward player (limited turn rate)
-            const target = Math.atan2(dy, dx);
+            // Search mode: patrol to assigned search point until refresh or spotting
+            if (c.state === 'search') {
+                c.searchRefresh -= dt;
+                const tdx = c.sx - c.x;
+                const tdy = c.sy - c.y;
+                if (c.searchRefresh <= 0 || (tdx*tdx + tdy*tdy) < 90*90) {
+                    const ang = Math.random() * Math.PI * 2;
+                    const dd = 350 + Math.random() * 500;
+                    c.sx = c.x + Math.cos(ang) * dd;
+                    c.sy = c.y + Math.sin(ang) * dd;
+                    c.searchRefresh = 1.5 + Math.random() * 1.2;
+                }
+                // Re-spot player + radio everyone else
+                if (!player.inTunnel && d < 600) {
+                    c.state = 'chase';
+                    spawnParticles(c.x, c.y, 8, 'rgba(255,68,68,', 100, 0.5);
+                    let alerted = 0;
+                    for (const o of cops) {
+                        if (o !== c && o.state === 'search') {
+                            o.state = 'chase';
+                            // Re-orient toward player for an instant lock-on
+                            const ang2 = Math.atan2(player.y - o.y, player.x - o.x);
+                            o.angle = ang2;
+                            spawnParticles(o.x, o.y, 6, 'rgba(255,180,80,', 70, 0.4);
+                            alerted++;
+                        }
+                    }
+                    addBanner(alerted > 0 ? 'FUNKSPRUCH! +' + alerted + ' Helis' : 'GESPOTTET!', '#ff4444');
+                }
+            }
+
+            // Determine target (player or search point)
+            const useSearch = c.state === 'search';
+            const tx = useSearch ? c.sx : player.x;
+            const ty = useSearch ? c.sy : player.y;
+            const target = Math.atan2(ty - c.y, tx - c.x);
             let diff = target - c.angle;
             while (diff > Math.PI)  diff -= Math.PI * 2;
             while (diff < -Math.PI) diff += Math.PI * 2;
@@ -1059,17 +1172,18 @@
             c.x += c.vx * dt;
             c.y += c.vy * dt;
 
-            // Catch: distance check between centers
+            // Catch: distance check between centers (tunnel + search mode protect player)
             const playerD2 = dist2(c.x, c.y, player.x, player.y);
-            if (playerD2 < 35 * 35) {
+            if (c.state === 'chase' && !player.inTunnel && playerD2 < 35 * 35) {
                 die();
                 return;
             }
 
-            // Close call detection — heli buzzed past but didn't hit
+            // Close call only when actively chasing and player visible
             const closeR2 = 80 * 80;
             const wasClose = c.wasClose || false;
-            const isClose = playerD2 < closeR2 && playerD2 > 40 * 40;
+            const isClose = c.state === 'chase' && !player.inTunnel &&
+                            playerD2 < closeR2 && playerD2 > 40 * 40;
             if (isClose && !wasClose) {
                 const bonus = Math.floor(75 * multiplier);
                 score += bonus;
@@ -1096,12 +1210,35 @@
             }
         }
 
-        // Spawn cops over time
-        nextCopAt -= dt;
-        if (nextCopAt <= 0) {
-            spawnCop();
-            const target = Math.max(2.0, 8.0 - elapsed * 0.06);
-            nextCopAt = target;
+        // Tunnel hideout: helis scatter to search, can't see player while inside
+        const nowInTunnel = isInTunnelAt(player.x, player.y);
+        if (nowInTunnel && !player.inTunnel) {
+            // Just entered → scatter all helis to random search points across the city
+            for (const c of cops) {
+                scatterCop(c);
+                spawnParticles(c.x, c.y, 4, 'rgba(80,140,255,', 50, 0.3);
+            }
+            addBanner('VERSTECKT IM TUNNEL', '#44ff88');
+            boost = Math.min(100, boost + 30);
+            nextCopAt = Math.max(nextCopAt, 6);
+        }
+        if (!nowInTunnel && player.inTunnel) {
+            // Just exited → notify
+            addBanner('GESUCHT!', '#ff4444');
+        }
+        if (nowInTunnel && player.hp < 100) {
+            player.hp = Math.min(100, player.hp + dt * 20);
+        }
+        player.inTunnel = nowInTunnel;
+
+        // Spawn cops over time (paused while in tunnel)
+        if (!nowInTunnel) {
+            nextCopAt -= dt;
+            if (nextCopAt <= 0) {
+                spawnCop();
+                const target = Math.max(2.0, 8.0 - elapsed * 0.06);
+                nextCopAt = target;
+            }
         }
 
         // Pickups
@@ -1121,17 +1258,23 @@
                 cashGrabbed += pickupBonus;
                 multiplier = Math.min(8, multiplier + 0.15);
                 multiplierFreeze = 1.0;
+                player.hp = Math.min(100, player.hp + 18);
                 spawnParticles(p.x, p.y, 14, 'rgba(0,255,120,', 140, 0.7);
                 addBanner('+$' + pickupBonus, '#44ff88');
             }
         }
 
-        // Camera
+        // Camera follow + speed-based zoom-out
         const lookahead = 0.4;
         const tx = player.x + Math.cos(player.angle) * player.speed * lookahead * 0.4;
         const ty = player.y + Math.sin(player.angle) * player.speed * lookahead * 0.4;
         camX += (tx - camX) * Math.min(1, dt * 4);
         camY += (ty - camY) * Math.min(1, dt * 4);
+
+        const spd = Math.abs(player.speed);
+        let targetZoom = 1 - Math.min(0.15, spd / MAX_SPEED * 0.15);
+        if (boostActive) targetZoom = Math.max(0.78, targetZoom - 0.04);
+        cameraZoom += (targetZoom - cameraZoom) * Math.min(1, dt * 1.2);
 
         // Effects decay
         if (shake > 0) shake = Math.max(0, shake - dt * 3);
@@ -1166,20 +1309,48 @@
 
         const baseBlocked = blockedCorners(car.x, car.y, car);
         let bounced = false;
+        const preSpeed = Math.abs(car.speed);
 
+        // X axis — try to move, if blocked just stop on that axis (Y can still slide along wall)
         const xBlocked = blockedCorners(car.x + dx, car.y, car);
         if (xBlocked <= baseBlocked) {
             car.x += dx;
-        } else {
-            if (!bounced) { car.speed *= -0.45; bounced = true; bumpEffect(car); }
+        } else if (!bounced) {
+            car.speed *= 0.78;
+            bounced = true;
+            bumpEffect(car);
+            applyDamage(car, preSpeed);
         }
 
+        // Y axis — same, Y slides if X was blocked
         const midBlocked = blockedCorners(car.x, car.y, car);
         const yBlocked = blockedCorners(car.x, car.y + dy, car);
         if (yBlocked <= midBlocked) {
             car.y += dy;
-        } else {
-            if (!bounced) { car.speed *= -0.45; bounced = true; bumpEffect(car); }
+        } else if (!bounced) {
+            car.speed *= 0.78;
+            bounced = true;
+            bumpEffect(car);
+            applyDamage(car, preSpeed);
+        }
+    }
+
+    function applyDamage(car, hitSpeed) {
+        if (car !== player) return;
+        if (player.invuln > 0) return;
+        if (hitSpeed < 80) return;
+        const dmg = Math.min(28, 4 + Math.floor(hitSpeed / 28));
+        player.hp -= dmg;
+        player.invuln = 0.45;
+        shake = Math.min(0.9, shake + 0.3);
+        addBanner('-' + dmg + ' HP', '#ff4444');
+        const cosA = Math.cos(player.angle), sinA = Math.sin(player.angle);
+        spawnParticles(player.x + cosA * player.l / 2, player.y + sinA * player.l / 2,
+            12, 'rgba(255,200,80,', 160, 0.4);
+        multiplier = Math.max(1, multiplier - 0.4);
+        if (player.hp <= 0) {
+            player.hp = 0;
+            die();
         }
     }
 
@@ -1214,13 +1385,14 @@
         const sx = (shake > 0) ? (Math.random() - 0.5) * shake * 6 : 0;
         const sy = (shake > 0) ? (Math.random() - 0.5) * shake * 6 : 0;
         ctx.translate(W / 2 + sx, H / 2 + sy);
-        ctx.scale(1 / PIXEL_SCALE, 1 / PIXEL_SCALE);
+        ctx.scale(cameraZoom / PIXEL_SCALE, cameraZoom / PIXEL_SCALE);
         ctx.translate(-camX, -camY);
 
         drawStreets();
         drawBuildings();
         drawPickups();
         drawCar(player, '#ffcc44', '#ff8844', false);
+        drawTunnels();   // tunnel cap on top of player → player hides under it
         for (const c of cops) drawHeli(c);
         drawParticles();
 
@@ -1229,6 +1401,99 @@
         drawBanners();
         if (boostActive) drawSpeedLines();
         if (gameState === 'idle') drawIdleOverlay();
+        drawMinimap();
+    }
+
+    function drawMinimap() {
+        const m = miniCtx;
+        // Background = road/asphalt tone (streets will show as the gaps between buildings)
+        m.fillStyle = '#1a2230';
+        m.fillRect(0, 0, MINI_SIZE, MINI_SIZE);
+
+        const px = player ? player.x : 0;
+        const py = player ? player.y : 0;
+        const half = MINI_RANGE / 2;
+        const left   = px - half;
+        const right  = px + half;
+        const top    = py - half;
+        const bottom = py + half;
+        const w2s = (wx) => (wx - px) * MINI_SCALE + MINI_SIZE / 2;
+        const h2s = (wy) => (wy - py) * MINI_SCALE + MINI_SIZE / 2;
+
+        const startBX = Math.floor(left   / PITCH);
+        const endBX   = Math.ceil (right  / PITCH);
+        const startBY = Math.floor(top    / PITCH);
+        const endBY   = Math.ceil (bottom / PITCH);
+
+        // Draw buildings as uniform gray blocks
+        m.fillStyle = '#5a5e66';
+        for (let by = startBY; by <= endBY; by++) {
+            for (let bx = startBX; bx <= endBX; bx++) {
+                if (isMergedRight(bx - 1, by)) continue;
+                if (isMergedDown(bx, by - 1))  continue;
+                const x0 = bx * PITCH + STREET_W;
+                const y0 = by * PITCH + STREET_W;
+                let w = BLOCK_SIZE;
+                let h = BLOCK_SIZE;
+                if (isMergedRight(bx, by)) w += STREET_W + BLOCK_SIZE;
+                if (isMergedDown(bx, by))  h += STREET_W + BLOCK_SIZE;
+                m.fillRect(w2s(x0), h2s(y0), Math.max(1, w * MINI_SCALE), Math.max(1, h * MINI_SCALE));
+            }
+        }
+
+        // Street center markings (subtle dashed lines so streets stand out)
+        m.fillStyle = 'rgba(255,220,80,0.18)';
+        for (let bx = startBX; bx <= endBX; bx++) {
+            const sx = w2s(bx * PITCH + STREET_W / 2);
+            m.fillRect(sx, 0, 1, MINI_SIZE);
+        }
+        for (let by = startBY; by <= endBY; by++) {
+            const sy = h2s(by * PITCH + STREET_W / 2);
+            m.fillRect(0, sy, MINI_SIZE, 1);
+        }
+
+        // Tunnels (cyan markers)
+        m.fillStyle = '#44ccff';
+        for (let by = startBY; by <= endBY; by++) {
+            for (let bx = startBX; bx <= endBX; bx++) {
+                if (isTunnelH(bx, by)) {
+                    const sx = w2s(bx * PITCH + STREET_W + BLOCK_SIZE / 2);
+                    const sy = h2s(by * PITCH + STREET_W / 2);
+                    m.fillRect(sx - 4, sy - 1, 8, 2);
+                }
+                if (isTunnelV(bx, by)) {
+                    const sx = w2s(bx * PITCH + STREET_W / 2);
+                    const sy = h2s(by * PITCH + STREET_W + BLOCK_SIZE / 2);
+                    m.fillRect(sx - 1, sy - 4, 2, 8);
+                }
+            }
+        }
+
+        // Helis
+        for (const c of cops || []) {
+            if (Math.abs(c.x - px) > half || Math.abs(c.y - py) > half) continue;
+            m.fillStyle = c.state === 'search' ? '#ffcc44' : '#ff3333';
+            const sx = w2s(c.x), sy = h2s(c.y);
+            m.fillRect(sx - 2, sy - 2, 4, 4);
+            // Pulsing ring around chasing helis
+            if (c.state === 'chase') {
+                const pulse = (Math.sin(performance.now() / 180) + 1) / 2;
+                m.fillStyle = `rgba(255,68,68,${0.5 - pulse * 0.4})`;
+                m.fillRect(sx - 4, sy - 4, 8, 8);
+            }
+        }
+
+        // Player (centered) + direction
+        const cx = MINI_SIZE / 2, cy = MINI_SIZE / 2;
+        m.strokeStyle = '#ffcc44';
+        m.lineWidth = 1.5;
+        m.beginPath();
+        m.moveTo(cx, cy);
+        m.lineTo(cx + Math.cos(player ? player.angle : 0) * 9,
+                 cy + Math.sin(player ? player.angle : 0) * 9);
+        m.stroke();
+        m.fillStyle = player && player.inTunnel ? '#44ccff' : '#ffcc44';
+        m.fillRect(cx - 2, cy - 2, 5, 5);
     }
 
     function drawBanners() {
@@ -1274,8 +1539,8 @@
 
     function drawStreets() {
         // Visible block range — view in world units = canvas internal * PIXEL_SCALE
-        const vw2 = W * PIXEL_SCALE / 2;
-        const vh2 = H * PIXEL_SCALE / 2;
+        const vw2 = W * PIXEL_SCALE / cameraZoom / 2;
+        const vh2 = H * PIXEL_SCALE / cameraZoom / 2;
         const left   = camX - vw2 - PITCH;
         const right  = camX + vw2 + PITCH;
         const top    = camY - vh2 - PITCH;
@@ -1331,11 +1596,19 @@
             ctx.fillRect(left, by * PITCH + STREET_W, right - left, 2);
         }
 
-        // Tunnels (drawn last so they overdraw road / lane markings)
-        drawTunnels(startBX, endBX, startBY, endBY);
     }
 
-    function drawTunnels(startBX, endBX, startBY, endBY) {
+    function drawTunnels() {
+        const vw2 = W * PIXEL_SCALE / cameraZoom / 2;
+        const vh2 = H * PIXEL_SCALE / cameraZoom / 2;
+        const left   = camX - vw2 - PITCH;
+        const right  = camX + vw2 + PITCH;
+        const top    = camY - vh2 - PITCH;
+        const bottom = camY + vh2 + PITCH;
+        const startBX = Math.floor(left   / PITCH);
+        const endBX   = Math.ceil (right  / PITCH);
+        const startBY = Math.floor(top    / PITCH);
+        const endBY   = Math.ceil (bottom / PITCH);
         for (let by = startBY; by <= endBY; by++) {
             for (let bx = startBX; bx <= endBX; bx++) {
                 if (isTunnelH(bx, by)) drawTunnelH(bx, by);
@@ -1350,21 +1623,21 @@
         const w  = BLOCK_SIZE;
         const m  = 36;
 
-        // Tunnel cap (covers full street zone over the segment middle)
-        ctx.fillStyle = '#06090f';
+        // Semi-transparent cap — player visible faintly through it
+        ctx.fillStyle = 'rgba(6,9,15,0.78)';
         ctx.fillRect(x0 + m, y0, w - m * 2, STREET_W);
 
-        // Roof rims (top + bottom edge of cap)
+        // Roof rims
         ctx.fillStyle = '#1c2638';
         ctx.fillRect(x0 + m, y0, w - m * 2, 6);
         ctx.fillRect(x0 + m, y0 + STREET_W - 6, w - m * 2, 6);
 
-        // Entry/exit highlight (bright vertical strips at the openings)
+        // Entry/exit highlight
         ctx.fillStyle = '#3a4458';
         ctx.fillRect(x0 + m - 4, y0 + 6, 4, STREET_W - 12);
         ctx.fillRect(x0 + w - m, y0 + 6, 4, STREET_W - 12);
 
-        // Yellow tunnel ceiling lights (chunky, evenly spaced)
+        // Tunnel ceiling lights
         ctx.fillStyle = '#ffdd66';
         for (let lx = x0 + m + 24; lx < x0 + w - m - 12; lx += 48) {
             ctx.fillRect(lx, y0 + STREET_W / 2 - 2, 12, 4);
@@ -1377,7 +1650,7 @@
         const h  = BLOCK_SIZE;
         const m  = 36;
 
-        ctx.fillStyle = '#06090f';
+        ctx.fillStyle = 'rgba(6,9,15,0.78)';
         ctx.fillRect(x0, y0 + m, STREET_W, h - m * 2);
 
         ctx.fillStyle = '#1c2638';
@@ -1395,8 +1668,8 @@
     }
 
     function drawBuildings() {
-        const vw2 = W * PIXEL_SCALE / 2;
-        const vh2 = H * PIXEL_SCALE / 2;
+        const vw2 = W * PIXEL_SCALE / cameraZoom / 2;
+        const vh2 = H * PIXEL_SCALE / cameraZoom / 2;
         const left   = camX - vw2 - PITCH;
         const right  = camX + vw2 + PITCH;
         const top    = camY - vh2 - PITCH;
@@ -1408,7 +1681,6 @@
 
         for (let by = startBY; by <= endBY; by++) {
             for (let bx = startBX; bx <= endBX; bx++) {
-                // Skip if part of a merge group with a leader to the west / north
                 if (isMergedRight(bx - 1, by)) continue;
                 if (isMergedDown(bx, by - 1))  continue;
 
@@ -1427,25 +1699,142 @@
 
     function drawBlock(x0, y0, w, h, bx, by) {
         const r = blockHash(bx, by);
-        // Background under everything
         ctx.fillStyle = '#0c1422';
         ctx.fillRect(x0, y0, w, h);
 
-        const variant = Math.floor(r * 6);
+        const variant = Math.floor(r * 4);
         switch (variant) {
-            case 0: drawOfficeTower(x0, y0, w, h, r); break;
-            case 1: drawApartments  (x0, y0, w, h, r); break;
-            case 2: drawHouses      (x0, y0, w, h, r); break;
-            case 3: drawPark        (x0, y0, w, h, r); break;
-            case 4: drawPlaza       (x0, y0, w, h, r); break;
-            case 5: drawWarehouse   (x0, y0, w, h, r); break;
-            default: drawBuilding   (x0, y0, w, h, r); break;
+            case 0: drawGrayTower    (x0, y0, w, h, r); break;
+            case 1: drawGrayApartment(x0, y0, w, h, r); break;
+            case 2: drawGrayHouses   (x0, y0, w, h, r); break;
+            default: drawGrayWarehouse(x0, y0, w, h, r); break;
         }
 
-        // Drop shadow on building edge facing the street
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x0 + 4.5, y0 + 4.5, w - 9, h - 9);
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(x0, y0, w, 3);
         ctx.fillRect(x0, y0, 3, h);
+    }
+
+    function drawGrayTower(x, y, w, h, r) {
+        // Slight variations in gray
+        const shades = ['#52565e', '#5a5e66', '#4a4e56'];
+        ctx.fillStyle = shades[Math.floor(r * 100) % shades.length];
+        ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+
+        // Top-left highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillRect(x + 4, y + 4, w - 8, 2);
+        ctx.fillRect(x + 4, y + 4, 2, h - 8);
+
+        // Dense small windows
+        const cw = 5, ch = 6, gx = 5, gy = 5;
+        for (let wy = y + 14; wy + ch < y + h - 12; wy += ch + gy) {
+            for (let wx = x + 14; wx + cw < x + w - 12; wx += cw + gx) {
+                const lit = Math.abs(Math.sin(wx * 12.9898 + wy * 78.233 + r * 100) * 43758.5453) % 1 > 0.55;
+                ctx.fillStyle = lit ? 'rgba(220,210,170,0.35)' : 'rgba(0,0,0,0.45)';
+                ctx.fillRect(wx, wy, cw, ch);
+            }
+        }
+
+        // Rooftop AC unit center
+        const cx = x + w / 2, cy = y + h / 2;
+        ctx.fillStyle = '#3a3e46';
+        ctx.fillRect(cx - 14, cy - 8, 28, 16);
+        ctx.fillStyle = '#2a2e36';
+        for (let i = 0; i < 4; i++) {
+            ctx.fillRect(cx - 12 + i * 7, cy - 6, 4, 12);
+        }
+    }
+
+    function drawGrayApartment(x, y, w, h, r) {
+        ctx.fillStyle = '#56544c';
+        ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+
+        // Subtle horizontal courses (brick stripes)
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        for (let by2 = y + 12; by2 < y + h - 8; by2 += 9) {
+            ctx.fillRect(x + 5, by2, w - 10, 1);
+        }
+
+        // Larger window grid
+        const wW = 12, wH = 16, gx = 8, gy = 10;
+        for (let wy = y + 14; wy + wH < y + h - 8; wy += wH + gy) {
+            for (let wx = x + 12; wx + wW < x + w - 8; wx += wW + gx) {
+                const lit = Math.abs(Math.sin(wx * 12.9898 + wy * 78.233 + r * 200) * 43758.5453) % 1 > 0.5;
+                ctx.fillStyle = lit ? 'rgba(230,210,170,0.4)' : 'rgba(20,18,14,0.7)';
+                ctx.fillRect(wx, wy, wW, wH);
+                // Window cross
+                ctx.fillStyle = 'rgba(0,0,0,0.45)';
+                ctx.fillRect(wx + wW / 2 - 0.5, wy, 1, wH);
+                ctx.fillRect(wx, wy + wH / 2 - 0.5, wW, 1);
+            }
+        }
+    }
+
+    function drawGrayHouses(x, y, w, h, r) {
+        // Grass-style darker ground between houses (still neutral)
+        ctx.fillStyle = '#3c4046';
+        ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+
+        const cols = 2, rows = 2;
+        const padX = 14, padY = 14, gapX = 18, gapY = 18;
+        const hw = (w - padX * 2 - gapX * (cols - 1)) / cols;
+        const hh = (h - padY * 2 - gapY * (rows - 1)) / rows;
+        const shades = ['#5e6068', '#56585e', '#62646a', '#52545a'];
+
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const hx = x + padX + col * (hw + gapX);
+                const hy = y + padY + row * (hh + gapY);
+                ctx.fillStyle = shades[Math.floor(rng2(col * 7 + row * 13, r * 200) * shades.length)];
+                ctx.fillRect(hx, hy, hw, hh);
+                // Roof ridge
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                ctx.fillRect(hx, hy + hh / 2 - 0.5, hw, 1);
+                // Top/bottom shading
+                ctx.fillStyle = 'rgba(0,0,0,0.25)';
+                ctx.fillRect(hx, hy, hw, 3);
+                ctx.fillRect(hx, hy + hh - 3, hw, 3);
+                // Outline
+                ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1;
+                ctx.strokeRect(hx + 0.5, hy + 0.5, hw - 1, hh - 1);
+            }
+        }
+    }
+
+    function drawGrayWarehouse(x, y, w, h, r) {
+        ctx.fillStyle = '#4e5258';
+        ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+
+        // Corrugated roof lines
+        ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+        ctx.lineWidth = 1;
+        for (let cy = y + 12; cy < y + h - 8; cy += 8) {
+            ctx.beginPath();
+            ctx.moveTo(x + 8, cy); ctx.lineTo(x + w - 8, cy);
+            ctx.stroke();
+        }
+
+        // Loading docks bottom
+        ctx.fillStyle = '#1c1e22';
+        const dockW = 14, dockH = 9;
+        for (let i = 0; i < 5; i++) {
+            const dx = x + 16 + i * (dockW + 8);
+            if (dx + dockW > x + w - 16) break;
+            ctx.fillRect(dx, y + h - 14, dockW, dockH);
+        }
+
+        // Roof unit
+        const cx = x + w / 2, cy = y + h / 2 - 4;
+        ctx.fillStyle = '#3a3e46';
+        ctx.fillRect(cx - 18, cy - 10, 36, 20);
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        for (let i = 0; i < 4; i++) {
+            ctx.fillRect(cx - 15 + i * 8, cy - 7, 4, 14);
+        }
     }
 
     function rng2(i, seed) {
@@ -1549,12 +1938,6 @@
         ctx.fillStyle = '#1c2e1f';
         ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
 
-        // Cross paths
-        ctx.fillStyle = '#2a3445';
-        ctx.fillRect(x + w/2 - 5, y + 4, 10, h - 8);
-        ctx.fillRect(x + 4, y + h/2 - 5, w - 8, 10);
-
-        const houseColors = ['#7a4838', '#3e5870', '#4a7058', '#6a5a3e', '#5a4a4e'];
         const cols = 2, rows = 2;
         const padX = 14, padY = 14, gapX = 18, gapY = 18;
         const hw = (w - padX * 2 - gapX * (cols - 1)) / cols;
@@ -1564,33 +1947,12 @@
             for (let col = 0; col < cols; col++) {
                 const hx = x + padX + col * (hw + gapX);
                 const hy = y + padY + row * (hh + gapY);
-                const c = houseColors[Math.floor(rng2(col * 7 + row * 13, r * 200) * houseColors.length)];
-
-                // Body
-                ctx.fillStyle = c;
+                // Uniform gray house
+                ctx.fillStyle = '#5a5e66';
                 ctx.fillRect(hx, hy, hw, hh);
-                // Roof shading top stripe (darker)
-                ctx.fillStyle = 'rgba(0,0,0,0.3)';
-                ctx.fillRect(hx, hy, hw, 3);
-                ctx.fillRect(hx, hy + hh - 3, hw, 3);
-                // Roof ridge line
-                ctx.fillStyle = 'rgba(0,0,0,0.45)';
-                ctx.fillRect(hx, hy + hh / 2 - 0.5, hw, 1);
-                // Chimney
-                ctx.fillStyle = '#1a1a1a';
-                ctx.fillRect(hx + hw - 7, hy + 3, 4, 5);
-                // Outline
                 ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1;
                 ctx.strokeRect(hx + 0.5, hy + 0.5, hw - 1, hh - 1);
             }
-        }
-
-        // Garden details (bushes)
-        ctx.fillStyle = '#2d5a35';
-        for (let i = 0; i < 6; i++) {
-            const px = x + 8 + rng2(i, r * 80) * (w - 16);
-            const py = y + 8 + rng2(i + 50, r * 80) * (h - 16);
-            ctx.beginPath(); ctx.arc(px, py, 3 + rng2(i + 100, r) * 2, 0, Math.PI * 2); ctx.fill();
         }
     }
 
@@ -1783,7 +2145,7 @@
         for (const p of pickups) {
             if (p.taken) continue;
             // Cull
-            if (Math.abs(p.x - camX) > W * PIXEL_SCALE / 2 + 40 || Math.abs(p.y - camY) > H * PIXEL_SCALE / 2 + 40) continue;
+            if (Math.abs(p.x - camX) > W * PIXEL_SCALE / cameraZoom / 2 + 40 || Math.abs(p.y - camY) > H * PIXEL_SCALE / cameraZoom / 2 + 40) continue;
             const bob = Math.sin(now * 4 + p.x * 0.01) * 2;
             const fade = elapsed - p.born > 11 ? (Math.sin(now * 12) * 0.5 + 0.5) : 1;
             ctx.save();
@@ -1803,7 +2165,7 @@
 
     function drawCar(car, body, accent, isCop) {
         // Cull
-        if (Math.abs(car.x - camX) > W * PIXEL_SCALE / 2 + 80 || Math.abs(car.y - camY) > H * PIXEL_SCALE / 2 + 80) return;
+        if (Math.abs(car.x - camX) > W * PIXEL_SCALE / cameraZoom / 2 + 80 || Math.abs(car.y - camY) > H * PIXEL_SCALE / cameraZoom / 2 + 80) return;
 
         ctx.save();
         ctx.translate(car.x, car.y);
@@ -1842,7 +2204,7 @@
     }
 
     function drawHeli(c) {
-        if (Math.abs(c.x - camX) > W * PIXEL_SCALE / 2 + 100 || Math.abs(c.y - camY) > H * PIXEL_SCALE / 2 + 100) return;
+        if (Math.abs(c.x - camX) > W * PIXEL_SCALE / cameraZoom / 2 + 100 || Math.abs(c.y - camY) > H * PIXEL_SCALE / cameraZoom / 2 + 100) return;
 
         const w = c.w, l = c.l;
 
@@ -1891,9 +2253,14 @@
         ctx.fillRect(-6, -w / 2 - 3, 14, 2);
         ctx.fillRect(-6,  w / 2 + 1, 14, 2);
 
-        // Flashing red/blue light on top of body
-        const phase = Math.sin(c.siren * 14) > 0;
-        ctx.fillStyle = phase ? '#ff2222' : '#2277ff';
+        // Top light: red/blue flashing in chase, slow yellow in search
+        if (c.state === 'search') {
+            const sp = Math.sin(c.siren * 4) > 0;
+            ctx.fillStyle = sp ? '#ffcc44' : '#aa8800';
+        } else {
+            const phase = Math.sin(c.siren * 14) > 0;
+            ctx.fillStyle = phase ? '#ff2222' : '#2277ff';
+        }
         ctx.fillRect(-2, -2, 4, 4);
 
         // Main rotor — two crossed blades, animated
@@ -1956,6 +2323,7 @@
     const hudWanted = document.getElementById('hud-wanted');
     const hudMult   = document.getElementById('hud-mult');
     const boostBar  = document.getElementById('boost-bar');
+    const hpBar     = document.getElementById('hp-bar');
     function updateHud() {
         hudScore.textContent = Math.floor(score);
         const stars = Math.min(5, Math.max(1, cops.length));
@@ -1967,6 +2335,9 @@
 
         boostBar.style.width = boost + '%';
         boostBar.classList.toggle('active', boostActive);
+
+        hpBar.style.width = (player ? player.hp : 100) + '%';
+        hpBar.classList.toggle('low', player && player.hp < 30);
     }
 
     // ── Countdown ──────────────────────────────────────────────────
@@ -2083,16 +2454,34 @@
     }
 
     function kickoffWaitToStart() {
-        // Listen for first input to start game
         const tryStart = () => {
             if (gameState === 'idle') startGame();
         };
         const onKey = e => {
             if (gameState === 'idle' && (e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); tryStart(); }
         };
-        const onPointer = () => { if (gameState === 'idle') tryStart(); };
         document.addEventListener('keydown', onKey);
-        canvas.addEventListener('pointerdown', onPointer);
+
+        canvas.addEventListener('pointerdown', e => {
+            if (gameState === 'idle') { tryStart(); return; }
+            if (isTouch && gameState === 'playing' && !joyActive) {
+                e.preventDefault();
+                spawnJoy(e.clientX, e.clientY, e.pointerId);
+                try { canvas.setPointerCapture(e.pointerId); } catch {}
+            }
+        });
+        canvas.addEventListener('pointermove', e => {
+            if (joyActive && e.pointerId === joyPointerId) {
+                e.preventDefault();
+                moveJoy(e.clientX, e.clientY);
+            }
+        });
+        canvas.addEventListener('pointerup', e => {
+            if (joyActive && e.pointerId === joyPointerId) endJoy();
+        });
+        canvas.addEventListener('pointercancel', e => {
+            if (joyActive && e.pointerId === joyPointerId) endJoy();
+        });
 
         // Restart button
         document.getElementById('restart-btn').addEventListener('click', () => {
