@@ -353,8 +353,8 @@
         /* ── Floating Joystick ── */
         #joystick {
             position: fixed;
-            left: -1000px;
-            top: -1000px;
+            left: 30px;
+            bottom: 40px;
             width: 160px;
             height: 160px;
             border-radius: 50%;
@@ -364,10 +364,11 @@
             z-index: 95;
             pointer-events: none;
             opacity: 0;
-            transition: opacity 0.08s;
+            transition: opacity 0.12s;
             user-select: none;
             -webkit-user-select: none;
         }
+        #joystick.touch-ready { opacity: 0.55; }
         #joystick.active { opacity: 1; }
         #joystick-thumb {
             position: absolute;
@@ -392,6 +393,84 @@
             background: rgba(255,204,68,0.55);
             border-color: rgba(255,220,100,1);
             box-shadow: 0 0 24px rgba(255,204,68,0.85);
+        }
+
+        /* ── Right action buttons (touch) ── */
+        #right-btns {
+            position: fixed;
+            right: 24px;
+            bottom: 34px;
+            z-index: 95;
+            display: none;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 14px;
+            pointer-events: none;
+        }
+        #right-btns.show { display: flex; }
+        .btn-gas {
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background: rgba(68,255,136,0.12);
+            border: 3px solid rgba(68,255,136,0.55);
+            color: rgba(68,255,136,0.85);
+            font-size: 1.05rem;
+            font-weight: 900;
+            letter-spacing: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            transition: background 0.07s, box-shadow 0.07s, border-color 0.07s;
+        }
+        .btn-gas.active {
+            background: rgba(68,255,136,0.38);
+            border-color: #44ff88;
+            box-shadow: 0 0 32px rgba(68,255,136,0.65);
+        }
+        .btn-row {
+            display: flex;
+            gap: 12px;
+        }
+        .btn-sm {
+            width: 82px;
+            height: 82px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            pointer-events: auto;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            transition: background 0.07s, box-shadow 0.07s;
+        }
+        .btn-brake {
+            background: rgba(255,204,68,0.10);
+            border: 2px solid rgba(255,204,68,0.45);
+            color: rgba(255,204,68,0.75);
+        }
+        .btn-brake.active {
+            background: rgba(255,204,68,0.35);
+            border-color: #ffcc44;
+            box-shadow: 0 0 22px rgba(255,204,68,0.6);
+        }
+        .btn-nitro {
+            background: rgba(255,80,170,0.10);
+            border: 2px solid rgba(255,80,170,0.5);
+            color: rgba(255,120,200,0.85);
+        }
+        .btn-nitro.active {
+            background: rgba(255,80,170,0.38);
+            border-color: rgba(255,80,200,1);
+            box-shadow: 0 0 26px rgba(255,80,170,0.7);
         }
 
         /* ── Touch Controls (legacy, hidden) ── */
@@ -492,6 +571,11 @@
             .tc-side { width: 100px; height: 100px; font-size: 2.3rem; }
             .tc-small { width: 64px; height: 64px; font-size: 0.7rem; }
             #touch-controls { padding: 0 12px 18px; }
+            #joystick { left: 16px; bottom: 28px; width: 130px; height: 130px; }
+            #joystick-thumb { width: 58px; height: 58px; left: calc(50% - 29px); top: calc(50% - 29px); }
+            .btn-gas { width: 108px; height: 108px; font-size: 0.9rem; }
+            .btn-sm { width: 68px; height: 68px; font-size: 0.6rem; }
+            #right-btns { right: 14px; bottom: 24px; gap: 10px; }
 
             #hint { font-size: 0.65rem; letter-spacing: 1px; bottom: 14px; }
         }
@@ -528,6 +612,15 @@
 <!-- Joystick (mobile) -->
 <div id="joystick">
     <div id="joystick-thumb"></div>
+</div>
+
+<!-- Right action buttons (mobile) -->
+<div id="right-btns">
+    <div class="btn-gas" id="btn-gas">GAS</div>
+    <div class="btn-row">
+        <div class="btn-sm btn-brake" id="btn-brake">BREMSE</div>
+        <div class="btn-sm btn-nitro" id="btn-nitro">NITRO</div>
+    </div>
 </div>
 
 <!-- Name Modal -->
@@ -814,56 +907,69 @@
     });
     document.addEventListener('keyup', e => { keys[e.code] = false; });
 
-    // Floating Joystick (touch)
+    // Fixed Joystick (touch) — always at bottom-left
     const joyEl    = document.getElementById('joystick');
     const joyThumb = document.getElementById('joystick-thumb');
     const JOY_MAX  = 60;
-    const JOY_BASE = 160;
     let joyActive  = false;
-    let joyDX = 0, joyDY = 0;
-    let joyCenterX = 0, joyCenterY = 0;
+    let joyDX = 0;
     let joyPointerId = null;
 
-    function spawnJoy(clientX, clientY, pointerId) {
+    function getJoyCenterX() {
+        const r = joyEl.getBoundingClientRect();
+        return r.left + r.width / 2;
+    }
+    function getJoyCenterY() {
+        const r = joyEl.getBoundingClientRect();
+        return r.top + r.height / 2;
+    }
+
+    function startJoy(clientX, clientY, pointerId) {
         joyActive = true;
         joyPointerId = pointerId;
-        joyCenterX = clientX;
-        joyCenterY = clientY;
-        joyEl.style.left = (clientX - JOY_BASE / 2) + 'px';
-        joyEl.style.top  = (clientY - JOY_BASE / 2) + 'px';
         joyEl.classList.add('active');
-        joyDX = 0; joyDY = 0;
-        joyThumb.style.transform = 'translate(0,0)';
-        joyThumb.classList.remove('nitro', 'rev');
+        updateJoy(clientX, clientY);
     }
-    function moveJoy(clientX, clientY) {
-        let dx = clientX - joyCenterX;
-        let dy = clientY - joyCenterY;
-        const d = Math.hypot(dx, dy);
-        if (d > JOY_MAX) {
-            dx = dx / d * JOY_MAX;
-            dy = dy / d * JOY_MAX;
-        }
+    function updateJoy(clientX, clientY) {
+        let dx = clientX - getJoyCenterX();
+        const absDx = Math.abs(dx);
+        if (absDx > JOY_MAX) dx = Math.sign(dx) * JOY_MAX;
         joyDX = dx / JOY_MAX;
-        joyDY = dy / JOY_MAX;
-        joyThumb.style.transform = `translate(${dx}px, ${dy}px)`;
-        joyThumb.classList.toggle('nitro', joyDY < -0.5);
-        joyThumb.classList.toggle('rev',   joyDY >  0.5);
+        const thumbX = dx;
+        const thumbY = Math.max(-JOY_MAX, Math.min(JOY_MAX, clientY - getJoyCenterY()));
+        joyThumb.style.transform = `translate(${thumbX}px, ${thumbY}px)`;
     }
     function endJoy() {
         joyActive = false;
         joyPointerId = null;
-        joyDX = 0; joyDY = 0;
+        joyDX = 0;
         joyEl.classList.remove('active');
-        joyThumb.classList.remove('nitro', 'rev');
+        joyThumb.style.transform = 'translate(0,0)';
     }
+
+    // Right-side button states
+    let gasPressed   = false;
+    let brakePressed = false;
+    let nitroPressed = false;
 
     const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
     if (isTouch) {
-        document.getElementById('hint').textContent = 'Tippen + ziehen zum Lenken · Daumen hoch = NITRO · runter = Bremsen';
+        joyEl.classList.add('touch-ready');
+        document.getElementById('right-btns').classList.add('show');
+        document.getElementById('hint').textContent = 'Joystick links zum Lenken · GAS / BREMSE / NITRO rechts';
     } else {
         document.getElementById('hint').textContent = 'WASD/Pfeile · LEERTASTE = Handbremse/Drift · SHIFT = NITRO';
     }
+
+    function setupBtn(id, setFn) {
+        const el = document.getElementById(id);
+        el.addEventListener('pointerdown', e => { e.preventDefault(); setFn(true); el.classList.add('active'); el.setPointerCapture(e.pointerId); });
+        el.addEventListener('pointerup',   e => { setFn(false); el.classList.remove('active'); });
+        el.addEventListener('pointercancel', e => { setFn(false); el.classList.remove('active'); });
+    }
+    setupBtn('btn-gas',   v => { gasPressed   = v; });
+    setupBtn('btn-brake', v => { brakePressed  = v; });
+    setupBtn('btn-nitro', v => { nitroPressed  = v; });
 
     // ── Helpers ────────────────────────────────────────────────────
     function rand(a, b) { return a + Math.random() * (b - a); }
@@ -998,8 +1104,8 @@
         // Base score grows by 10 * multiplier per second
         score += dt * 10 * multiplier;
 
-        // Boost (Shift key or joystick pushed up)
-        const wantsBoost = keys.ShiftLeft || keys.ShiftRight || (isTouch && joyDY < -0.5);
+        // Boost (Shift key or NITRO button)
+        const wantsBoost = keys.ShiftLeft || keys.ShiftRight || nitroPressed;
         boostActive = wantsBoost && boost > 1;
         if (boostActive) {
             boost = Math.max(0, boost - dt * 32);
@@ -1010,13 +1116,12 @@
         // Player input
         const accelInput = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
         const keySteer   = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
-        // On touch: joystick X axis = relative steering (gradient)
         const steerInput = isTouch ? joyDX : keySteer;
         const handbrake  = keys.Space;
 
-        // On touch: auto-gas unless joystick pulled down → brake/reverse
-        const tRev = isTouch && joyDY > 0.5;
-        const effectiveAccel = isTouch ? (tRev ? -1 : 1) : accelInput;
+        const effectiveAccel = isTouch
+            ? (brakePressed ? -1 : gasPressed ? 1 : 0)
+            : accelInput;
 
         const accelMul = boostActive ? 1.7 : 1.0;
         const maxSpeedEff = boostActive ? MAX_SPEED * 1.55 : MAX_SPEED;
@@ -1713,9 +1818,14 @@
         ctx.strokeStyle = 'rgba(0,0,0,0.55)';
         ctx.lineWidth = 1;
         ctx.strokeRect(x0 + 4.5, y0 + 4.5, w - 9, h - 9);
+        // Top/left: dark shadow for depth
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(x0, y0, w, 3);
         ctx.fillRect(x0, y0, 3, h);
+        // Bottom/right: light highlight so building edge is clearly visible against dark road
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(x0 + 3, y0 + h - 2, w - 3, 2);
+        ctx.fillRect(x0 + w - 2, y0 + 3, 2, h - 3);
     }
 
     function drawGrayTower(x, y, w, h, r) {
@@ -1775,8 +1885,8 @@
     }
 
     function drawGrayHouses(x, y, w, h, r) {
-        // Grass-style darker ground between houses (still neutral)
-        ctx.fillStyle = '#3c4046';
+        // Yard ground — clearly lighter than streets to avoid tunnel look
+        ctx.fillStyle = '#6a6e68';
         ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
 
         const cols = 2, rows = 2;
@@ -1784,6 +1894,16 @@
         const hw = (w - padX * 2 - gapX * (cols - 1)) / cols;
         const hh = (h - padY * 2 - gapY * (rows - 1)) / rows;
         const shades = ['#5e6068', '#56585e', '#62646a', '#52545a'];
+
+        // Fence lines in gaps so they don't look like tunnels
+        const fenceColor = '#4a4e4a';
+        ctx.fillStyle = fenceColor;
+        // Horizontal fence (between rows)
+        const fenceY = y + padY + hh + gapY / 2 - 0.5;
+        ctx.fillRect(x + padX, fenceY, w - padX * 2, 2);
+        // Vertical fence (between columns)
+        const fenceX = x + padX + hw + gapX / 2 - 0.5;
+        ctx.fillRect(fenceX, y + padY, 2, h - padY * 2);
 
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
@@ -2462,25 +2582,30 @@
         };
         document.addEventListener('keydown', onKey);
 
-        canvas.addEventListener('pointerdown', e => {
+        // Left-zone joystick (covers left half of screen)
+        const joyZone = document.createElement('div');
+        joyZone.style.cssText = 'position:fixed;left:0;top:0;width:50%;height:100%;z-index:94;touch-action:none;';
+        document.body.appendChild(joyZone);
+
+        joyZone.addEventListener('pointerdown', e => {
             if (gameState === 'idle') { tryStart(); return; }
             if (isTouch && gameState === 'playing' && !joyActive) {
                 e.preventDefault();
-                spawnJoy(e.clientX, e.clientY, e.pointerId);
-                try { canvas.setPointerCapture(e.pointerId); } catch {}
+                startJoy(e.clientX, e.clientY, e.pointerId);
+                joyZone.setPointerCapture(e.pointerId);
             }
         });
-        canvas.addEventListener('pointermove', e => {
+        joyZone.addEventListener('pointermove', e => {
             if (joyActive && e.pointerId === joyPointerId) {
                 e.preventDefault();
-                moveJoy(e.clientX, e.clientY);
+                updateJoy(e.clientX, e.clientY);
             }
         });
-        canvas.addEventListener('pointerup', e => {
-            if (joyActive && e.pointerId === joyPointerId) endJoy();
-        });
-        canvas.addEventListener('pointercancel', e => {
-            if (joyActive && e.pointerId === joyPointerId) endJoy();
+        joyZone.addEventListener('pointerup',     e => { if (e.pointerId === joyPointerId) endJoy(); });
+        joyZone.addEventListener('pointercancel', e => { if (e.pointerId === joyPointerId) endJoy(); });
+
+        canvas.addEventListener('pointerdown', e => {
+            if (gameState === 'idle') tryStart();
         });
 
         // Restart button
