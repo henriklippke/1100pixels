@@ -586,6 +586,104 @@
             .tc-side { width: 86px; height: 86px; font-size: 2rem; }
             .tc-small { width: 56px; height: 56px; font-size: 0.65rem; }
         }
+
+        /* ── Bank / Police ── */
+        #police-bar {
+            position: fixed;
+            top: 44px;
+            left: 0; right: 0;
+            height: 22px;
+            background: rgba(5,10,20,0.95);
+            border-bottom: 2px solid rgba(255,68,68,0.5);
+            z-index: 101;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            padding: 0 16px;
+            pointer-events: none;
+        }
+        #police-bar.show { display: flex; }
+        #police-bar-label {
+            color: #ff4444;
+            font-size: 0.58rem;
+            letter-spacing: 3px;
+            white-space: nowrap;
+            text-shadow: 0 0 8px rgba(255,68,68,0.8);
+        }
+        #police-bar-track {
+            flex: 1;
+            height: 8px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,68,68,0.3);
+            overflow: hidden;
+        }
+        #police-bar-fill {
+            height: 100%;
+            transition: width 0.2s, background 0.4s;
+        }
+        #police-bar-time {
+            color: #ff4444;
+            font-size: 0.72rem;
+            font-weight: 700;
+            min-width: 28px;
+            text-align: right;
+            text-shadow: 0 0 8px rgba(255,68,68,0.8);
+        }
+        #police-bar-time.urgent { animation: urgentPulse 0.35s infinite alternate; }
+        @keyframes urgentPulse {
+            from { color: #ff4444; }
+            to   { color: #ffffff; text-shadow: 0 0 14px rgba(255,68,68,1); }
+        }
+        #bank-prompt {
+            position: fixed;
+            bottom: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 96;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            pointer-events: none;
+        }
+        #bank-prompt.show { display: flex; }
+        #bank-prompt-btn {
+            background: rgba(255,204,0,0.14);
+            border: 2px solid rgba(255,204,0,0.75);
+            color: #ffcc00;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            padding: 11px 26px;
+            pointer-events: auto;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            text-shadow: 0 0 10px rgba(255,204,0,0.7);
+            box-shadow: 0 0 20px rgba(255,204,0,0.18);
+            transition: background 0.08s, box-shadow 0.08s, transform 0.08s;
+            white-space: nowrap;
+        }
+        #bank-prompt-btn.active {
+            background: rgba(255,204,0,0.35);
+            box-shadow: 0 0 32px rgba(255,204,0,0.55);
+            transform: scale(0.94);
+        }
+        #bank-rob-bar-wrap {
+            width: 170px;
+            height: 7px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,204,0,0.4);
+            overflow: hidden;
+            display: none;
+        }
+        #bank-rob-bar-wrap.show { display: block; }
+        #bank-rob-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ffaa00, #ffff44);
+            box-shadow: 0 0 8px rgba(255,204,0,0.7);
+            width: 0%;
+        }
     </style>
 </head>
 <body>
@@ -611,6 +709,19 @@
 
 <!-- Hint -->
 <div id="hint">W/↑ Gas · S/↓ Bremsen & Rückwärts · A·D / ← → Lenken · Leertaste = Handbremse</div>
+
+<!-- Police ETA bar -->
+<div id="police-bar">
+    <span id="police-bar-label">POLIZEI KOMMT</span>
+    <div id="police-bar-track"><div id="police-bar-fill" style="width:100%;background:#44ff88"></div></div>
+    <span id="police-bar-time">20s</span>
+</div>
+
+<!-- Bank interaction prompt -->
+<div id="bank-prompt">
+    <div id="bank-prompt-btn">BANK AUSRAUBEN [E]</div>
+    <div id="bank-rob-bar-wrap"><div id="bank-rob-bar"></div></div>
+</div>
 
 <!-- Joystick (mobile) -->
 <div id="joystick">
@@ -782,6 +893,14 @@
     const BLOCK_SIZE = 280;
     const PITCH      = STREET_W + BLOCK_SIZE;
 
+    const BANK_BX = 1, BANK_BY = 1;
+    const BANK_WX = BANK_BX * PITCH + STREET_W;
+    const BANK_WY = BANK_BY * PITCH + STREET_W;
+    const BANK_WW = BLOCK_SIZE;
+    const BANK_WH = BLOCK_SIZE;
+    const BANK_ROB_SECS  = 8;
+    const POLICE_ALARM_SECS = 20;
+
     const MERGE_PROB  = 0.18;   // chance a block merges with neighbor (super-block)
     const TUNNEL_PROB = 0.07;   // chance a street segment is a tunnel
 
@@ -902,6 +1021,12 @@
     let dyingTimer = 0;
     let driftTimer = 0;
     let rumbleTimer = 0;
+    let bankRobState     = 'idle';
+    let bankRobProgress  = 0;
+    let policeAlarmOn    = false;
+    let policeAlarmTimer = 20;
+    let policeAlarmFired = false;
+    let nearBank         = false;
 
     // ── Input ──────────────────────────────────────────────────────
     const keys = {};
@@ -1031,6 +1156,14 @@
         driftTimer = 0;
         dyingTimer = 0;
         rumbleTimer = 0;
+        bankRobState     = 'idle';
+        bankRobProgress  = 0;
+        policeAlarmOn    = false;
+        policeAlarmTimer = POLICE_ALARM_SECS;
+        policeAlarmFired = false;
+        nearBank         = false;
+        document.getElementById('police-bar').classList.remove('show');
+        document.getElementById('bank-prompt').classList.remove('show');
         cameraZoom = 1;
         gameState = 'idle';
     }
@@ -1040,14 +1173,9 @@
     }
 
     // ── Cop ────────────────────────────────────────────────────────
-    function spawnCop() {
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 700 + Math.random() * 200;
-        const sx = player.x + Math.cos(angle) * dist;
-        const sy = player.y + Math.sin(angle) * dist;
-
+    function makeCopData(sx, sy) {
         const tier = Math.min(3, Math.floor(elapsed / 25));
-        cops.push({
+        return {
             x: sx, y: sy,
             angle: Math.atan2(player.y - sy, player.x - sx),
             vx: 0, vy: 0,
@@ -1061,7 +1189,24 @@
             state: 'chase',
             sx: 0, sy: 0,
             searchRefresh: 0
-        });
+        };
+    }
+
+    function spawnCop() {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 700 + Math.random() * 200;
+        const sx = player.x + Math.cos(angle) * dist;
+        const sy = player.y + Math.sin(angle) * dist;
+        cops.push(makeCopData(sx, sy));
+    }
+
+    function spawnCopClose() {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 220 + Math.random() * 120;
+        cops.push(makeCopData(
+            player.x + Math.cos(angle) * dist,
+            player.y + Math.sin(angle) * dist
+        ));
     }
 
     function scatterCop(c) {
@@ -1089,6 +1234,92 @@
             py = py - my + STREET_W / 2 + (Math.random() - 0.5) * (STREET_W - 30);
         }
         pickups.push({ x: px, y: py, taken: false, born: elapsed });
+    }
+
+    // ── Bank ───────────────────────────────────────────────────────
+    function updateBank(dt) {
+        const nx   = Math.max(BANK_WX, Math.min(BANK_WX + BANK_WW, player.x));
+        const ny   = Math.max(BANK_WY, Math.min(BANK_WY + BANK_WH, player.y));
+        const dist = Math.hypot(player.x - nx, player.y - ny);
+
+        nearBank = dist < 95 && bankRobState !== 'done';
+
+        const promptEl  = document.getElementById('bank-prompt');
+        const btnEl     = document.getElementById('bank-prompt-btn');
+        const barWrapEl = document.getElementById('bank-rob-bar-wrap');
+        const barEl     = document.getElementById('bank-rob-bar');
+
+        if (bankRobState === 'idle') {
+            if (nearBank) {
+                promptEl.classList.add('show');
+                btnEl.style.display = '';
+                barWrapEl.classList.remove('show');
+            } else {
+                promptEl.classList.remove('show');
+            }
+        } else if (bankRobState === 'robbing') {
+            if (dist > 95) {
+                bankRobState = 'idle';
+                bankRobProgress = 0;
+                addBanner('ABGEBROCHEN!', '#ff4444');
+                promptEl.classList.remove('show');
+            } else {
+                bankRobProgress = Math.min(1, bankRobProgress + dt / BANK_ROB_SECS);
+                barEl.style.width = (bankRobProgress * 100) + '%';
+                if (bankRobProgress >= 1) {
+                    bankRobState = 'done';
+                    const timeBonus = Math.floor(policeAlarmTimer * 100);
+                    const reward = 3000 + timeBonus;
+                    score        += reward;
+                    cashGrabbed  += reward;
+                    multiplier    = Math.min(8, multiplier + 1.5);
+                    multiplierFreeze = 2.5;
+                    spawnParticles(BANK_WX + BANK_WW / 2, BANK_WY + BANK_WH / 2, 35, 'rgba(255,204,0,', 220, 1.1);
+                    addBanner('BANK AUSGERAUBT! +$' + reward, '#ffcc00', true);
+                    vibrate([80, 30, 80, 30, 80]);
+                    promptEl.classList.remove('show');
+                }
+            }
+        }
+
+        // Police alarm countdown
+        if (policeAlarmOn) {
+            policeAlarmTimer = Math.max(0, policeAlarmTimer - dt);
+
+            if (policeAlarmTimer <= 0 && !policeAlarmFired) {
+                policeAlarmFired = true;
+                for (let i = 0; i < 4; i++) spawnCopClose();
+                addBanner('POLIZEI EINGETROFFEN!', '#ff2222', true);
+                vibrate([150, 40, 150]);
+            }
+
+            // Update bar
+            const pct = policeAlarmTimer / POLICE_ALARM_SECS;
+            document.getElementById('police-bar').classList.add('show');
+            document.getElementById('police-bar-fill').style.width = (pct * 100) + '%';
+            document.getElementById('police-bar-fill').style.background =
+                pct > 0.5 ? '#44ff88' : pct > 0.25 ? '#ffcc44' : '#ff4444';
+            const timeEl = document.getElementById('police-bar-time');
+            timeEl.textContent = Math.ceil(policeAlarmTimer) + 's';
+            timeEl.classList.toggle('urgent', policeAlarmTimer <= 5);
+        }
+    }
+
+    function startRobbery() {
+        if (bankRobState !== 'idle' || !nearBank) return;
+        bankRobState     = 'robbing';
+        bankRobProgress  = 0;
+        policeAlarmOn    = true;
+        policeAlarmTimer = POLICE_ALARM_SECS;
+        policeAlarmFired = false;
+
+        const btnEl     = document.getElementById('bank-prompt-btn');
+        const barWrapEl = document.getElementById('bank-rob-bar-wrap');
+        btnEl.style.display = 'none';
+        barWrapEl.classList.add('show');
+
+        addBanner('ALARM AUSGELÖST!', '#ff4444', true);
+        vibrate([100, 30, 60]);
     }
 
     // ── Update ─────────────────────────────────────────────────────
@@ -1401,6 +1632,8 @@
             }
         }
 
+        updateBank(dt);
+
         // Camera follow + speed-based zoom-out
         const lookahead = 0.4;
         const tx = player.x + Math.cos(player.angle) * player.speed * lookahead * 0.4;
@@ -1528,6 +1761,7 @@
 
         drawStreets();
         drawBuildings();
+        drawBank();
         drawPickups();
         drawCar(player, '#ffcc44', '#ff8844', false);
         drawTunnels();   // tunnel cap on top of player → player hides under it
@@ -1607,6 +1841,18 @@
             }
         }
 
+        // Bank marker
+        if (bankRobState !== 'done') {
+            const bsX = w2s(BANK_WX + BANK_WW / 2);
+            const bsY = h2s(BANK_WY + BANK_WH / 2);
+            m.fillStyle = bankRobState === 'robbing' ? '#ffcc00' : '#22dd66';
+            m.fillRect(bsX - 5, bsY - 5, 10, 10);
+            m.fillStyle = '#ffcc00';
+            m.font = 'bold 8px monospace';
+            m.textAlign = 'center';
+            m.fillText('$', bsX, bsY + 3);
+        }
+
         // Helis
         for (const c of cops || []) {
             if (Math.abs(c.x - px) > half || Math.abs(c.y - py) > half) continue;
@@ -1672,6 +1918,74 @@
             ctx.moveTo(x, y);
             ctx.lineTo(x + (edge === 0 ? -len : len), y);
             ctx.stroke();
+        }
+    }
+
+    function drawBank() {
+        const x0 = BANK_WX, y0 = BANK_WY, w = BANK_WW, h = BANK_WH;
+        const vw2 = W * PIXEL_SCALE / cameraZoom / 2;
+        const vh2 = H * PIXEL_SCALE / cameraZoom / 2;
+        if (Math.abs(x0 + w/2 - camX) > vw2 + w || Math.abs(y0 + h/2 - camY) > vh2 + h) return;
+
+        if (bankRobState === 'done') {
+            ctx.fillStyle = '#111820';
+            ctx.fillRect(x0, y0, w, h);
+            ctx.fillStyle = 'rgba(255,255,255,0.18)';
+            ctx.font = 'bold 20px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('AUSGERAUBT', x0 + w/2, y0 + h/2);
+            ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+            return;
+        }
+
+        // Base
+        ctx.fillStyle = '#071f12';
+        ctx.fillRect(x0, y0, w, h);
+
+        // Columns
+        ctx.fillStyle = '#0e3520';
+        for (let i = 0; i < 5; i++) {
+            const cx = x0 + 28 + i * (w - 56) / 4;
+            ctx.fillRect(cx - 7, y0 + 16, 14, h - 32);
+        }
+
+        // Gold stripe (entrance on south side)
+        ctx.fillStyle = '#c8a800';
+        ctx.fillRect(x0 + 20, y0 + h - 10, w - 40, 10);
+
+        // Label
+        ctx.save();
+        ctx.fillStyle = '#ffcc00';
+        ctx.shadowColor = 'rgba(255,204,0,0.8)';
+        ctx.shadowBlur  = nearBank ? 18 : 8;
+        ctx.font = 'bold 34px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('BANK', x0 + w/2, y0 + h/2 - 10);
+        ctx.font = '13px monospace';
+        ctx.fillStyle = 'rgba(255,204,0,0.6)';
+        ctx.fillText(isTouch ? 'TAP [E]' : 'TASTE [E]', x0 + w/2, y0 + h/2 + 20);
+        ctx.restore();
+        ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+        // Pulsing outline when nearby
+        if (nearBank) {
+            const pulse = (Math.sin(performance.now() / 280) + 1) / 2;
+            ctx.strokeStyle = `rgba(255,204,0,${0.35 + pulse * 0.55})`;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(x0 - 3, y0 - 3, w + 6, h + 6);
+        }
+
+        // Robbery progress bar on building
+        if (bankRobState === 'robbing') {
+            ctx.fillStyle = 'rgba(0,0,0,0.65)';
+            ctx.fillRect(x0 + 20, y0 + h - 36, w - 40, 18);
+            ctx.fillStyle = '#ffcc00';
+            ctx.shadowColor = '#ffcc00';
+            ctx.shadowBlur = 10;
+            ctx.fillRect(x0 + 20, y0 + h - 36, (w - 40) * bankRobProgress, 18);
+            ctx.shadowBlur = 0;
         }
     }
 
@@ -2615,6 +2929,15 @@
             if (gameState === 'idle' && (e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); tryStart(); }
         };
         document.addEventListener('keydown', onKey);
+        document.addEventListener('keydown', e => {
+            if (e.code === 'KeyE' && nearBank && bankRobState === 'idle' && gameState === 'playing') {
+                startRobbery();
+            }
+        });
+        document.getElementById('bank-prompt-btn').addEventListener('pointerdown', e => {
+            e.preventDefault();
+            if (gameState === 'playing') startRobbery();
+        });
 
         // Left-zone joystick (covers left half of screen, touch only)
         const joyZone = document.createElement('div');

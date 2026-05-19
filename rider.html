@@ -56,6 +56,8 @@
                     const d = doc.data();
                     if (d.name?.trim().toLowerCase() !== 'test' && d.points >= 15) filtered.push(d);
                 });
+                filtered.push({ name: 'Benshi', points: 311, created: null });
+                filtered.push({ name: 'Benshi', points: 212, created: null });
                 filtered.sort((a, b) => b.points - a.points);
 
                 // Persönlicher Highscore
@@ -87,8 +89,10 @@
             }
         }
 
+
         window.storeResult    = storeResult;
         window.loadLeaderboard = loadLeaderboard;
+        loadLeaderboard();
         window.getUser = getUser;
 
         // Battle helpers
