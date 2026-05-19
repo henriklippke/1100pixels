@@ -47,46 +47,47 @@
         async function loadLeaderboard() {
             const tbody = document.getElementById('lb-body');
             if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="3" style="opacity:.5">Laden…</td></tr>';
+            const medals = ['🥇','🥈','🥉'];
+            const currentUser = (() => { try { return JSON.parse(localStorage.getItem('1100px_user')); } catch(e) { return null; } })();
+
+            // Benshi ist immer dabei
+            const filtered = [
+                { name: 'Benshi', points: 311, created: { toDate: () => new Date('2026-05-19T20:00:00') } },
+                { name: 'Benshi', points: 212, created: { toDate: () => new Date('2026-05-19T17:40:00') } }
+            ];
+
             try {
                 const qs = await getDocs(query(collection(db, 'red-pixel'), where('game', '==', 'RIDER')));
-                const medals = ['🥇','🥈','🥉'];
-                const filtered = [];
                 qs.forEach(doc => {
                     const d = doc.data();
                     if (d.name?.trim().toLowerCase() !== 'test' && d.points >= 15) filtered.push(d);
                 });
-                filtered.push({ name: 'Benshi', points: 311, created: null });
-                filtered.push({ name: 'Benshi', points: 212, created: null });
-                filtered.sort((a, b) => b.points - a.points);
-
-                // Persönlicher Highscore
-                const currentUser = (() => { try { return JSON.parse(localStorage.getItem('1100px_user')); } catch(e) { return null; } })();
-                const pbEl = document.getElementById('personal-best-display');
-                if (currentUser && pbEl) {
-                    const myBest = filtered.filter(d => d.name === currentUser.name).reduce((max, d) => Math.max(max, d.points), 0);
-                    pbEl.textContent = myBest > 0 ? `Dein Rekord: ${myBest} Flips` : '';
-                }
-
-                tbody.innerHTML = '';
-                filtered.forEach((d, i) => {
-                    const tr = document.createElement('tr');
-                    const ts = d.created;
-                    let dateStr = '';
-                    if (ts) {
-                        const dt = ts.toDate ? ts.toDate() : new Date(ts);
-                        dateStr = `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}`;
-                    }
-                    const isMe = currentUser && d.name === currentUser.name;
-                    tr.style.background = isMe ? 'rgba(255,68,68,0.08)' : '';
-                    tr.innerHTML = `<td>${i < 3 ? medals[i] : i+1}</td><td style="${isMe ? 'color:#ff8844;font-weight:700' : ''}">${d.name}</td><td style="color:#ff8844;font-weight:bold;text-align:center">${d.points}</td><td style="color:rgba(255,255,255,0.35);font-size:0.78rem;text-align:right;white-space:nowrap">${dateStr}</td>`;
-                    tbody.appendChild(tr);
-                });
-                if (filtered.length === 0) tbody.innerHTML = '<tr><td colspan="4" style="opacity:.5">Noch keine Einträge</td></tr>';
             } catch(e) {
                 console.error('Leaderboard Fehler:', e);
-                tbody.innerHTML = `<tr><td colspan="3" style="opacity:.5;font-size:0.7rem">${e.message}</td></tr>`;
             }
+
+            filtered.sort((a, b) => b.points - a.points);
+
+            const pbEl = document.getElementById('personal-best-display');
+            if (currentUser && pbEl) {
+                const myBest = filtered.filter(d => d.name === currentUser.name).reduce((max, d) => Math.max(max, d.points), 0);
+                pbEl.textContent = myBest > 0 ? `Dein Rekord: ${myBest} Flips` : '';
+            }
+
+            tbody.innerHTML = '';
+            filtered.forEach((d, i) => {
+                const tr = document.createElement('tr');
+                const ts = d.created;
+                let dateStr = '';
+                if (ts) {
+                    const dt = ts.toDate ? ts.toDate() : new Date(ts);
+                    dateStr = `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}`;
+                }
+                const isMe = currentUser && d.name === currentUser.name;
+                tr.style.background = isMe ? 'rgba(255,68,68,0.08)' : '';
+                tr.innerHTML = `<td>${i < 3 ? medals[i] : i+1}</td><td style="${isMe ? 'color:#ff8844;font-weight:700' : ''}">${d.name}</td><td style="color:#ff8844;font-weight:bold;text-align:center">${d.points}</td><td style="color:rgba(255,255,255,0.35);font-size:0.78rem;text-align:right;white-space:nowrap">${dateStr}</td>`;
+                tbody.appendChild(tr);
+            });
         }
 
 
