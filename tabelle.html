@@ -49,6 +49,8 @@
                     const pointsCell = document.createElement('td');
                     pointsCell.textContent = collectionName === 'chase'
                         ? `$${data.points}`
+                        : collectionName === 'rider'
+                        ? `${data.points} Flips`
                         : `${data.points} points`;
 
                     const dateCell = document.createElement('td');
@@ -80,6 +82,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             loadScores('red-pixel', 500, 'score-table-body-red');
             loadScores('chase', 49, 'score-table-body-chase');
+            loadScores('rider', 14, 'score-table-body-rider');
 
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -190,6 +193,10 @@
         #tab-chase tr td {
             color: #ffcc44;
         }
+
+        #tab-rider tr td {
+            color: #ff8844;
+        }
     </style>
 </head>
 
@@ -199,6 +206,7 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="tab-red">🔴 RED PIXELS</button>
         <button class="tab-btn" data-tab="tab-chase">🚔 CHASE</button>
+        <button class="tab-btn" data-tab="tab-rider">🏍️ RIDER</button>
     </div>
 
     <div id="tab-red" class="tab-content active">
@@ -228,6 +236,22 @@
                 </tr>
             </thead>
             <tbody id="score-table-body-chase">
+                <!-- Scores will be loaded here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <div id="tab-rider" class="tab-content">
+        <table>
+            <thead>
+                <tr>
+                    <td>Platz</td>
+                    <td>Spieler</td>
+                    <td>Flips</td>
+                    <td>Datum</td>
+                </tr>
+            </thead>
+            <tbody id="score-table-body-rider">
                 <!-- Scores will be loaded here by JavaScript -->
             </tbody>
         </table>
