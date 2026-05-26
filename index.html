@@ -244,8 +244,11 @@
             renderQuests('quests-redpixel', QUESTS.redpixel, questProgress, questsClaimed);
 
             try {
-                const snap = await Promise.race([
-                    getDocs(collection(db, 'red-pixel')),
+                const [snap, riderSnap] = await Promise.race([
+                    Promise.all([
+                        getDocs(collection(db, 'red-pixel')),
+                        getDocs(collection(db, 'rider'))
+                    ]),
                     timeout(8000)
                 ]);
                 const redPixels = [], rider = [], brawler = [];
@@ -254,7 +257,15 @@
                     if (d.name?.trim().toLowerCase() === 'test') return;
                     if (d.game === 'RIDER') rider.push(d);
                     else if (d.game === 'BRAWLER') brawler.push(d);
-                    else redPixels.push(d);
+                    else if (!d.game || d.game === 'CHASE') {
+                        // CHASE entries from before the split should not appear in red-pixel leaderboard
+                        if (d.game !== 'CHASE') redPixels.push(d);
+                    }
+                });
+                riderSnap.forEach(docSnap => {
+                    const d = { ...docSnap.data(), id: docSnap.id };
+                    if (d.name?.trim().toLowerCase() === 'test') return;
+                    rider.push(d);
                 });
                 redPixels.sort((a, b) => b.points - a.points);
                 rider.sort((a, b) => b.points - a.points);

@@ -4,7 +4,7 @@
 <head>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
@@ -23,15 +23,18 @@
             tableBody.innerHTML = '<tr><td colspan="4" style="opacity:0.5">Laden…</td></tr>';
 
             try {
-                const q = query(collection(db, collectionName), where('points', '>', minPoints), orderBy('points', 'desc'));
-                const querySnapshot = await getDocs(q);
+                const querySnapshot = await getDocs(collection(db, collectionName));
+
+                const docs = [];
+                querySnapshot.forEach(doc => docs.push(doc.data()));
+                docs.sort((a, b) => b.points - a.points);
 
                 let rank = 1;
                 const medals = ['🥇', '🥈', '🥉'];
                 tableBody.innerHTML = '';
 
-                querySnapshot.forEach(doc => {
-                    const data = doc.data();
+                for (const data of docs) {
+                    if (!data.points || data.points < minPoints) continue;
                     const row = document.createElement('tr');
 
                     const rankCell = document.createElement('td');
@@ -68,7 +71,7 @@
 
                     tableBody.appendChild(row);
                     rank++;
-                });
+                }
 
                 if (rank === 1) {
                     tableBody.innerHTML = '<tr><td colspan="4" style="opacity:0.5">Noch keine Einträge</td></tr>';
