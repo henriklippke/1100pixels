@@ -1027,14 +1027,6 @@
     let comboTimer = 0;
     let comboCount = 0;
 
-    // Rain particles (screen-space)
-    const RAIN_COUNT = 120;
-    const rainDrops = [];
-    for (let i = 0; i < RAIN_COUNT; i++) {
-        rainDrops.push({ x: Math.random(), y: Math.random(), speed: 0.4 + Math.random() * 0.4 });
-    }
-    let splashParticles = [];
-
     // Siren HUD
     let sirenPhase = 0;
 
@@ -2149,7 +2141,6 @@
 
         ctx.restore();
 
-        drawRain();
         drawBanners();
         drawSirenHUD();
         if (boostActive) drawSpeedLines();
@@ -3379,59 +3370,6 @@
             ctx.fill();
             ctx.restore();
         }
-    }
-
-    // ── Rain ───────────────────────────────────────────────────────
-    function drawRain() {
-        if (gameState !== 'playing' && gameState !== 'dying' && gameState !== 'countdown') return;
-        ctx.save();
-        ctx.strokeStyle = 'rgba(180,200,230,0.45)';
-        ctx.lineWidth = 1;
-        const t = performance.now() / 1000;
-        for (const drop of rainDrops) {
-            // update
-            drop.y += drop.speed * 0.018;
-            drop.x += 0.003; // wind drift
-            if (drop.y > 1) { drop.y -= 1; drop.x = Math.random(); }
-            if (drop.x > 1) drop.x -= 1;
-            const sx = drop.x * W;
-            const sy = drop.y * H;
-            ctx.beginPath();
-            ctx.moveTo(sx, sy);
-            ctx.lineTo(sx + 4, sy + 9);
-            ctx.stroke();
-        }
-
-        // Splash particles when player is fast
-        if (player && Math.abs(player.speed) > 120) {
-            const now = performance.now();
-            if (now % 80 < 40) {
-                const cosA = Math.cos(player.angle), sinA = Math.sin(player.angle);
-                const wx = (player.x - camX) * cameraZoom / PIXEL_SCALE + W / 2;
-                const wy = (player.y - camY) * cameraZoom / PIXEL_SCALE + H / 2;
-                splashParticles.push({
-                    x: wx + (Math.random() - 0.5) * 14,
-                    y: wy + (Math.random() - 0.5) * 14,
-                    vx: (Math.random() - 0.5) * 3,
-                    vy: -1 - Math.random() * 2,
-                    life: 0.5
-                });
-            }
-        }
-        // Draw/update splash
-        ctx.fillStyle = 'rgba(180,210,240,0.6)';
-        for (let i = splashParticles.length - 1; i >= 0; i--) {
-            const sp = splashParticles[i];
-            sp.x += sp.vx;
-            sp.y += sp.vy;
-            sp.vy += 0.12;
-            sp.life -= 0.03;
-            if (sp.life <= 0) { splashParticles.splice(i, 1); continue; }
-            ctx.globalAlpha = sp.life * 1.5;
-            ctx.fillRect(sp.x, sp.y, 2, 2);
-        }
-        ctx.globalAlpha = 1;
-        ctx.restore();
     }
 
     // ── Siren HUD ─────────────────────────────────────────────────
