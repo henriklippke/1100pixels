@@ -154,13 +154,15 @@
                     if (!uqs2.empty) {
                         userDocId = uqs2.docs[0].id;
                         const ud2 = uqs2.docs[0].data();
-                        questProgress = ud2.quests || {};
-                        questsClaimed = ud2.questsClaimed || {};
+                        const reset2 = await checkQuestReset(ud2, userDocId);
+                        questProgress = reset2.progress;
+                        questsClaimed = reset2.claimed;
                         document.getElementById('header-gem-count').textContent = ud2.gems || 0;
                         if (ud2.activeChaseSkin) localStorage.setItem('1100px_activeChaseSkin', ud2.activeChaseSkin);
                         if (ud2.activeSkin)      localStorage.setItem('1100px_activeSkin',      ud2.activeSkin);
                         renderQuests('quests-rider',    QUESTS.rider,    questProgress, questsClaimed);
                         renderQuests('quests-redpixel', QUESTS.redpixel, questProgress, questsClaimed);
+                        renderQuests('quests-chase',    QUESTS.chase,    questProgress, questsClaimed);
                     }
                 } catch(e) { console.warn('Post-login load failed:', e.message); }
             }
@@ -168,15 +170,44 @@
             document.getElementById('auth-pin').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });
             document.getElementById('auth-name').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('auth-pin').focus(); });
 
-            // ── Quests ──
+            // ── Quests (täglich, werden um Mitternacht zurückgesetzt) ──
             const QUESTS = {
                 rider: [
-                    { id: 'r_20flips',  title: '20 Flips',     desc: 'Mache insgesamt 20 Flips in Rider',       target: 20,  gem: 10 },
-                    { id: 'r_20loops',  title: '20 Loopings',  desc: 'Fahre insgesamt 20 Loopings in Rider',    target: 20,  gem: 25 },
-                    { id: 'r_10games',  title: '10 Runden',    desc: 'Spiele insgesamt 10 Runden Rider',        target: 10,  gem: 15 }
+                    { id: 'r_flips',  title: '20 Flips',     desc: 'Mache heute 20 Flips in Rider',           target: 20,  gem: 8  },
+                    { id: 'r_loops',  title: '5 Loopings',   desc: 'Fahre heute 5 Loopings in Rider',         target: 5,   gem: 12 },
+                    { id: 'r_games',  title: '3 Runden',     desc: 'Spiele heute 3 Runden Rider',             target: 3,   gem: 5  }
                 ],
-                redpixel: []
+                redpixel: [
+                    { id: 'rp_points', title: '1500 Punkte',   desc: 'Sammle heute 1500 Punkte in RED Pixels',  target: 1500, gem: 8  },
+                    { id: 'rp_games',  title: '3 Runden',      desc: 'Spiele heute 3 Runden RED Pixels',        target: 3,    gem: 5  },
+                    { id: 'rp_high',   title: '800+ in einem Spiel', desc: 'Erreiche 800 Punkte in einem Spiel', target: 1,    gem: 12 }
+                ],
+                chase: [
+                    { id: 'c_money', title: '$3000 verdienen', desc: 'Verdiene heute $3000 in Chase',           target: 3000, gem: 8  },
+                    { id: 'c_games', title: '3 Runden',         desc: 'Spiele heute 3 Runden Chase',             target: 3,    gem: 5  },
+                    { id: 'c_high',  title: '$2000 in einem Spiel', desc: 'Erreiche $2000 in einer Runde',      target: 1,    gem: 12 }
+                ]
             };
+
+            // ── Daily reset ──
+            function todayStr() {
+                const d = new Date();
+                return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            }
+
+            async function checkQuestReset(ud, docId) {
+                if (!docId) return { progress: ud.quests || {}, claimed: ud.questsClaimed || {} };
+                const today = todayStr();
+                if (ud.questsResetDate !== today) {
+                    await updateDoc(doc(db, 'users', docId), {
+                        quests: {},
+                        questsClaimed: {},
+                        questsResetDate: today
+                    });
+                    return { progress: {}, claimed: {} };
+                }
+                return { progress: ud.quests || {}, claimed: ud.questsClaimed || {} };
+            }
 
             let userDocId = null;
 
@@ -231,8 +262,9 @@
                     if (!uqs.empty) {
                         userDocId = uqs.docs[0].id;
                         const ud = uqs.docs[0].data();
-                        questProgress = ud.quests || {};
-                        questsClaimed = ud.questsClaimed || {};
+                        const reset = await checkQuestReset(ud, userDocId);
+                        questProgress = reset.progress;
+                        questsClaimed = reset.claimed;
                         document.getElementById('header-gem-count').textContent = ud.gems || 0;
                         if (ud.activeChaseSkin) localStorage.setItem('1100px_activeChaseSkin', ud.activeChaseSkin);
                         if (ud.activeSkin)      localStorage.setItem('1100px_activeSkin',      ud.activeSkin);
@@ -246,6 +278,7 @@
             }
             renderQuests('quests-rider',    QUESTS.rider,    questProgress, questsClaimed);
             renderQuests('quests-redpixel', QUESTS.redpixel, questProgress, questsClaimed);
+            renderQuests('quests-chase',    QUESTS.chase,    questProgress, questsClaimed);
 
             try {
                 const [snap, riderSnap, chaseSnap] = await Promise.race([
@@ -842,6 +875,7 @@
                         <div class="podium-place p3" id="c3"><span class="medal">🥉</span><span class="p-name">–</span><span class="p-pts"></span></div>
                     </div>
                     <span class="play-btn">▶ Spielen</span>
+                    <button class="quest-link-btn" id="quest-btn-chase">📜<span>Quests</span></button>
                     <button class="skin-link-btn" id="skins-btn-chase">🚗<span>Skins</span></button>
                     <div class="thumb-bottom">
                         <h2 class="game-title">Chase</h2>
@@ -900,25 +934,34 @@
             <span class="quest-modal-title" id="quest-modal-title">Quests</span>
             <button class="quest-modal-close" id="quest-modal-close">✕</button>
         </div>
+        <p class="quest-reset-info" style="text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.4);margin:0 0 10px">Quests setzen sich um Mitternacht zurück. Gems behältst du!</p>
         <div id="quests-rider"></div>
         <div id="quests-redpixel" style="display:none"></div>
+        <div id="quests-chase" style="display:none"></div>
     </div>
 </div>
 
 <script>
+    function showQuests(which, title) {
+        ['rider','redpixel','chase'].forEach(g => {
+            const el = document.getElementById('quests-' + g);
+            if (el) el.style.display = g === which ? '' : 'none';
+        });
+        document.getElementById('quest-modal-title').textContent = title;
+        document.getElementById('quest-modal').classList.add('show');
+    }
     document.getElementById('quest-btn-rider').addEventListener('click', e => {
         e.preventDefault(); e.stopPropagation();
-        document.getElementById('quests-rider').style.display = '';
-        document.getElementById('quests-redpixel').style.display = 'none';
-        document.getElementById('quest-modal-title').textContent = 'Rider – Quests';
-        document.getElementById('quest-modal').classList.add('show');
+        showQuests('rider', 'Rider – Quests');
     });
     document.getElementById('quest-btn-redpixel').addEventListener('click', e => {
         e.preventDefault(); e.stopPropagation();
-        document.getElementById('quests-rider').style.display = 'none';
-        document.getElementById('quests-redpixel').style.display = '';
-        document.getElementById('quest-modal-title').textContent = 'Red Pixels – Quests';
-        document.getElementById('quest-modal').classList.add('show');
+        showQuests('redpixel', 'Red Pixels – Quests');
+    });
+    const _qbtnChase = document.getElementById('quest-btn-chase');
+    if (_qbtnChase) _qbtnChase.addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        showQuests('chase', 'Chase – Quests');
     });
     document.getElementById('quest-modal-close').addEventListener('click', () => {
         document.getElementById('quest-modal').classList.remove('show');

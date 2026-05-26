@@ -682,7 +682,7 @@
 <!-- Firebase -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, limit, Timestamp }
+    import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, limit, Timestamp, doc, updateDoc, increment }
         from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -703,6 +703,19 @@
                 await addDoc(collection(db, 'chase'), {
                     name, points, created: Timestamp.now()
                 });
+
+                // Quest progress
+                try {
+                    const uqs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', name.toLowerCase())));
+                    if (!uqs.empty) {
+                        const update = {
+                            'quests.c_money': increment(points),
+                            'quests.c_games': increment(1)
+                        };
+                        if (points >= 2000) update['quests.c_high'] = increment(1);
+                        await updateDoc(doc(db, 'users', uqs.docs[0].id), update);
+                    }
+                } catch(qe) { console.warn('Quest update failed:', qe.message); }
             }
         } catch(e) { console.error('Save error:', e); }
         await loadLeaderboard();

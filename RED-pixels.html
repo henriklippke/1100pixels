@@ -7,7 +7,7 @@
 	</link>
 	<script type="module">
 		import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-		import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+		import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 		const firebaseConfig = {
 			apiKey: "AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
 			authDomain: "pixels-e2f82.firebaseapp.com",
@@ -23,11 +23,24 @@
 				return;
 			}
 
-			const docRef = await addDoc(collection(db, "red-pixel"), {
+			await addDoc(collection(db, "red-pixel"), {
 				name: name,
 				points: points,
 				created: new Date()
 			});
+
+			// Quest progress
+			try {
+				const uqs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', name.toLowerCase())));
+				if (!uqs.empty) {
+					const update = {
+						'quests.rp_points': increment(points),
+						'quests.rp_games':  increment(1)
+					};
+					if (points >= 800) update['quests.rp_high'] = increment(1);
+					await updateDoc(doc(db, 'users', uqs.docs[0].id), update);
+				}
+			} catch(e) { console.warn('Quest update failed:', e.message); }
 		}
 	</script>
 </head>

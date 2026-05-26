@@ -33,9 +33,9 @@
                         const collectedGems = window._gemsCollected || 0;
                         const completedLoops = window._loopsCompleted || 0;
                         await updateDoc(doc(db, 'users', uqs.docs[0].id), {
-                            'quests.r_20flips':  increment(points),
-                            'quests.r_20loops':  increment(completedLoops),
-                            'quests.r_10games':  increment(1),
+                            'quests.r_flips':  increment(points),
+                            'quests.r_loops':  increment(completedLoops),
+                            'quests.r_games':  increment(1),
                             gems: increment(collectedGems)
                         });
                     }
