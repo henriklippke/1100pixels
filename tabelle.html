@@ -3,11 +3,9 @@
 
 <head>
     <script type="module">
-        // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
         import { getFirestore, collection, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
-        // Your web app's Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
             authDomain: "pixels-e2f82.firebaseapp.com",
@@ -17,21 +15,20 @@
             appId: "1:311496840709:web:3a94601ef40cbd0c946e6c"
         };
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        async function loadScores() {
-            const tableBody = document.getElementById('score-table-body');
-            tableBody.innerHTML = ''; // Clear existing table data
+        async function loadScores(collectionName, minPoints, tableBodyId) {
+            const tableBody = document.getElementById(tableBodyId);
+            tableBody.innerHTML = '<tr><td colspan="4" style="opacity:0.5">Laden…</td></tr>';
 
             try {
-                const scoresCollection = collection(db, 'red-pixel');
-                const q = query(scoresCollection, where('points', '>', 500), orderBy('points', 'desc'));
+                const q = query(collection(db, collectionName), where('points', '>', minPoints), orderBy('points', 'desc'));
                 const querySnapshot = await getDocs(q);
-                
+
                 let rank = 1;
                 const medals = ['🥇', '🥈', '🥉'];
+                tableBody.innerHTML = '';
 
                 querySnapshot.forEach(doc => {
                     const data = doc.data();
@@ -50,11 +47,13 @@
                     playerCell.textContent = data.name;
 
                     const pointsCell = document.createElement('td');
-                    pointsCell.textContent = `${data.points} points`;
+                    pointsCell.textContent = collectionName === 'chase'
+                        ? `$${data.points}`
+                        : `${data.points} points`;
 
                     const dateCell = document.createElement('td');
                     if (data.created) {
-                        const date = data.created.toDate();
+                        const date = data.created.toDate ? data.created.toDate() : new Date(data.created);
                         dateCell.textContent = date.toLocaleString('de-DE');
                     } else {
                         dateCell.textContent = '';
@@ -68,24 +67,40 @@
                     tableBody.appendChild(row);
                     rank++;
                 });
+
+                if (rank === 1) {
+                    tableBody.innerHTML = '<tr><td colspan="4" style="opacity:0.5">Noch keine Einträge</td></tr>';
+                }
             } catch (error) {
                 console.error("Error loading scores: ", error);
-                tableBody.innerHTML = '<tr><td colspan="4">Error loading scores.</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="4">Fehler beim Laden.</td></tr>';
             }
         }
 
-        window.addEventListener('DOMContentLoaded', loadScores);
+        window.addEventListener('DOMContentLoaded', () => {
+            loadScores('red-pixel', 500, 'score-table-body-red');
+            loadScores('chase', 49, 'score-table-body-chase');
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.getElementById(btn.dataset.tab).classList.add('active');
+                });
+            });
+        });
     </script>
 
-    <title>1100pixels.com // Scores
-    </title>
-    <meta describtion="The games are created by Leo and Henrik">
+    <title>1100pixels.com // Scores</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body {
-
             background-color: #13293b;
             color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            margin: 0;
+            padding: 0;
         }
 
         .logo {
@@ -102,17 +117,19 @@
         table {
             width: 100%;
             text-align: center;
+            border-collapse: collapse;
         }
 
         table thead td {
             font-weight: bold;
             color: #569aa9;
-            ;
+            padding: 8px 4px;
         }
 
         tr td {
             border-bottom: 1px solid gray;
             color: #f58642;
+            padding: 6px 4px;
         }
 
         .back-btn {
@@ -125,32 +142,96 @@
             border: 1px solid white;
             text-decoration: none;
             border-radius: 3px;
-            ;
         }
 
         .back-btn:hover {
             background-color: white;
             color: #569aa9;
         }
-    </style>
 
+        /* Tabs */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 80px 0 20px 0;
+        }
+
+        .tab-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .tab-btn.active {
+            background: #569aa9;
+            border-color: #569aa9;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 0 10px 40px 10px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        #tab-chase tr td {
+            color: #ffcc44;
+        }
+    </style>
 </head>
 
 <body>
-    <table style="width:100%">
-        <thead>
-            <tr>
-                <td>Place</td>
-                <td>Player</td>
-                <td>Point</td>
-                <td>Date</td>
-            </tr>
-        </thead>
-        <tbody id="score-table-body">
-            <!-- Scores will be loaded here by JavaScript -->
-        </tbody>
-    </table>
+    <a class="back-btn" href="/">← Zurück</a>
 
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="tab-red">🔴 RED PIXELS</button>
+        <button class="tab-btn" data-tab="tab-chase">🚔 CHASE</button>
+    </div>
+
+    <div id="tab-red" class="tab-content active">
+        <table>
+            <thead>
+                <tr>
+                    <td>Platz</td>
+                    <td>Spieler</td>
+                    <td>Punkte</td>
+                    <td>Datum</td>
+                </tr>
+            </thead>
+            <tbody id="score-table-body-red">
+                <!-- Scores will be loaded here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <div id="tab-chase" class="tab-content">
+        <table>
+            <thead>
+                <tr>
+                    <td>Platz</td>
+                    <td>Spieler</td>
+                    <td>Score</td>
+                    <td>Datum</td>
+                </tr>
+            </thead>
+            <tbody id="score-table-body-chase">
+                <!-- Scores will be loaded here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
 </body>
 
 </html>
