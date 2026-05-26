@@ -248,10 +248,11 @@
             renderQuests('quests-redpixel', QUESTS.redpixel, questProgress, questsClaimed);
 
             try {
-                const [snap, riderSnap] = await Promise.race([
+                const [snap, riderSnap, chaseSnap] = await Promise.race([
                     Promise.all([
                         getDocs(collection(db, 'red-pixel')),
-                        getDocs(collection(db, 'rider'))
+                        getDocs(collection(db, 'rider')),
+                        getDocs(collection(db, 'chase'))
                     ]),
                     timeout(8000)
                 ]);
@@ -280,10 +281,20 @@
                 if (!kickedBenshi.includes('benshi-212')) riderFiltered.push({ name: 'Benshi', points: 212, created: new Date('2026-05-19T17:40:00'), id: 'benshi-212' });
                 riderFiltered.sort((a, b) => b.points - a.points);
 
+                const chase = [];
+                chaseSnap.forEach(docSnap => {
+                    const d = { ...docSnap.data(), id: docSnap.id };
+                    if (d.name?.trim().toLowerCase() === 'test') return;
+                    chase.push(d);
+                });
+                chase.sort((a, b) => b.points - a.points);
+
                 fillPodium('p', redPixels);
                 fillPodium('r', riderFiltered);
+                fillPodium('c', chase);
                 fillTable('lb-redpixel', redPixels, 'Pts');
                 fillTable('lb-rider', riderFiltered, 'Flips');
+                fillTable('lb-chase', chase, '$');
                 fillTable('lb-brawler', brawler, 'Pts');
             } catch(e) { console.error(e); }
 
@@ -825,6 +836,11 @@
                 </svg>
                 <div class="scanlines"></div>
                 <div class="thumb-overlay">
+                    <div class="podium">
+                        <div class="podium-place p2" id="c2"><span class="medal">🥈</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                        <div class="podium-place p1" id="c1"><span class="medal">🥇</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                        <div class="podium-place p3" id="c3"><span class="medal">🥉</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                    </div>
                     <span class="play-btn">▶ Spielen</span>
                     <button class="skin-link-btn" id="skins-btn-chase">🚗<span>Skins</span></button>
                     <div class="thumb-bottom">
@@ -834,6 +850,16 @@
                 </div>
             </div>
         </a>
+        <div class="lb-panel slide-lb">
+            <h3 class="lb-title"><span class="lb-dot cyan"></span>Chase</h3>
+            <div class="lb-scroll">
+                <table class="lb-table lb-fixed">
+                    <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
+                    <thead><tr><th>#</th><th>Spieler</th><th>Score</th><th>Datum</th></tr></thead>
+                    <tbody id="lb-chase"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
         </div>
 
     </div>
