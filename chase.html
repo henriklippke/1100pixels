@@ -77,43 +77,46 @@
             border: 2px solid rgba(255,255,255,0.3);
             background: rgba(8,12,22,0.7);
             z-index: 100;
-            pointer-events: none;
+            pointer-events: auto;
+            cursor: pointer;
             box-shadow: 0 0 10px rgba(0,0,0,0.6);
             image-rendering: pixelated;
+            transition: border-color 0.15s;
+        }
+        #minimap:hover { border-color: rgba(255,204,68,0.7); }
+
+        /* Große Map Overlay */
+        #bigmap-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.82);
+            z-index: 500;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(3px);
+        }
+        #bigmap-overlay.show { display: flex; }
+        #bigmap-wrap {
+            position: relative;
+        }
+        #bigmap {
+            border: 2px solid rgba(255,204,68,0.5);
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            image-rendering: pixelated;
+        }
+        #bigmap-hint {
+            position: absolute;
+            bottom: -26px;
+            left: 0; right: 0;
+            text-align: center;
+            color: rgba(255,255,255,0.35);
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
         }
 
-        /* HP bar */
-        #hp-wrap {
-            position: fixed;
-            top: 60px;
-            right: 12px;
-            width: 140px;
-            height: 12px;
-            background: rgba(0,0,0,0.65);
-            border: 2px solid rgba(255,68,68,0.4);
-            z-index: 100;
-            pointer-events: none;
-        }
-        #hp-wrap::before {
-            content: 'HP';
-            position: absolute;
-            top: -14px;
-            right: 0;
-            font-size: 0.6rem;
-            color: rgba(255,80,80,0.8);
-            letter-spacing: 2px;
-        }
-        #hp-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #ff2222 0%, #ffcc44 60%, #44ff88 100%);
-            transition: width 0.15s;
-            box-shadow: 0 0 10px rgba(255,68,68,0.5);
-        }
-        #hp-bar.low { animation: hpLowPulse 0.4s infinite alternate; }
-        @keyframes hpLowPulse {
-            from { filter: brightness(1); }
-            to   { filter: brightness(1.5); }
-        }
+        /* HP bar — removed */
 
         /* Boost meter — below header */
         #boost-wrap {
@@ -600,12 +603,19 @@
     <div class="hud-wanted" id="hud-wanted">★☆☆☆☆</div>
 </div>
 
-<!-- Boost + HP Meters -->
+<!-- Boost Meter -->
 <div id="boost-wrap"><div id="boost-bar" style="width:100%"></div></div>
-<div id="hp-wrap"><div id="hp-bar" style="width:100%"></div></div>
 
 <!-- Minimap -->
 <canvas id="minimap" width="140" height="140"></canvas>
+
+<!-- Große Map Overlay -->
+<div id="bigmap-overlay">
+    <div id="bigmap-wrap">
+        <canvas id="bigmap"></canvas>
+        <div id="bigmap-hint">Ziehen zum Scrollen · Außerhalb klicken zum Schließen · M</div>
+    </div>
+</div>
 
 <!-- Countdown -->
 <div id="countdown">3</div>
@@ -791,7 +801,13 @@
     const MERGE_PROB  = 0.18;   // chance a block merges with neighbor (super-block)
     const TUNNEL_PROB = 0.07;   // chance a street segment is a tunnel
 
+    // ── Weltgrenze ─────────────────────────────────────────────────
+    const WORLD_BLOCKS = 9;                      // 9 Blöcke in jede Richtung
+    const WORLD_MIN    = -WORLD_BLOCKS * PITCH;
+    const WORLD_MAX    =  WORLD_BLOCKS * PITCH;
+
     function isStreet(x, y) {
+        if (x < WORLD_MIN || x > WORLD_MAX || y < WORLD_MIN || y > WORLD_MAX) return false;
         const mx = ((x % PITCH) + PITCH) % PITCH;
         const my = ((y % PITCH) + PITCH) % PITCH;
         const onV = mx < STREET_W;
@@ -881,17 +897,58 @@
                 robbedBanks.add(nearby.key);
                 bankRobTarget = null;
                 bankRobTimer  = 0;
-                score        += BANK_PAYOUT;
-                cashGrabbed  += BANK_PAYOUT;
+                comboCount++; comboTimer = 2.5;
+                const bankMult = (comboCount >= 3) ? 1.5 : 1.0;
+                const bankBonus = Math.floor(BANK_PAYOUT * bankMult);
+                score        += bankBonus;
+                cashGrabbed  += bankBonus;
                 multiplier    = Math.min(8, multiplier + 0.5);
                 multiplierFreeze = 1.5;
                 spawnParticles(nearby.wx + BLOCK_SIZE / 2, nearby.wy + BLOCK_SIZE / 2, 22, 'rgba(255,204,0,', 190, 0.9);
-                addBanner('BANK AUSGERAUBT! +$1000', '#ffcc00', true);
+                if (comboCount >= 3) addBanner('COMBO x' + comboCount + '!', '#ff88ff');
+                addBanner('BANK AUSGERAUBT! +$' + bankBonus + (bankMult > 1 ? ' (x1.5)' : ''), '#ffcc00', true);
                 vibrate([60, 20, 60]);
             }
         } else {
             bankRobTarget = null;
             bankRobTimer  = 0;
+        }
+    }
+
+    function updateGarages(dt) {
+        const nearby = findNearbyGarage(player.x, player.y);
+        if (nearby) {
+            if (!garageRobTarget || garageRobTarget.key !== nearby.key) {
+                garageRobTarget = nearby;
+                garageRobTimer  = 0;
+            }
+            garageRobTimer += dt;
+            if (garageRobTimer >= GARAGE_ROB_SECS) {
+                usedGarages.add(nearby.key);
+                garageRobTarget = null;
+                garageRobTimer  = 0;
+                // Scatter all cops
+                for (const c of cops) scatterCop(c);
+                for (const g of groundCops) {
+                    const ang = Math.random() * Math.PI * 2;
+                    g.x = player.x + Math.cos(ang) * 700;
+                    g.y = player.y + Math.sin(ang) * 700;
+                    g.speed = 0;
+                }
+                // New car color
+                player.color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+                player.damage = 0;
+                // Bonus
+                scoreEvent(500, 'GARAGE! +$500 NEUE FARBE!', '#44ff88');
+                multiplier = Math.min(8, multiplier + 0.3);
+                multiplierFreeze = 1.5;
+                spawnParticles(nearby.wx + BLOCK_SIZE / 2, nearby.wy + BLOCK_SIZE / 2, 18, 'rgba(0,220,140,', 160, 0.85);
+                addBanner('COPS ABGESCHÜTTELT!', '#44ff88', true);
+                vibrate([40, 15, 40]);
+            }
+        } else {
+            garageRobTarget = null;
+            garageRobTimer  = 0;
         }
     }
 
@@ -939,7 +996,7 @@
     const HANDBRAKE_F    = 0.93;
 
     // ── State ──────────────────────────────────────────────────────
-    let player, cops, particles, pickups;
+    let player, cops, particles, pickups, groundCops;
     let camX = 0, camY = 0;
     let cameraZoom = 1;
     let lastT = 0;
@@ -948,6 +1005,7 @@
     let cashGrabbed = 0;
     let nextCopAt = 0;
     let nextPickupAt = 0;
+    let nextGroundCopAt = 15;
     let gameState = 'idle'; // 'idle' | 'countdown' | 'playing' | 'dying' | 'dead'
     let countdownLeft = 0;
     let shake = 0;
@@ -965,13 +1023,308 @@
     let bankRobTimer = 0;
     let bankRobTarget = null; // { bx, by, key, wx, wy }
 
+    // Combo system
+    let comboTimer = 0;
+    let comboCount = 0;
+
+    // Rain particles (screen-space)
+    const RAIN_COUNT = 120;
+    const rainDrops = [];
+    for (let i = 0; i < RAIN_COUNT; i++) {
+        rainDrops.push({ x: Math.random(), y: Math.random(), speed: 0.4 + Math.random() * 0.4 });
+    }
+    let splashParticles = [];
+
+    // Siren HUD
+    let sirenPhase = 0;
+
+    // Garage data
+    const GARAGE_PROB = 0.08;
+    const GARAGE_ROB_SECS = 4;
+    let garageRobTarget = null;
+    let garageRobTimer = 0;
+    const usedGarages = new Set();
+
+    // Car color palette for garage
+    const CAR_COLORS = ['#ffcc44','#ff4444','#44ff88','#44aaff','#ff88ff','#ff8800','#ffffff','#aaffcc'];
+
+    function isGarage(bx, by) {
+        if (isMergedRight(bx - 1, by)) return false;
+        if (isMergedDown(bx, by - 1))  return false;
+        if (isBank(bx, by)) return false;
+        // Use a different hash seed so garage and bank don't overlap
+        let h = bx * 1234567891 + by * 987654321 + 55555;
+        h = (h ^ (h >>> 13)) * 1274126177;
+        return ((h ^ (h >>> 16)) >>> 0) / 4294967296 < GARAGE_PROB;
+    }
+
+    function findNearbyGarage(px, py) {
+        const bx0 = Math.floor(px / PITCH) - 1;
+        const by0 = Math.floor(py / PITCH) - 1;
+        let best = null, bestDist = Infinity;
+        for (let dy = 0; dy <= 2; dy++) {
+            for (let dx = 0; dx <= 2; dx++) {
+                const bx = bx0 + dx, by = by0 + dy;
+                if (!isGarage(bx, by)) continue;
+                const key = bx + ',' + by;
+                if (usedGarages.has(key)) continue;
+                const wx = bx * PITCH + STREET_W;
+                const wy = by * PITCH + STREET_W;
+                const nx = Math.max(wx, Math.min(wx + BLOCK_SIZE, px));
+                const ny = Math.max(wy, Math.min(wy + BLOCK_SIZE, py));
+                const d  = Math.hypot(px - nx, py - ny);
+                if (d < 80 && d < bestDist) { bestDist = d; best = { bx, by, key, wx, wy }; }
+            }
+        }
+        return best;
+    }
+
     // ── Input ──────────────────────────────────────────────────────
     const keys = {};
     document.addEventListener('keydown', e => {
         keys[e.code] = true;
         if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+        if (e.code === 'KeyM') toggleBigMap();
     });
     document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    // Große Map
+    let mapMarkers  = [];  // [ { x, y }, ... ]
+    let bigMapOpen  = false;
+    let bigMapPanX  = 0;  // Pan-Offset in Welt-Koordinaten
+    let bigMapPanY  = 0;
+    let bmDragging  = false;
+    let bmDragStartX = 0, bmDragStartY = 0;
+    let bmDragPanX  = 0, bmDragPanY  = 0;
+    let bmDidDrag   = false;
+
+    const bigMapOverlay = document.getElementById('bigmap-overlay');
+    const bigMapCanvas  = document.getElementById('bigmap');
+    const bigMapCtx     = bigMapCanvas.getContext('2d');
+    const bigMapWrap    = document.getElementById('bigmap-wrap');
+
+    const BM_RANGE = 5000;
+    let bigMapSize = 0;
+
+    function openBigMap() {
+        bigMapOpen  = true;
+        bigMapPanX  = 0;
+        bigMapPanY  = 0;
+        bigMapOverlay.classList.add('show');
+        const size  = Math.min(window.innerWidth * 0.92, window.innerHeight * 0.85);
+        bigMapSize  = Math.round(size);
+        bigMapCanvas.width  = bigMapSize;
+        bigMapCanvas.height = bigMapSize;
+        bigMapCanvas.style.width  = bigMapSize + 'px';
+        bigMapCanvas.style.height = bigMapSize + 'px';
+        drawBigMap();
+    }
+    function closeBigMap() {
+        bigMapOpen = false;
+        bigMapOverlay.classList.remove('show');
+    }
+    function toggleBigMap() {
+        if (bigMapOpen) closeBigMap(); else openBigMap();
+    }
+
+    // Klick AUSSERHALB der Map → schließen
+    bigMapOverlay.addEventListener('pointerdown', e => {
+        if (e.target === bigMapOverlay) closeBigMap();
+    });
+
+    // Minimap-Klick öffnet
+    document.getElementById('minimap').addEventListener('pointerdown', e => {
+        e.stopPropagation();
+        toggleBigMap();
+    });
+
+    // Scrollen / Ziehen auf der Map
+    bigMapCanvas.style.cursor = 'grab';
+    bigMapCanvas.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        bigMapCanvas.setPointerCapture(e.pointerId);
+        bmDragging   = true;
+        bmDidDrag    = false;
+        bmDragStartX = e.clientX;
+        bmDragStartY = e.clientY;
+        bmDragPanX   = bigMapPanX;
+        bmDragPanY   = bigMapPanY;
+        bigMapCanvas.style.cursor = 'grabbing';
+    });
+    bigMapCanvas.addEventListener('pointermove', e => {
+        if (!bmDragging) return;
+        const dx = e.clientX - bmDragStartX;
+        const dy = e.clientY - bmDragStartY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) bmDidDrag = true;
+        const scale = bigMapSize / BM_RANGE;
+        bigMapPanX = bmDragPanX - dx / scale;
+        bigMapPanY = bmDragPanY - dy / scale;
+        drawBigMap();
+    });
+    bigMapCanvas.addEventListener('pointerup', e => {
+        if (!bmDidDrag) {
+            // Klick ohne Drag → Marker setzen / löschen
+            const rect   = bigMapCanvas.getBoundingClientRect();
+            const cx     = (e.clientX - rect.left) * (bigMapSize / rect.width);
+            const cy     = (e.clientY - rect.top)  * (bigMapSize / rect.height);
+            const scale  = bigMapSize / BM_RANGE;
+            const vpx    = (player ? player.x : 0) + bigMapPanX;
+            const vpy    = (player ? player.y : 0) + bigMapPanY;
+            const wx     = (cx - bigMapSize / 2) / scale + vpx;
+            const wy     = (cy - bigMapSize / 2) / scale + vpy;
+
+            // Existing marker in der Nähe? → löschen
+            const snapPx = 20 / scale;
+            const idx = mapMarkers.findIndex(m => Math.hypot(m.x - wx, m.y - wy) < snapPx);
+            if (idx !== -1) {
+                mapMarkers.splice(idx, 1);
+            } else {
+                mapMarkers.push({ x: wx, y: wy });
+            }
+            drawBigMap();
+        }
+        bmDragging = false;
+        bigMapCanvas.style.cursor = 'grab';
+    });
+    bigMapCanvas.addEventListener('pointercancel', () => {
+        bmDragging = false;
+        bigMapCanvas.style.cursor = 'grab';
+    });
+
+    function drawBigMap() {
+        const size  = bigMapSize;
+        const scale = size / BM_RANGE;
+        const m     = bigMapCtx;
+
+        const px = (player ? player.x : 0) + bigMapPanX;
+        const py = (player ? player.y : 0) + bigMapPanY;
+
+        // Wasser-Hintergrund
+        m.fillStyle = '#0d2a4a';
+        m.fillRect(0, 0, size, size);
+
+        const w2s = wx => (wx - px) * scale + size / 2;
+        const h2s = wy => (wy - py) * scale + size / 2;
+
+        const startBX = Math.floor((px - BM_RANGE/2) / PITCH) - 1;
+        const endBX   = Math.ceil ((px + BM_RANGE/2) / PITCH) + 1;
+        const startBY = Math.floor((py - BM_RANGE/2) / PITCH) - 1;
+        const endBY   = Math.ceil ((py + BM_RANGE/2) / PITCH) + 1;
+
+        // Land-Fläche
+        const lx = w2s(WORLD_MIN), ly = h2s(WORLD_MIN);
+        const lw = (WORLD_MAX - WORLD_MIN) * scale;
+        m.fillStyle = '#1a2230';
+        m.fillRect(lx, ly, lw, lw);
+
+        // Straßen
+        m.fillStyle = '#2a3344';
+        for (let bx = startBX; bx <= endBX; bx++) {
+            const sx = w2s(bx * PITCH);
+            if (sx + STREET_W * scale < 0 || sx > size) continue;
+            m.fillRect(sx, ly, STREET_W * scale, lw);
+        }
+        for (let by = startBY; by <= endBY; by++) {
+            const sy = h2s(by * PITCH);
+            if (sy + STREET_W * scale < 0 || sy > size) continue;
+            m.fillRect(lx, sy, lw, STREET_W * scale);
+        }
+
+        // Gebäude
+        m.fillStyle = '#4a4e58';
+        for (let by = startBY; by <= endBY; by++) {
+            for (let bx = startBX; bx <= endBX; bx++) {
+                if (isMergedRight(bx - 1, by)) continue;
+                if (isMergedDown(bx, by - 1))  continue;
+                let bw = BLOCK_SIZE, bh = BLOCK_SIZE;
+                if (isMergedRight(bx, by)) bw += STREET_W + BLOCK_SIZE;
+                if (isMergedDown(bx, by))  bh += STREET_W + BLOCK_SIZE;
+                m.fillRect(w2s(bx * PITCH + STREET_W), h2s(by * PITCH + STREET_W),
+                           Math.max(1, bw * scale), Math.max(1, bh * scale));
+            }
+        }
+
+        // Gelbe Mittellinien
+        m.fillStyle = 'rgba(255,220,80,0.22)';
+        for (let bx = startBX; bx <= endBX; bx++) {
+            const sx = w2s(bx * PITCH + STREET_W / 2);
+            m.fillRect(sx, ly, 1, lw);
+        }
+        for (let by = startBY; by <= endBY; by++) {
+            const sy = h2s(by * PITCH + STREET_W / 2);
+            m.fillRect(lx, sy, lw, 1);
+        }
+
+        // Weltgrenze
+        m.strokeStyle = 'rgba(80,180,255,0.5)';
+        m.lineWidth = 2;
+        m.strokeRect(lx, ly, lw, lw);
+
+        // Banken
+        for (let by = startBY - 1; by <= endBY + 1; by++) {
+            for (let bx = startBX - 1; bx <= endBX + 1; bx++) {
+                if (!isBank(bx, by)) continue;
+                const key = bx + ',' + by;
+                const sx = w2s(bx * PITCH + STREET_W + BLOCK_SIZE / 2);
+                const sy = h2s(by * PITCH + STREET_W + BLOCK_SIZE / 2);
+                m.fillStyle = robbedBanks.has(key) ? 'rgba(255,255,255,0.2)' : '#ffcc00';
+                const bs = Math.max(4, 7 * scale);
+                m.fillRect(sx - bs/2, sy - bs/2, bs, bs);
+            }
+        }
+
+        // Cops
+        for (const c of cops || []) {
+            const sx = w2s(c.x), sy = h2s(c.y);
+            m.fillStyle = c.state === 'search' ? '#ffcc44' : '#ff3333';
+            const cs = Math.max(3, 6 * scale);
+            m.fillRect(sx - cs/2, sy - cs/2, cs, cs);
+        }
+
+        // Marker
+        for (const mk of mapMarkers) {
+            const sx = w2s(mk.x), sy = h2s(mk.y);
+            if (sx < -20 || sx > size + 20 || sy < -20 || sy > size + 20) continue;
+            m.fillStyle = '#ff4466';
+            m.shadowColor = '#ff4466';
+            m.shadowBlur  = 8;
+            // Pin-Kreis
+            m.beginPath();
+            m.arc(sx, sy - 8, 7, 0, Math.PI * 2);
+            m.fill();
+            // Spitze
+            m.beginPath();
+            m.moveTo(sx - 5, sy - 4);
+            m.lineTo(sx + 5, sy - 4);
+            m.lineTo(sx,     sy + 2);
+            m.closePath();
+            m.fill();
+            m.shadowBlur = 0;
+        }
+
+        // Spieler — immer sichtbar, auch beim Scrollen
+        const plsx = w2s(player ? player.x : 0);
+        const plsy = h2s(player ? player.y : 0);
+        const ps = Math.max(5, 9 * scale);
+        m.fillStyle = '#ffcc44';
+        m.fillRect(plsx - ps/2, plsy - ps/2, ps, ps);
+        m.strokeStyle = '#ffcc44';
+        m.lineWidth = 2;
+        m.beginPath();
+        m.moveTo(plsx, plsy);
+        m.lineTo(plsx + Math.cos(player ? player.angle : 0) * ps * 2,
+                 plsy + Math.sin(player ? player.angle : 0) * ps * 2);
+        m.stroke();
+
+        // "Zentrieren"-Hinweis wenn gescrollt
+        if (Math.abs(bigMapPanX) > 100 || Math.abs(bigMapPanY) > 100) {
+            m.fillStyle = 'rgba(255,204,68,0.7)';
+            m.font = 'bold 11px monospace';
+            m.textAlign = 'center';
+            m.fillText('● SPIELER', plsx, plsy - ps - 4);
+            m.textAlign = 'left';
+        }
+    }
 
     // Fixed Joystick (touch) — always at bottom-left
     const joyEl    = document.getElementById('joystick');
@@ -1026,8 +1379,6 @@
         const mm = document.getElementById('minimap');
         mm.style.left  = 'auto';
         mm.style.right = '12px';
-        // Move HP bar above minimap
-        document.getElementById('hp-wrap').style.right = '12px';
         document.getElementById('hint').textContent = 'Joystick links · Tippen = Gas · BREMSE / NITRO rechts';
     } else {
         document.getElementById('hint').textContent = 'WASD/Pfeile · LEERTASTE = Handbremse/Drift · SHIFT = NITRO';
@@ -1071,10 +1422,14 @@
             w: 24, l: 42,
             alive: true,
             inTunnel: false,
-            hp: 100,
-            invuln: 0
+            alignTimer: 0,
+            alignTarget: 0,
+            wallCooldown: 0,
+            color: '#ffcc44',
+            damage: 0
         };
         cops = [];
+        groundCops = [];
         particles = [];
         pickups = [];
         banners = [];
@@ -1085,6 +1440,7 @@
         cashGrabbed = 0;
         nextCopAt = 2.5;
         nextPickupAt = 1.5;
+        nextGroundCopAt = 15;
         shake = 0;
         multiplier = 1;
         multiplierFreeze = 0;
@@ -1096,12 +1452,34 @@
         robbedBanks  = new Set();
         bankRobTimer = 0;
         bankRobTarget = null;
+        garageRobTarget = null;
+        garageRobTimer = 0;
+        usedGarages.clear();
+        comboTimer = 0;
+        comboCount = 0;
+        splashParticles = [];
+        mapMarkers   = [];
         cameraZoom = 1;
         gameState = 'idle';
     }
 
     function addBanner(text, color, big) {
         banners.push({ text, color: color || '#ffcc44', big: !!big, life: 1.4, max: 1.4 });
+    }
+
+    // Combo-aware score event — returns actual bonus awarded
+    function scoreEvent(base, bannerText, bannerColor) {
+        comboCount++;
+        comboTimer = 2.5;
+        const mult = (comboCount >= 3) ? 1.5 : 1.0;
+        const bonus = Math.floor(base * mult);
+        score += bonus;
+        cashGrabbed += bonus;
+        if (comboCount >= 3) {
+            addBanner('COMBO x' + comboCount + '!', '#ff88ff');
+        }
+        if (bannerText) addBanner(bannerText + (mult > 1 ? ' (x1.5)' : ''), bannerColor || '#ffcc44');
+        return bonus;
     }
 
     // ── Cop ────────────────────────────────────────────────────────
@@ -1127,9 +1505,35 @@
     function spawnCop() {
         const angle = Math.random() * Math.PI * 2;
         const dist = 700 + Math.random() * 200;
-        const sx = player.x + Math.cos(angle) * dist;
-        const sy = player.y + Math.sin(angle) * dist;
+        const sx = Math.max(WORLD_MIN + 100, Math.min(WORLD_MAX - 100, player.x + Math.cos(angle) * dist));
+        const sy = Math.max(WORLD_MIN + 100, Math.min(WORLD_MAX - 100, player.y + Math.sin(angle) * dist));
         cops.push(makeCopData(sx, sy));
+    }
+
+    function spawnGroundCop() {
+        if (groundCops.length >= 3) return;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 600 + Math.random() * 200;
+        let sx = player.x + Math.cos(angle) * dist;
+        let sy = player.y + Math.sin(angle) * dist;
+        sx = Math.max(WORLD_MIN + 100, Math.min(WORLD_MAX - 100, sx));
+        sy = Math.max(WORLD_MIN + 100, Math.min(WORLD_MAX - 100, sy));
+        // Snap to street
+        const mx = ((sx % PITCH) + PITCH) % PITCH;
+        const my = ((sy % PITCH) + PITCH) % PITCH;
+        if (mx < my) sx = sx - mx + STREET_W / 2;
+        else         sy = sy - my + STREET_W / 2;
+        groundCops.push({
+            x: sx, y: sy,
+            angle: Math.atan2(player.y - sy, player.x - sx),
+            velAngle: Math.atan2(player.y - sy, player.x - sx),
+            speed: 0,
+            w: 22, l: 38,
+            maxSpeed: 280,
+            accel: 350,
+            wallCooldown: 0,
+            siren: Math.random() * Math.PI * 2
+        });
     }
 
     function scatterCop(c) {
@@ -1178,14 +1582,15 @@
         if (gameState !== 'playing') return;
 
         elapsed += dt;
-        if (player.invuln > 0) player.invuln -= dt;
-
         // Multiplier decays unless we keep doing stuff
         if (multiplierFreeze > 0) multiplierFreeze -= dt;
         else multiplier = Math.max(1, multiplier - dt * 0.18);
 
         // Base score grows by 10 * multiplier per second
         score += dt * 10 * multiplier;
+
+        // Damage regen
+        if (player.damage > 0) player.damage = Math.max(0, player.damage - dt * 5);
 
         // Boost (Shift key or NITRO button)
         const wantsBoost = keys.ShiftLeft || keys.ShiftRight || nitroPressed;
@@ -1252,11 +1657,58 @@
             spawnParticles(player.x + back, player.y + backY, 1, 'rgba(255,220,80,', 50, 0.3);
         }
 
-        // Steering — heading rotates immediately
-        const speedFactor = Math.min(1, Math.abs(player.speed) / 80);
-        const steerEff = handbrake ? STEER_RATE * 1.25 : STEER_RATE;
-        const dirSign = player.speed >= 0 ? 1 : -1;
-        player.angle += steerInput * steerEff * speedFactor * dt * dirSign;
+        // J-Turn: rückwärts + scharf lenken → schöne animierte 180°-Drehung
+        if (!player.jTurning && player.speed < -45 && Math.abs(steerInput) > 0.55 && (player.jTurnCooldown || 0) <= 0) {
+            player.jTurning      = true;
+            player.jTurnTimer    = 0;
+            player.jTurnDuration = 0.38;
+            player.jTurnDir      = Math.sign(steerInput);
+            player.jTurnFrom     = player.angle;
+            player.jTurnSpeed    = -player.speed * 0.6;
+            vibrate([20, 8, 30]);
+        }
+        if ((player.jTurnCooldown || 0) > 0) player.jTurnCooldown -= dt;
+
+        if (player.jTurning) {
+            player.jTurnTimer += dt;
+            const t    = Math.min(1, player.jTurnTimer / player.jTurnDuration);
+            // Ease-in-out kurve: sanft starten, sanft stoppen
+            const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+            player.angle    = player.jTurnFrom + player.jTurnDir * Math.PI * ease;
+            player.velAngle = player.angle;
+            player.speed    = player.jTurnSpeed * (0.3 + 0.7 * ease);
+
+            // Reifenrauch zieht die Kurve nach
+            const cosA = Math.cos(player.angle), sinA = Math.sin(player.angle);
+            const rearX = player.x - cosA * (player.l / 2 - 4);
+            const rearY = player.y - sinA * (player.l / 2 - 4);
+            const side  = player.w / 2 - 2;
+            spawnParticles(rearX + sinA * side, rearY - cosA * side, 2, 'rgba(50,50,50,', 8, 1.4);
+            spawnParticles(rearX - sinA * side, rearY + cosA * side, 2, 'rgba(50,50,50,', 8, 1.4);
+            // Funkenfunken in der Mitte der Drehung
+            if (t > 0.35 && t < 0.65) {
+                spawnParticles(player.x, player.y, 1, 'rgba(255,180,50,', 80, 0.3);
+            }
+            shake = Math.min(0.35, shake + dt * 0.5);
+
+            if (t >= 1) {
+                player.jTurning      = false;
+                player.jTurnCooldown = 0.7;
+                player.angle         = player.jTurnFrom + player.jTurnDir * Math.PI;
+                player.velAngle      = player.angle;
+                player.speed         = player.jTurnSpeed;
+                spawnParticles(player.x, player.y, 10, 'rgba(255,160,40,', 110, 0.45);
+            }
+        }
+
+        // Steering — während J-Turn gesperrt
+        if (!player.jTurning) {
+            const speedFactor = Math.min(1, Math.abs(player.speed) / 80);
+            const steerEff = handbrake ? STEER_RATE * 1.25 : STEER_RATE;
+            const dirSign = player.speed >= 0 ? 1 : -1;
+            player.angle += steerInput * steerEff * speedFactor * dt * dirSign;
+        }
 
         // Drift: velocity angle catches up to heading. Lower grip = more drift.
         if (Math.abs(player.speed) > 30) {
@@ -1278,9 +1730,13 @@
                 multiplierFreeze = 1.0;
             } else if (driftTimer > 0) {
                 if (driftTimer > 1.2) {
-                    const bonus = Math.floor(driftTimer * 80 * multiplier);
+                    const base = Math.floor(driftTimer * 80 * multiplier);
+                    comboCount++; comboTimer = 2.5;
+                    const mult = (comboCount >= 3) ? 1.5 : 1.0;
+                    const bonus = Math.floor(base * mult);
                     score += bonus;
-                    addBanner(`DRIFT! +${bonus}`, '#ff44aa');
+                    if (comboCount >= 3) addBanner('COMBO x' + comboCount + '!', '#ff88ff');
+                    addBanner(`DRIFT! +${bonus}` + (mult > 1 ? ' (x1.5)' : ''), '#ff44aa');
                 }
                 driftTimer = 0;
             }
@@ -1302,6 +1758,23 @@
 
         // Move with collision (uses velAngle for actual travel direction)
         moveWithCollision(player, dt);
+
+        // Cooldown für Wandtreffer
+        if (player.wallCooldown > 0) player.wallCooldown -= dt;
+
+        // Winkel nach Wandtreffer sanft zur Straßenachse korrigieren
+        if (player.alignTimer > 0) {
+            if (Math.abs(steerInput) > 0.08) {
+                player.alignTimer = 0; // Spieler lenkt selbst → sofort abbrechen
+            } else {
+                player.alignTimer -= dt;
+                let sd = player.alignTarget - player.velAngle;
+                while (sd >  Math.PI) sd -= Math.PI * 2;
+                while (sd < -Math.PI) sd += Math.PI * 2;
+                player.velAngle += sd * Math.min(1, dt * 1.8);
+                player.angle     = player.velAngle;
+            }
+        }
 
         // Cops
         for (let i = cops.length - 1; i >= 0; i--) {
@@ -1389,13 +1862,17 @@
             const isClose = c.state === 'chase' && !player.inTunnel &&
                             playerD2 < closeR2 && playerD2 > 40 * 40;
             if (isClose && !wasClose) {
-                const bonus = Math.floor(75 * multiplier);
+                const base = Math.floor(75 * multiplier);
+                comboCount++; comboTimer = 2.5;
+                const mult = (comboCount >= 3) ? 1.5 : 1.0;
+                const bonus = Math.floor(base * mult);
                 score += bonus;
                 multiplier = Math.min(8, multiplier + 0.35);
                 multiplierFreeze = 1.2;
                 boost = Math.min(100, boost + 18);
                 shake = Math.max(shake, 0.35);
-                addBanner('CLOSE CALL! +' + bonus, '#ffcc44');
+                if (comboCount >= 3) addBanner('COMBO x' + comboCount + '!', '#ff88ff');
+                addBanner('CLOSE CALL! +' + bonus + (mult > 1 ? ' (x1.5)' : ''), '#ffcc44');
                 spawnParticles(player.x, player.y, 6, 'rgba(255,220,80,', 90, 0.4);
             }
             c.wasClose = isClose;
@@ -1414,6 +1891,45 @@
             }
         }
 
+        // Ground cops
+        if (elapsed >= 15) {
+            nextGroundCopAt -= dt;
+            if (nextGroundCopAt <= 0) {
+                spawnGroundCop();
+                nextGroundCopAt = Math.max(12, 25 - elapsed * 0.1);
+            }
+        }
+        for (let i = groundCops.length - 1; i >= 0; i--) {
+            const g = groundCops[i];
+            g.siren += dt;
+            if (Math.hypot(g.x - player.x, g.y - player.y) > 2000) {
+                groundCops.splice(i, 1); continue;
+            }
+            // Steer toward player
+            const tdx = player.x - g.x, tdy = player.y - g.y;
+            const target = Math.atan2(tdy, tdx);
+            let diff = target - g.angle;
+            while (diff >  Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            g.angle += Math.max(-3.2 * dt, Math.min(3.2 * dt, diff));
+            g.velAngle = g.angle;
+            // Accelerate
+            if (g.speed < g.maxSpeed) g.speed += g.accel * dt;
+            g.speed = Math.min(g.maxSpeed, g.speed);
+            if (g.wallCooldown > 0) g.wallCooldown -= dt;
+            moveWithCollision(g, dt);
+            // Catch
+            if (dist2(g.x, g.y, player.x, player.y) < 28 * 28) {
+                die(); return;
+            }
+        }
+
+        // Combo decay
+        if (comboTimer > 0) {
+            comboTimer -= dt;
+            if (comboTimer <= 0) comboCount = 0;
+        }
+
         // Tunnel hideout: helis scatter to search, can't see player while inside
         const nowInTunnel = isInTunnelAt(player.x, player.y);
         if (nowInTunnel && !player.inTunnel) {
@@ -1429,9 +1945,6 @@
         if (!nowInTunnel && player.inTunnel) {
             // Just exited → notify
             addBanner('GESUCHT!', '#ff4444');
-        }
-        if (nowInTunnel && player.hp < 100) {
-            player.hp = Math.min(100, player.hp + dt * 20);
         }
         player.inTunnel = nowInTunnel;
 
@@ -1457,19 +1970,26 @@
             if (elapsed - p.born > 14) { pickups.splice(i, 1); continue; }
             if (dist2(p.x, p.y, player.x, player.y) < 30 * 30) {
                 p.taken = true;
-                const pickupBonus = Math.floor(80 * multiplier);
+                const pickupBase = Math.floor(80 * multiplier);
+                comboCount++; comboTimer = 2.5;
+                const pickupMult = (comboCount >= 3) ? 1.5 : 1.0;
+                const pickupBonus = Math.floor(pickupBase * pickupMult);
                 score += pickupBonus;
                 cashGrabbed += pickupBonus;
                 multiplier = Math.min(8, multiplier + 0.15);
                 multiplierFreeze = 1.0;
-                player.hp = Math.min(100, player.hp + 18);
                 spawnParticles(p.x, p.y, 14, 'rgba(0,255,120,', 140, 0.7);
-                addBanner('+$' + pickupBonus, '#44ff88');
+                if (comboCount >= 3) addBanner('COMBO x' + comboCount + '!', '#ff88ff');
+                addBanner('+$' + pickupBonus + (pickupMult > 1 ? ' (x1.5)' : ''), '#44ff88');
                 vibrate(30);
             }
         }
 
         updateBanks(dt);
+        updateGarages(dt);
+
+        // Siren HUD phase
+        sirenPhase += dt;
 
         // Camera follow + speed-based zoom-out
         const lookahead = 0.4;
@@ -1514,51 +2034,74 @@
         const dx = Math.cos(a) * car.speed * dt;
         const dy = Math.sin(a) * car.speed * dt;
 
-        const baseBlocked = blockedCorners(car.x, car.y, car);
-        let bounced = false;
-        const preSpeed = Math.abs(car.speed);
+        const base = blockedCorners(car.x, car.y, car);
+        let hit = false;
+        let movedX = false, movedY = false;
 
-        // X axis — try to move, if blocked just stop on that axis (Y can still slide along wall)
-        const xBlocked = blockedCorners(car.x + dx, car.y, car);
-        if (xBlocked <= baseBlocked) {
+        // X axis
+        if (blockedCorners(car.x + dx, car.y, car) <= base) {
             car.x += dx;
-        } else if (!bounced) {
-            car.speed *= 0.78;
-            bounced = true;
-            bumpEffect(car);
-            applyDamage(car, preSpeed);
+            movedX = true;
+        } else {
+            car.x -= dx * 0.15;
+            hit = true;
         }
 
-        // Y axis — same, Y slides if X was blocked
-        const midBlocked = blockedCorners(car.x, car.y, car);
-        const yBlocked = blockedCorners(car.x, car.y + dy, car);
-        if (yBlocked <= midBlocked) {
+        // Y axis
+        const mid = blockedCorners(car.x, car.y, car);
+        if (blockedCorners(car.x, car.y + dy, car) <= mid) {
             car.y += dy;
-        } else if (!bounced) {
-            car.speed *= 0.78;
-            bounced = true;
-            bumpEffect(car);
-            applyDamage(car, preSpeed);
+            movedY = true;
+        } else {
+            car.y -= dy * 0.15;
+            hit = true;
         }
+
+        // Unstuck: beide Achsen blockiert → sanft zur nächsten Straßenmitte schieben
+        if (!movedX && !movedY && Math.abs(car.speed) > 10) {
+            const vn    = Math.round((car.x - STREET_W / 2) / PITCH);
+            const vcx   = vn * PITCH + STREET_W / 2;
+            const hn    = Math.round((car.y - STREET_W / 2) / PITCH);
+            const hcy   = hn * PITCH + STREET_W / 2;
+            const vdist = Math.abs(car.x - vcx);
+            const hdist = Math.abs(car.y - hcy);
+            // Nur die nähere Achse korrigieren
+            if (vdist < hdist) car.x += (vcx - car.x) * 0.12;
+            else               car.y += (hcy - car.y) * 0.12;
+            car.speed *= 0.88;
+        }
+
+        if (hit) wallHitEffect(car);
     }
 
-    function applyDamage(car, hitSpeed) {
-        if (car !== player) return;
-        if (player.invuln > 0) return;
-        if (hitSpeed < 80) return;
-        const dmg = Math.min(28, 4 + Math.floor(hitSpeed / 28));
-        player.hp -= dmg;
-        player.invuln = 0.45;
-        shake = Math.min(0.9, shake + 0.3);
-        addBanner('-' + dmg + ' HP', '#ff4444');
-        vibrate([50, 20, 50]);
-        const cosA = Math.cos(player.angle), sinA = Math.sin(player.angle);
-        spawnParticles(player.x + cosA * player.l / 2, player.y + sinA * player.l / 2,
-            12, 'rgba(255,200,80,', 160, 0.4);
-        multiplier = Math.max(1, multiplier - 0.4);
-        if (player.hp <= 0) {
-            player.hp = 0;
-            die();
+    function wallHitEffect(car) {
+        if (car === player && player.wallCooldown > 0) return; // zu schnell hintereinander → ignorieren
+        const spd = Math.abs(car.speed);
+        if (spd < 20) return;
+
+        // Nur ganz leicht abbremsen
+        car.speed *= 0.994;
+
+        // 1 Bremssspur
+        const cosA = Math.cos(car.angle), sinA = Math.sin(car.angle);
+        const rearX = car.x - cosA * (car.l / 2 - 4);
+        const rearY = car.y - sinA * (car.l / 2 - 4);
+        const side  = car.w / 2 - 2;
+        spawnParticles(rearX + sinA * side, rearY - cosA * side, 1, 'rgba(30,30,30,', 2, 1.2);
+        spawnParticles(rearX - sinA * side, rearY + cosA * side, 1, 'rgba(30,30,30,', 2, 1.2);
+
+        if (car === player) {
+            shake = Math.min(0.12, shake + 0.04);
+            vibrate([6]);
+            player.wallCooldown = 0.4; // nächste 400ms nicht nochmal auslösen
+            player.damage = Math.min(100, (player.damage || 0) + 8);
+
+            // Geraderichten nur wenn Spieler gerade NICHT lenkt
+            const si = isTouch ? joyDX : (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+            if (Math.abs(si) <= 0.08) {
+                player.alignTarget = Math.round(car.velAngle / (Math.PI / 2)) * (Math.PI / 2);
+                player.alignTimer  = 1.8;
+            }
         }
     }
 
@@ -1577,16 +2120,10 @@
         return n;
     }
 
-    function bumpEffect(car) {
-        if (Math.abs(car.speed) > 50) {
-            spawnParticles(car.x, car.y, 4, 'rgba(255,180,60,', 80, 0.4);
-            if (car === player) shake = Math.min(0.6, shake + 0.18);
-        }
-    }
-
     // ── Render ─────────────────────────────────────────────────────
     function draw() {
-        ctx.fillStyle = '#0a1424';
+        // Wasser als Hintergrund — night mode
+        ctx.fillStyle = '#060e1a';
         ctx.fillRect(0, 0, W, H);
 
         ctx.save();
@@ -1596,20 +2133,28 @@
         ctx.scale(cameraZoom / PIXEL_SCALE, cameraZoom / PIXEL_SCALE);
         ctx.translate(-camX, -camY);
 
+        drawWater();
         drawStreets();
+        drawStreetLamps();
         drawBuildings();
+        drawGarages();
         drawBanks();
         drawPickups();
-        drawCar(player, '#ffcc44', '#ff8844', false);
+        drawHeadlights();
+        drawCar(player, player.color || '#ffcc44', '#ff8844', false);
+        for (const g of groundCops) drawGroundCop(g);
         drawTunnels();   // tunnel cap on top of player → player hides under it
         for (const c of cops) drawHeli(c);
         drawParticles();
 
         ctx.restore();
 
+        drawRain();
         drawBanners();
+        drawSirenHUD();
         if (boostActive) drawSpeedLines();
         if (gameState === 'idle') drawIdleOverlay();
+        drawMapMarkerHUD();
         drawMinimap();
     }
 
@@ -1702,6 +2247,39 @@
                 m.fillStyle = `rgba(255,68,68,${0.5 - pulse * 0.4})`;
                 m.fillRect(sx - 4, sy - 4, 8, 8);
             }
+        }
+
+        // Ground cops (blue dots)
+        for (const g of groundCops || []) {
+            if (Math.abs(g.x - px) > half || Math.abs(g.y - py) > half) continue;
+            const sx = w2s(g.x), sy = h2s(g.y);
+            m.fillStyle = '#4488ff';
+            m.fillRect(sx - 3, sy - 3, 6, 6);
+        }
+
+        // Garages (green dots)
+        for (let by2 = startBY - 1; by2 <= endBY + 1; by2++) {
+            for (let bx2 = startBX - 1; bx2 <= endBX + 1; bx2++) {
+                if (!isGarage(bx2, by2)) continue;
+                const key = bx2 + ',' + by2;
+                const gsX = w2s(bx2 * PITCH + STREET_W + BLOCK_SIZE / 2);
+                const gsY = h2s(by2 * PITCH + STREET_W + BLOCK_SIZE / 2);
+                m.fillStyle = usedGarages.has(key) ? 'rgba(0,180,60,0.3)' : '#00ee44';
+                m.fillRect(gsX - 3, gsY - 3, 6, 6);
+            }
+        }
+
+        // Marker auf Minimap
+        for (const mk of mapMarkers) {
+            if (Math.abs(mk.x - px) > half || Math.abs(mk.y - py) > half) continue;
+            const sx = w2s(mk.x), sy = h2s(mk.y);
+            m.fillStyle = '#ff4466';
+            m.shadowColor = '#ff4466';
+            m.shadowBlur  = 4;
+            m.beginPath();
+            m.arc(sx, sy, 3, 0, Math.PI * 2);
+            m.fill();
+            m.shadowBlur = 0;
         }
 
         // Player (centered) + direction
@@ -1818,6 +2396,57 @@
         ctx.textBaseline = 'alphabetic';
     }
 
+    function drawWater() {
+        const t = elapsed * 0.8;
+
+        // Land-Fläche (Stadt) als dunkles Rechteck — night mode
+        ctx.fillStyle = '#06090f';
+        ctx.fillRect(WORLD_MIN, WORLD_MIN, WORLD_MAX - WORLD_MIN, WORLD_MAX - WORLD_MIN);
+
+        // Küstenlinie — sandiger Rand
+        const shore = 18;
+        ctx.fillStyle = '#2a3a2a';
+        ctx.fillRect(WORLD_MIN - shore, WORLD_MIN - shore,
+                     WORLD_MAX - WORLD_MIN + shore * 2, shore); // oben
+        ctx.fillRect(WORLD_MIN - shore, WORLD_MAX,
+                     WORLD_MAX - WORLD_MIN + shore * 2, shore); // unten
+        ctx.fillRect(WORLD_MIN - shore, WORLD_MIN,
+                     shore, WORLD_MAX - WORLD_MIN);             // links
+        ctx.fillRect(WORLD_MAX, WORLD_MIN,
+                     shore, WORLD_MAX - WORLD_MIN);             // rechts
+
+        // Wasser-Wellen (animierte horizontale Streifen)
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = '#4499cc';
+        const vw2 = W * PIXEL_SCALE / cameraZoom / 2 + 300;
+        const vh2 = H * PIXEL_SCALE / cameraZoom / 2 + 300;
+        const waveSpacing = 60;
+        for (let wy = camY - vh2; wy < camY + vh2; wy += waveSpacing) {
+            const waveY = wy - (wy % waveSpacing) + Math.sin(t + wy * 0.01) * 8;
+            if (waveY > WORLD_MIN - 200 && waveY < WORLD_MIN - 4) {
+                ctx.fillRect(camX - vw2, waveY, vw2 * 2, 3);
+            }
+            if (waveY > WORLD_MAX + 4 && waveY < WORLD_MAX + 200) {
+                ctx.fillRect(camX - vw2, waveY, vw2 * 2, 3);
+            }
+        }
+        for (let wx = camX - vw2; wx < camX + vw2; wx += waveSpacing) {
+            const waveX = wx - (wx % waveSpacing) + Math.sin(t * 1.3 + wx * 0.01) * 8;
+            if (waveX > WORLD_MIN - 200 && waveX < WORLD_MIN - 4) {
+                ctx.fillRect(waveX, camY - vh2, 3, vh2 * 2);
+            }
+            if (waveX > WORLD_MAX + 4 && waveX < WORLD_MAX + 200) {
+                ctx.fillRect(waveX, camY - vh2, 3, vh2 * 2);
+            }
+        }
+        ctx.globalAlpha = 1;
+
+        // Leuchtende Grenze am Rand
+        ctx.strokeStyle = 'rgba(80,180,255,0.35)';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(WORLD_MIN, WORLD_MIN, WORLD_MAX - WORLD_MIN, WORLD_MAX - WORLD_MIN);
+    }
+
     function drawStreets() {
         // Visible block range — view in world units = canvas internal * PIXEL_SCALE
         const vw2 = W * PIXEL_SCALE / cameraZoom / 2;
@@ -1832,8 +2461,8 @@
         const startBY = Math.floor(top    / PITCH);
         const endBY   = Math.ceil (bottom / PITCH);
 
-        // 1) Sidewalk (full drivable zone)
-        ctx.fillStyle = '#2e3548';
+        // 1) Sidewalk (full drivable zone) — darker for night
+        ctx.fillStyle = '#1c2030';
         for (let bx = startBX; bx <= endBX; bx++) {
             ctx.fillRect(bx * PITCH, top - 5, STREET_W, bottom - top + 10);
         }
@@ -1842,7 +2471,7 @@
         }
 
         // 2) Road (narrower, centered inside drivable zone)
-        ctx.fillStyle = '#181f2c';
+        ctx.fillStyle = '#0d1118';
         for (let bx = startBX; bx <= endBX; bx++) {
             ctx.fillRect(bx * PITCH + SIDEWALK, top - 5, ROAD_W, bottom - top + 10);
         }
@@ -1980,7 +2609,8 @@
 
     function drawBlock(x0, y0, w, h, bx, by) {
         const r = blockHash(bx, by);
-        ctx.fillStyle = '#0c1422';
+        // Night mode: very dark base
+        ctx.fillStyle = '#080e18';
         ctx.fillRect(x0, y0, w, h);
 
         const variant = Math.floor(r * 4);
@@ -1991,15 +2621,15 @@
             default: drawGrayWarehouse(x0, y0, w, h, r); break;
         }
 
-        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.strokeStyle = 'rgba(0,0,0,0.7)';
         ctx.lineWidth = 1;
         ctx.strokeRect(x0 + 4.5, y0 + 4.5, w - 9, h - 9);
         // Top/left: dark shadow for depth
-        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(x0, y0, w, 3);
         ctx.fillRect(x0, y0, 3, h);
-        // Bottom/right: light highlight so building edge is clearly visible against dark road
-        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        // Bottom/right: light highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
         ctx.fillRect(x0 + 3, y0 + h - 2, w - 3, 2);
         ctx.fillRect(x0 + w - 2, y0 + 3, 2, h - 3);
     }
@@ -2015,13 +2645,15 @@
         ctx.fillRect(x + 4, y + 4, w - 8, 2);
         ctx.fillRect(x + 4, y + 4, 2, h - 8);
 
-        // Dense small windows
+        // Dense small windows — night: warm orange glow
         const cw = 5, ch = 6, gx = 5, gy = 5;
         for (let wy = y + 14; wy + ch < y + h - 12; wy += ch + gy) {
             for (let wx = x + 14; wx + cw < x + w - 12; wx += cw + gx) {
-                const lit = Math.abs(Math.sin(wx * 12.9898 + wy * 78.233 + r * 100) * 43758.5453) % 1 > 0.55;
-                ctx.fillStyle = lit ? 'rgba(220,210,170,0.35)' : 'rgba(0,0,0,0.45)';
+                const lit = Math.abs(Math.sin(wx * 12.9898 + wy * 78.233 + r * 100) * 43758.5453) % 1 > 0.5;
+                ctx.fillStyle = lit ? 'rgba(255,210,110,0.75)' : 'rgba(0,0,0,0.6)';
+                if (lit) { ctx.shadowColor = 'rgba(255,190,80,0.5)'; ctx.shadowBlur = 4; }
                 ctx.fillRect(wx, wy, cw, ch);
+                ctx.shadowBlur = 0;
             }
         }
 
@@ -2045,13 +2677,15 @@
             ctx.fillRect(x + 5, by2, w - 10, 1);
         }
 
-        // Larger window grid
+        // Larger window grid — night: warm yellow/orange glow
         const wW = 12, wH = 16, gx = 8, gy = 10;
         for (let wy = y + 14; wy + wH < y + h - 8; wy += wH + gy) {
             for (let wx = x + 12; wx + wW < x + w - 8; wx += wW + gx) {
-                const lit = Math.abs(Math.sin(wx * 12.9898 + wy * 78.233 + r * 200) * 43758.5453) % 1 > 0.5;
-                ctx.fillStyle = lit ? 'rgba(230,210,170,0.4)' : 'rgba(20,18,14,0.7)';
+                const lit = Math.abs(Math.sin(wx * 12.9898 + wy * 78.233 + r * 200) * 43758.5453) % 1 > 0.45;
+                ctx.fillStyle = lit ? 'rgba(255,200,100,0.7)' : 'rgba(10,8,4,0.8)';
+                if (lit) { ctx.shadowColor = 'rgba(255,180,60,0.5)'; ctx.shadowBlur = 5; }
                 ctx.fillRect(wx, wy, wW, wH);
+                ctx.shadowBlur = 0;
                 // Window cross
                 ctx.fillStyle = 'rgba(0,0,0,0.45)';
                 ctx.fillRect(wx + wW / 2 - 0.5, wy, 1, wH);
@@ -2436,6 +3070,76 @@
         ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
     }
 
+    // Marker als HUD — immer sichtbar, Pfeil am Rand wenn außerhalb
+    function drawMapMarkerHUD() {
+        if (mapMarkers.length === 0) return;
+        const now = performance.now() / 1000;
+        const margin = 28;
+
+        for (const mk of mapMarkers) {
+            // Welt → Canvas-Koordinaten (nach ctx.restore(), also direkt in W×H space)
+            const cx = (mk.x - camX) * cameraZoom / PIXEL_SCALE + W / 2;
+            const cy = (mk.y - camY) * cameraZoom / PIXEL_SCALE + H / 2;
+            const onScreen = cx > margin + 10 && cx < W - margin - 10 &&
+                             cy > margin + 10 && cy < H - margin - 10;
+
+            ctx.save();
+            ctx.shadowColor = '#ff4466';
+            ctx.fillStyle   = '#ff4466';
+
+            if (onScreen) {
+                // Pin direkt auf dem Bildschirm
+                const bob = Math.sin(now * 2.5) * 3;
+                ctx.shadowBlur = 6;
+                ctx.translate(cx, cy + bob);
+                // Kreis
+                ctx.beginPath();
+                ctx.arc(0, -7, 5, 0, Math.PI * 2);
+                ctx.fill();
+                // weißer Punkt
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(0, -7, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+                // Spitze
+                ctx.fillStyle = '#ff4466';
+                ctx.beginPath();
+                ctx.moveTo(-3.5, -3);
+                ctx.lineTo(3.5, -3);
+                ctx.lineTo(0, 3);
+                ctx.closePath();
+                ctx.fill();
+            } else {
+                // Pfeil am Bildschirmrand
+                const angle = Math.atan2(cy - H / 2, cx - W / 2);
+                // Punkt auf dem Rand
+                const tx = W / 2 + Math.cos(angle) * (W / 2 - margin);
+                const ty = H / 2 + Math.sin(angle) * (H / 2 - margin);
+                const ax = Math.max(margin, Math.min(W - margin, tx));
+                const ay = Math.max(margin, Math.min(H - margin, ty));
+
+                ctx.shadowBlur = 12;
+                ctx.translate(ax, ay);
+                ctx.rotate(angle - Math.PI / 2);
+                // Dreieck-Pfeil
+                ctx.beginPath();
+                ctx.moveTo(0, -12);
+                ctx.lineTo(8, 6);
+                ctx.lineTo(-8, 6);
+                ctx.closePath();
+                ctx.fill();
+                // Punkt in der Mitte
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(0, -3, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+    }
+
     function drawPickups() {
         const now = performance.now() / 1000;
         for (const p of pickups) {
@@ -2495,6 +3199,13 @@
         ctx.fillStyle = 'rgba(255,255,200,0.95)';
         ctx.fillRect(l / 2 - 2, -w / 2 + 2, 2, 4);
         ctx.fillRect(l / 2 - 2,  w / 2 - 6, 2, 4);
+
+        // Damage tint
+        if (!isCop && car.damage > 20) {
+            ctx.fillStyle = `rgba(255,0,0,${car.damage / 400})`;
+            roundRect(-l / 2, -w / 2, l, w, 5);
+            ctx.fill();
+        }
 
         ctx.restore();
     }
@@ -2604,6 +3315,271 @@
         }
     }
 
+    // ── Night mode: street lamps at intersection corners ───────────────
+    function drawStreetLamps() {
+        const vw2 = W * PIXEL_SCALE / cameraZoom / 2 + PITCH;
+        const vh2 = H * PIXEL_SCALE / cameraZoom / 2 + PITCH;
+        const startBX = Math.floor((camX - vw2) / PITCH);
+        const endBX   = Math.ceil ((camX + vw2) / PITCH);
+        const startBY = Math.floor((camY - vh2) / PITCH);
+        const endBY   = Math.ceil ((camY + vh2) / PITCH);
+        for (let by = startBY; by <= endBY; by++) {
+            for (let bx = startBX; bx <= endBX; bx++) {
+                // four corners of each intersection
+                const ix = bx * PITCH;
+                const iy = by * PITCH;
+                const offsets = [[6, 6],[STREET_W - 6, 6],[6, STREET_W - 6],[STREET_W - 6, STREET_W - 6]];
+                for (const [ox, oy] of offsets) {
+                    const lx = ix + ox, ly = iy + oy;
+                    ctx.fillStyle = 'rgba(255,220,100,0.85)';
+                    ctx.shadowColor = 'rgba(255,200,80,0.8)';
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        ctx.shadowBlur = 0;
+    }
+
+    // ── Headlights ─────────────────────────────────────────────────
+    function drawHeadlights() {
+        if (gameState !== 'playing' && gameState !== 'dying') return;
+        const cosA = Math.cos(player.angle), sinA = Math.sin(player.angle);
+        const frontX = player.x + cosA * (player.l / 2);
+        const frontY = player.y + sinA * (player.l / 2);
+        const coneLen = 200;
+        const halfAngle = Math.PI / 6; // 30° each side = 60° total
+        const spread = 14; // lateral offset for the two headlights
+
+        for (const side of [-1, 1]) {
+            const ox = frontX + sinA * side * spread * 0.4;
+            const oy = frontY - cosA * side * spread * 0.4;
+            const beamAngle = player.angle + side * 0.18; // slight outward spread
+            const tipX = ox + Math.cos(beamAngle) * coneLen;
+            const tipY = oy + Math.sin(beamAngle) * coneLen;
+
+            const grad = ctx.createRadialGradient(ox, oy, 0, tipX, tipY, coneLen * 0.85);
+            grad.addColorStop(0,   'rgba(255,255,220,0.55)');
+            grad.addColorStop(0.4, 'rgba(255,255,200,0.22)');
+            grad.addColorStop(1,   'rgba(255,255,180,0)');
+
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            const leftAngle  = beamAngle - halfAngle;
+            const rightAngle = beamAngle + halfAngle;
+            ctx.lineTo(ox + Math.cos(leftAngle)  * coneLen, oy + Math.sin(leftAngle)  * coneLen);
+            ctx.arc(ox + Math.cos(beamAngle) * coneLen, oy + Math.sin(beamAngle) * coneLen,
+                    coneLen * Math.sin(halfAngle), leftAngle + Math.PI, rightAngle + Math.PI, true);
+            ctx.closePath();
+            ctx.fillStyle = grad;
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    // ── Rain ───────────────────────────────────────────────────────
+    function drawRain() {
+        if (gameState !== 'playing' && gameState !== 'dying' && gameState !== 'countdown') return;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(180,200,230,0.45)';
+        ctx.lineWidth = 1;
+        const t = performance.now() / 1000;
+        for (const drop of rainDrops) {
+            // update
+            drop.y += drop.speed * 0.018;
+            drop.x += 0.003; // wind drift
+            if (drop.y > 1) { drop.y -= 1; drop.x = Math.random(); }
+            if (drop.x > 1) drop.x -= 1;
+            const sx = drop.x * W;
+            const sy = drop.y * H;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(sx + 4, sy + 9);
+            ctx.stroke();
+        }
+
+        // Splash particles when player is fast
+        if (player && Math.abs(player.speed) > 120) {
+            const now = performance.now();
+            if (now % 80 < 40) {
+                const cosA = Math.cos(player.angle), sinA = Math.sin(player.angle);
+                const wx = (player.x - camX) * cameraZoom / PIXEL_SCALE + W / 2;
+                const wy = (player.y - camY) * cameraZoom / PIXEL_SCALE + H / 2;
+                splashParticles.push({
+                    x: wx + (Math.random() - 0.5) * 14,
+                    y: wy + (Math.random() - 0.5) * 14,
+                    vx: (Math.random() - 0.5) * 3,
+                    vy: -1 - Math.random() * 2,
+                    life: 0.5
+                });
+            }
+        }
+        // Draw/update splash
+        ctx.fillStyle = 'rgba(180,210,240,0.6)';
+        for (let i = splashParticles.length - 1; i >= 0; i--) {
+            const sp = splashParticles[i];
+            sp.x += sp.vx;
+            sp.y += sp.vy;
+            sp.vy += 0.12;
+            sp.life -= 0.03;
+            if (sp.life <= 0) { splashParticles.splice(i, 1); continue; }
+            ctx.globalAlpha = sp.life * 1.5;
+            ctx.fillRect(sp.x, sp.y, 2, 2);
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
+    }
+
+    // ── Siren HUD ─────────────────────────────────────────────────
+    function drawSirenHUD() {
+        if (gameState !== 'playing') return;
+        // Check if any cop is close enough
+        let anyCopClose = false;
+        for (const c of cops) {
+            if (c.state === 'chase' && Math.hypot(c.x - player.x, c.y - player.y) < 350) {
+                anyCopClose = true; break;
+            }
+        }
+        for (const g of groundCops) {
+            if (Math.hypot(g.x - player.x, g.y - player.y) < 350) {
+                anyCopClose = true; break;
+            }
+        }
+        if (!anyCopClose) return;
+
+        // 3 Hz blink → period 0.333s, half-period 0.167s
+        const phase = Math.floor(sirenPhase * 6) % 2; // alternates 0/1 at 3 Hz
+        const leftColor  = phase === 0 ? 'rgba(255,30,30,0.75)' : 'rgba(0,80,255,0.75)';
+        const rightColor = phase === 0 ? 'rgba(0,80,255,0.75)' : 'rgba(255,30,30,0.75)';
+        const barH = 6;
+        const barW = W * 0.35;
+        ctx.save();
+        ctx.fillStyle = leftColor;
+        ctx.fillRect(0, 0, barW, barH);
+        ctx.fillStyle = rightColor;
+        ctx.fillRect(W - barW, 0, barW, barH);
+        ctx.restore();
+    }
+
+    // ── Garage drawing ────────────────────────────────────────────
+    function drawGarages() {
+        const vw2 = W * PIXEL_SCALE / cameraZoom / 2 + PITCH;
+        const vh2 = H * PIXEL_SCALE / cameraZoom / 2 + PITCH;
+        const startBX = Math.floor((camX - vw2) / PITCH);
+        const endBX   = Math.ceil ((camX + vw2) / PITCH);
+        const startBY = Math.floor((camY - vh2) / PITCH);
+        const endBY   = Math.ceil ((camY + vh2) / PITCH);
+
+        for (let by = startBY; by <= endBY; by++) {
+            for (let bx = startBX; bx <= endBX; bx++) {
+                if (!isGarage(bx, by)) continue;
+                const key = bx + ',' + by;
+                const used = usedGarages.has(key);
+                const x0 = bx * PITCH + STREET_W;
+                const y0 = by * PITCH + STREET_W;
+                const w = BLOCK_SIZE, h = BLOCK_SIZE;
+                const cx = x0 + w / 2, cy = y0 + h / 2;
+                const isRobbing = garageRobTarget && garageRobTarget.key === key;
+
+                ctx.save();
+                if (used) {
+                    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                    ctx.fillRect(x0, y0, w, h);
+                    ctx.fillStyle = 'rgba(100,200,100,0.25)';
+                    ctx.font = 'bold 12px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('BENUTZT', cx, cy);
+                } else {
+                    ctx.fillStyle = 'rgba(0,40,10,0.55)';
+                    ctx.fillRect(x0, y0, w, h);
+                    // Garage door marks
+                    ctx.fillStyle = '#2a5a30';
+                    ctx.fillRect(x0 + 18, y0 + h - 10, w - 36, 10);
+                    for (let di = 0; di < 5; di++) {
+                        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                        ctx.fillRect(x0 + 18 + di * ((w - 36) / 5), y0 + h - 10, 1, 10);
+                    }
+                    ctx.fillStyle = '#00ee44';
+                    ctx.shadowColor = '#00ee44';
+                    ctx.shadowBlur = isRobbing ? 20 : 8;
+                    ctx.font = 'bold 22px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('GARAGE', cx, cy);
+                    ctx.shadowBlur = 0;
+                    if (isRobbing) {
+                        const pct = garageRobTimer / GARAGE_ROB_SECS;
+                        ctx.strokeStyle = '#00ee44';
+                        ctx.lineWidth = 5;
+                        ctx.lineCap = 'round';
+                        ctx.shadowColor = '#00ee44';
+                        ctx.shadowBlur = 10;
+                        ctx.beginPath();
+                        ctx.arc(cx, cy + 26, 18, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
+                        ctx.stroke();
+                    }
+                }
+                ctx.restore();
+            }
+        }
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+    }
+
+    // ── Ground cop drawing ────────────────────────────────────────
+    function drawGroundCop(g) {
+        if (Math.abs(g.x - camX) > W * PIXEL_SCALE / cameraZoom / 2 + 80 ||
+            Math.abs(g.y - camY) > H * PIXEL_SCALE / cameraZoom / 2 + 80) return;
+
+        ctx.save();
+        ctx.translate(g.x, g.y);
+        ctx.rotate(g.angle);
+
+        const w = g.w, l = g.l;
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.beginPath();
+        ctx.ellipse(2, 2, l / 2, w / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Body — blue/white police car
+        ctx.fillStyle = '#2244aa';
+        roundRect(-l / 2, -w / 2, l, w, 5);
+        ctx.fill();
+
+        // White stripe
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-l / 4, -w / 2 + 2, l / 2, w - 4);
+
+        // Windshield
+        ctx.fillStyle = 'rgba(20,30,60,0.85)';
+        ctx.fillRect(-l / 8, -w / 2 + 3, l / 5, w - 6);
+
+        // Headlights
+        ctx.fillStyle = 'rgba(255,255,200,0.95)';
+        ctx.fillRect(l / 2 - 2, -w / 2 + 2, 2, 4);
+        ctx.fillRect(l / 2 - 2,  w / 2 - 6, 2, 4);
+
+        // Siren lights on top — alternating red/blue
+        const sPhase = Math.floor(g.siren * 6) % 2;
+        ctx.fillStyle = sPhase === 0 ? '#ff2222' : '#2266ff';
+        ctx.shadowColor = sPhase === 0 ? '#ff2222' : '#2266ff';
+        ctx.shadowBlur = 8;
+        ctx.fillRect(-5, -w / 2 - 3, 5, 3);
+        ctx.fillStyle = sPhase === 0 ? '#2266ff' : '#ff2222';
+        ctx.shadowColor = sPhase === 0 ? '#2266ff' : '#ff2222';
+        ctx.fillRect(1, -w / 2 - 3, 5, 3);
+        ctx.shadowBlur = 0;
+
+        ctx.restore();
+    }
+
     function drawIdleOverlay() {
         ctx.fillStyle = 'rgba(5,10,20,0.5)';
         ctx.fillRect(0, 0, W, H);
@@ -2619,7 +3595,6 @@
     const hudWanted = document.getElementById('hud-wanted');
     const hudMult   = document.getElementById('hud-mult');
     const boostBar  = document.getElementById('boost-bar');
-    const hpBar     = document.getElementById('hp-bar');
     function updateHud() {
         hudScore.textContent = Math.floor(score);
         const stars = Math.min(5, Math.max(1, cops.length));
@@ -2631,9 +3606,6 @@
 
         boostBar.style.width = boost + '%';
         boostBar.classList.toggle('active', boostActive);
-
-        hpBar.style.width = (player ? player.hp : 100) + '%';
-        hpBar.classList.toggle('low', player && player.hp < 30);
     }
 
     // ── Countdown ──────────────────────────────────────────────────
