@@ -759,6 +759,21 @@
 (function() {
     "use strict";
 
+    // ── Chase Skins ────────────────────────────────────────────────
+    // Each skin has: s = MAX_SPEED mult, a = ACCEL mult, t = STEER mult, d = damage taken mult
+    const _CHASE_SKIN_PROPS = {
+        default: { s:1.0,  a:1.0,  t:1.0,  d:1.0,  color:'#ffcc44', accent:'#ff8844' },
+        sports:  { s:1.15, a:1.0,  t:1.0,  d:1.0,  color:'#ff3344', accent:'#ffaa44' },
+        muscle:  { s:1.0,  a:1.25, t:1.0,  d:1.0,  color:'#ff8800', accent:'#552200' },
+        drift:   { s:1.0,  a:1.0,  t:1.30, d:1.0,  color:'#aa44ff', accent:'#ff44aa' },
+        tank:    { s:0.92, a:0.95, t:1.0,  d:0.55, color:'#666666', accent:'#222222' },
+        police:  { s:1.10, a:1.0,  t:1.10, d:1.0,  color:'#4488ff', accent:'#ffffff' },
+        gt:      { s:1.18, a:1.18, t:1.0,  d:1.0,  color:'#ffffff', accent:'#ff2244' },
+        phantom: { s:1.12, a:1.12, t:1.12, d:0.80, color:'#222222', accent:'#00ffff' },
+    };
+    const _chaseSkinId = (() => { try { return localStorage.getItem('1100px_activeChaseSkin') || 'default'; } catch { return 'default'; } })();
+    const _cs = _CHASE_SKIN_PROPS[_chaseSkinId] || _CHASE_SKIN_PROPS.default;
+
     // ── Canvas ─────────────────────────────────────────────────────
     const canvas = document.getElementById('gameCanvas');
     const ctx    = canvas.getContext('2d');
@@ -950,14 +965,15 @@
     }
 
     // ── Physics ────────────────────────────────────────────────────
-    const ACCEL          = 360;
-    const REVERSE        = -180;
-    const MAX_SPEED      = 360;
-    const MAX_REVERSE    = -130;
+    const ACCEL          = 360 * _cs.a;
+    const REVERSE        = -180 * _cs.a;
+    const MAX_SPEED      = 360 * _cs.s;
+    const MAX_REVERSE    = -130 * _cs.s;
     const FRICTION       = 0.985;
     const BRAKE_DECEL    = 600;
-    const STEER_RATE     = 3.8;
+    const STEER_RATE     = 3.8 * _cs.t;
     const HANDBRAKE_F    = 0.93;
+    const DAMAGE_MULT    = _cs.d;
 
     // ── State ──────────────────────────────────────────────────────
     let player, cops, particles, pickups, groundCops;
@@ -2005,7 +2021,7 @@
             shake = Math.min(0.12, shake + 0.04);
             vibrate([6]);
             player.wallCooldown = 0.4; // nächste 400ms nicht nochmal auslösen
-            player.damage = Math.min(100, (player.damage || 0) + 8);
+            player.damage = Math.min(100, (player.damage || 0) + 8 * DAMAGE_MULT);
 
             // Geraderichten nur wenn Spieler gerade NICHT lenkt
             const si = isTouch ? joyDX : (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
@@ -2050,7 +2066,7 @@
         drawBuildings();
         drawBanks();
         drawPickups();
-        drawCar(player, player.color || '#ffcc44', '#ff8844', false);
+        drawCar(player, _cs.color, _cs.accent, false);
         for (const g of groundCops) drawGroundCop(g);
         drawTunnels();   // tunnel cap on top of player → player hides under it
         for (const c of cops) drawHeli(c);

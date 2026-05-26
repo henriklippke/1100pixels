@@ -157,6 +157,8 @@
                         questProgress = ud2.quests || {};
                         questsClaimed = ud2.questsClaimed || {};
                         document.getElementById('header-gem-count').textContent = ud2.gems || 0;
+                        if (ud2.activeChaseSkin) localStorage.setItem('1100px_activeChaseSkin', ud2.activeChaseSkin);
+                        if (ud2.activeSkin)      localStorage.setItem('1100px_activeSkin',      ud2.activeSkin);
                         renderQuests('quests-rider',    QUESTS.rider,    questProgress, questsClaimed);
                         renderQuests('quests-redpixel', QUESTS.redpixel, questProgress, questsClaimed);
                     }
@@ -232,6 +234,8 @@
                         questProgress = ud.quests || {};
                         questsClaimed = ud.questsClaimed || {};
                         document.getElementById('header-gem-count').textContent = ud.gems || 0;
+                        if (ud.activeChaseSkin) localStorage.setItem('1100px_activeChaseSkin', ud.activeChaseSkin);
+                        if (ud.activeSkin)      localStorage.setItem('1100px_activeSkin',      ud.activeSkin);
                     }
                 } catch(e) {
                     console.warn('User data load failed:', e.message);
@@ -312,6 +316,20 @@
             ];
             let skinsUserDocId = null, skinsGems = 0, skinsOwned = ['default'], skinsActive = 'default', skinsCustomProps = [];
 
+            // ── Chase Skins ──
+            const CHASE_SKINS = [
+                { id: 'default', name: 'Standard',   price: 0,   color: '#ffcc44', prop: 'Keine Boni',                       emoji: '🚗' },
+                { id: 'sports',  name: 'Sports',     price: 40,  color: '#ff3344', prop: 'Speed +15%',                       emoji: '🏎️' },
+                { id: 'muscle',  name: 'Muscle',     price: 60,  color: '#ff8800', prop: 'Beschleunigung +25%',              emoji: '💪' },
+                { id: 'drift',   name: 'Drift King', price: 90,  color: '#aa44ff', prop: 'Wendigkeit +30%',                  emoji: '🌀' },
+                { id: 'tank',    name: 'Tank',       price: 130, color: '#666666', prop: 'Schaden −45% (etwas langsamer)',   emoji: '🛡️' },
+                { id: 'police',  name: 'Undercover', price: 180, color: '#4488ff', prop: 'Speed +10% & Wendigkeit +10%',     emoji: '🚓' },
+                { id: 'gt',      name: 'GT',         price: 280, color: '#ffffff', prop: 'Speed +18% & Beschleunigung +18%', emoji: '🏁' },
+                { id: 'phantom', name: 'Phantom',    price: 450, color: '#222222', prop: 'Alle +12% & Schaden −20%',         emoji: '👻' },
+            ];
+            let chaseSkinsOwned = ['default'], chaseSkinsActive = 'default';
+            let currentSkinTab = 'rider';
+
             function renderPicker() {
                 const optsEl = document.getElementById('sk-picker-opts');
                 optsEl.innerHTML = CUSTOM_PROPS.map(p => {
@@ -336,53 +354,101 @@
             function renderSkinsGrid() {
                 const grid = document.getElementById('skins-grid');
                 document.getElementById('skins-gem-count').textContent = skinsGems;
-                grid.innerHTML = SKINS.map(s => {
-                    const owned = skinsOwned.includes(s.id), active = skinsActive === s.id;
-                    let subProp = s.prop;
-                    if (s.id === 'custom' && active && skinsCustomProps.length === 2)
-                        subProp = skinsCustomProps.map(id => CUSTOM_PROPS.find(p => p.id === id)?.label).join(' + ');
-                    const action = active && s.id !== 'custom'
-                        ? `<span class="sk-badge">Aktiv</span>`
-                        : active && s.id === 'custom'
-                        ? `<span class="sk-badge">Aktiv</span><button class="sk-equip" data-id="custom" style="margin-top:4px;font-size:0.55rem">Anpassen</button>`
-                        : owned
-                        ? `<button class="sk-equip" data-id="${s.id}">Ausrüsten</button>`
-                        : skinsGems >= s.price || s.price === 0
-                        ? `<button class="sk-buy" data-id="${s.id}" data-price="${s.price}">${s.price} 💎</button>`
-                        : `<span class="sk-locked">${s.price} 💎</span>`;
-                    return `<div class="sk-card ${active ? 'sk-active' : ''}">
-                        <div class="sk-icon">${s.emoji}</div>
-                        <div class="sk-name" style="color:${s.color}">${s.name}</div>
-                        <div class="sk-prop">${subProp}</div>
-                        ${action}
-                    </div>`;
-                }).join('');
+                const titleEl = document.getElementById('skins-modal-title');
 
-                const picker = document.getElementById('sk-picker');
-                if (skinsActive === 'custom' && skinsOwned.includes('custom')) { picker.style.display = ''; renderPicker(); }
-                else picker.style.display = 'none';
+                if (currentSkinTab === 'chase') {
+                    titleEl.textContent = '🚔 Chase Skins';
+                    grid.innerHTML = CHASE_SKINS.map(s => {
+                        const owned = chaseSkinsOwned.includes(s.id), active = chaseSkinsActive === s.id;
+                        const action = active
+                            ? `<span class="sk-badge">Aktiv</span>`
+                            : owned
+                            ? `<button class="sk-equip" data-id="${s.id}" data-kind="chase">Ausrüsten</button>`
+                            : skinsGems >= s.price || s.price === 0
+                            ? `<button class="sk-buy" data-id="${s.id}" data-price="${s.price}" data-kind="chase">${s.price} 💎</button>`
+                            : `<span class="sk-locked">${s.price} 💎</span>`;
+                        return `<div class="sk-card ${active ? 'sk-active' : ''}">
+                            <div class="sk-icon">${s.emoji}</div>
+                            <div class="sk-name" style="color:${s.color}">${s.name}</div>
+                            <div class="sk-prop">${s.prop}</div>
+                            ${action}
+                        </div>`;
+                    }).join('');
+                    document.getElementById('sk-picker').style.display = 'none';
+                } else {
+                    titleEl.textContent = '🎨 Rider Skins';
+                    grid.innerHTML = SKINS.map(s => {
+                        const owned = skinsOwned.includes(s.id), active = skinsActive === s.id;
+                        let subProp = s.prop;
+                        if (s.id === 'custom' && active && skinsCustomProps.length === 2)
+                            subProp = skinsCustomProps.map(id => CUSTOM_PROPS.find(p => p.id === id)?.label).join(' + ');
+                        const action = active && s.id !== 'custom'
+                            ? `<span class="sk-badge">Aktiv</span>`
+                            : active && s.id === 'custom'
+                            ? `<span class="sk-badge">Aktiv</span><button class="sk-equip" data-id="custom" data-kind="rider" style="margin-top:4px;font-size:0.55rem">Anpassen</button>`
+                            : owned
+                            ? `<button class="sk-equip" data-id="${s.id}" data-kind="rider">Ausrüsten</button>`
+                            : skinsGems >= s.price || s.price === 0
+                            ? `<button class="sk-buy" data-id="${s.id}" data-price="${s.price}" data-kind="rider">${s.price} 💎</button>`
+                            : `<span class="sk-locked">${s.price} 💎</span>`;
+                        return `<div class="sk-card ${active ? 'sk-active' : ''}">
+                            <div class="sk-icon">${s.emoji}</div>
+                            <div class="sk-name" style="color:${s.color}">${s.name}</div>
+                            <div class="sk-prop">${subProp}</div>
+                            ${action}
+                        </div>`;
+                    }).join('');
+
+                    const picker = document.getElementById('sk-picker');
+                    if (skinsActive === 'custom' && skinsOwned.includes('custom')) { picker.style.display = ''; renderPicker(); }
+                    else picker.style.display = 'none';
+                }
 
                 grid.querySelectorAll('.sk-buy').forEach(btn => {
                     btn.addEventListener('click', async () => {
                         if (!skinsUserDocId) return;
                         const price = parseInt(btn.dataset.price);
+                        const kind  = btn.dataset.kind;
+                        const id    = btn.dataset.id;
                         btn.disabled = true;
-                        await updateDoc(doc(db, 'users', skinsUserDocId), { ownedSkins: arrayUnion(btn.dataset.id), gems: increment(-price) });
-                        skinsGems -= price; skinsOwned.push(btn.dataset.id);
+                        const field = kind === 'chase' ? 'ownedChaseSkins' : 'ownedSkins';
+                        await updateDoc(doc(db, 'users', skinsUserDocId), { [field]: arrayUnion(id), gems: increment(-price) });
+                        skinsGems -= price;
+                        if (kind === 'chase') chaseSkinsOwned.push(id);
+                        else skinsOwned.push(id);
                         renderSkinsGrid();
                     });
                 });
                 grid.querySelectorAll('.sk-equip').forEach(btn => {
                     btn.addEventListener('click', async () => {
                         if (!skinsUserDocId) return;
-                        await updateDoc(doc(db, 'users', skinsUserDocId), { activeSkin: btn.dataset.id });
-                        localStorage.setItem('1100px_activeSkin', btn.dataset.id);
-                        skinsActive = btn.dataset.id; renderSkinsGrid();
+                        const kind = btn.dataset.kind;
+                        const id   = btn.dataset.id;
+                        if (kind === 'chase') {
+                            await updateDoc(doc(db, 'users', skinsUserDocId), { activeChaseSkin: id });
+                            localStorage.setItem('1100px_activeChaseSkin', id);
+                            chaseSkinsActive = id;
+                        } else {
+                            await updateDoc(doc(db, 'users', skinsUserDocId), { activeSkin: id });
+                            localStorage.setItem('1100px_activeSkin', id);
+                            skinsActive = id;
+                        }
+                        renderSkinsGrid();
                     });
                 });
             }
 
-            async function openSkinsModal() {
+            async function openSkinsModal(tab) {
+                if (tab) {
+                    currentSkinTab = tab;
+                    document.querySelectorAll('.skins-tab-btn').forEach(b => {
+                        const active = b.dataset.skintab === tab;
+                        b.classList.toggle('skins-tab-active', active);
+                        b.style.background = active ? 'rgba(255,204,68,0.18)' : 'rgba(255,255,255,0.05)';
+                        b.style.borderColor = active ? 'rgba(255,204,68,0.45)' : 'rgba(255,255,255,0.15)';
+                        b.style.color = active ? 'white' : 'rgba(255,255,255,0.7)';
+                    });
+                }
                 document.getElementById('skins-modal').classList.add('show');
                 if (skinsUserDocId) { renderSkinsGrid(); return; }
                 if (!user) { renderSkinsGrid(); return; }
@@ -394,13 +460,32 @@
                     skinsOwned       = ud2.ownedSkins || ['default'];
                     skinsActive      = ud2.activeSkin || 'default';
                     skinsCustomProps = ud2.customSkinProps || [];
+                    chaseSkinsOwned  = ud2.ownedChaseSkins || ['default'];
+                    chaseSkinsActive = ud2.activeChaseSkin || 'default';
                     localStorage.setItem('1100px_activeSkin', skinsActive);
                     localStorage.setItem('1100px_customProps', JSON.stringify(skinsCustomProps));
+                    localStorage.setItem('1100px_activeChaseSkin', chaseSkinsActive);
                 }
                 renderSkinsGrid();
             }
 
-            document.getElementById('skins-btn-img').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openSkinsModal(); });
+            document.getElementById('skins-btn-img').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openSkinsModal('rider'); });
+            const chaseSkinBtn = document.getElementById('skins-btn-chase');
+            if (chaseSkinBtn) chaseSkinBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openSkinsModal('chase'); });
+            document.querySelectorAll('.skins-tab-btn').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.preventDefault(); e.stopPropagation();
+                    currentSkinTab = btn.dataset.skintab;
+                    document.querySelectorAll('.skins-tab-btn').forEach(b => {
+                        const active = b.dataset.skintab === currentSkinTab;
+                        b.classList.toggle('skins-tab-active', active);
+                        b.style.background = active ? 'rgba(255,204,68,0.18)' : 'rgba(255,255,255,0.05)';
+                        b.style.borderColor = active ? 'rgba(255,204,68,0.45)' : 'rgba(255,255,255,0.15)';
+                        b.style.color = active ? 'white' : 'rgba(255,255,255,0.7)';
+                    });
+                    renderSkinsGrid();
+                });
+            });
             document.getElementById('skins-modal-close').addEventListener('click', () => document.getElementById('skins-modal').classList.remove('show'));
             document.getElementById('skins-modal-bg').addEventListener('click',    () => document.getElementById('skins-modal').classList.remove('show'));
             document.getElementById('sk-save-btn').addEventListener('click', async () => {
@@ -741,6 +826,7 @@
                 <div class="scanlines"></div>
                 <div class="thumb-overlay">
                     <span class="play-btn">▶ Spielen</span>
+                    <button class="skin-link-btn" id="skins-btn-chase">🚗<span>Skins</span></button>
                     <div class="thumb-bottom">
                         <h2 class="game-title">Chase</h2>
                         <p class="game-desc">Entkomme den Polizei-Helis. Raube Banken aus.</p>
@@ -764,9 +850,13 @@
     <div class="skins-modal-bg" id="skins-modal-bg"></div>
     <div class="skins-modal-box">
         <div class="skins-modal-head">
-            <span class="skins-modal-title">🎨 Rider Skins</span>
+            <span class="skins-modal-title" id="skins-modal-title">🎨 Rider Skins</span>
             <span class="skins-modal-gems">💎 <span id="skins-gem-count">–</span></span>
             <button class="skins-modal-close" id="skins-modal-close">✕</button>
+        </div>
+        <div class="skins-tabs" style="display:flex;gap:8px;justify-content:center;margin:6px 0 12px">
+            <button class="skins-tab-btn skins-tab-active" data-skintab="rider" style="background:rgba(255,204,68,0.18);border:1px solid rgba(255,204,68,0.45);color:white;padding:5px 14px;border-radius:5px;cursor:pointer;font-size:0.82rem">🏍️ Rider</button>
+            <button class="skins-tab-btn" data-skintab="chase" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);padding:5px 14px;border-radius:5px;cursor:pointer;font-size:0.82rem">🚔 Chase</button>
         </div>
         <div class="skins-grid" id="skins-grid"></div>
         <div class="sk-picker" id="sk-picker" style="display:none">
