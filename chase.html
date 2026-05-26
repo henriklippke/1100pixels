@@ -2050,7 +2050,6 @@
         drawBuildings();
         drawBanks();
         drawPickups();
-        drawHeadlights();
         drawCar(player, player.color || '#ffcc44', '#ff8844', false);
         for (const g of groundCops) drawGroundCop(g);
         drawTunnels();   // tunnel cap on top of player → player hides under it
@@ -3093,11 +3092,6 @@
         ctx.fillStyle = 'rgba(20,30,50,0.65)';
         ctx.fillRect(-l / 2 + 6, -w / 2 + 4, 8, w - 8);
 
-        // Headlights
-        ctx.fillStyle = 'rgba(255,255,200,0.95)';
-        ctx.fillRect(l / 2 - 2, -w / 2 + 2, 2, 4);
-        ctx.fillRect(l / 2 - 2,  w / 2 - 6, 2, 4);
-
         // Damage tint
         if (!isCop && car.damage > 20) {
             ctx.fillStyle = `rgba(255,0,0,${car.damage / 400})`;
@@ -3241,43 +3235,6 @@
         ctx.shadowBlur = 0;
     }
 
-    // ── Headlights ─────────────────────────────────────────────────
-    function drawHeadlights() {
-        if (gameState !== 'playing' && gameState !== 'dying') return;
-        const cosA = Math.cos(player.angle), sinA = Math.sin(player.angle);
-        const frontX = player.x + cosA * (player.l / 2);
-        const frontY = player.y + sinA * (player.l / 2);
-        const coneLen = 200;
-        const halfAngle = Math.PI / 6; // 30° each side = 60° total
-        const spread = 14; // lateral offset for the two headlights
-
-        for (const side of [-1, 1]) {
-            const ox = frontX + sinA * side * spread * 0.4;
-            const oy = frontY - cosA * side * spread * 0.4;
-            const beamAngle = player.angle + side * 0.18; // slight outward spread
-            const tipX = ox + Math.cos(beamAngle) * coneLen;
-            const tipY = oy + Math.sin(beamAngle) * coneLen;
-
-            const grad = ctx.createRadialGradient(ox, oy, 0, tipX, tipY, coneLen * 0.85);
-            grad.addColorStop(0,   'rgba(255,255,220,0.55)');
-            grad.addColorStop(0.4, 'rgba(255,255,200,0.22)');
-            grad.addColorStop(1,   'rgba(255,255,180,0)');
-
-            ctx.save();
-            ctx.globalCompositeOperation = 'lighter';
-            ctx.beginPath();
-            ctx.moveTo(ox, oy);
-            const leftAngle  = beamAngle - halfAngle;
-            const rightAngle = beamAngle + halfAngle;
-            ctx.lineTo(ox + Math.cos(leftAngle)  * coneLen, oy + Math.sin(leftAngle)  * coneLen);
-            ctx.arc(ox + Math.cos(beamAngle) * coneLen, oy + Math.sin(beamAngle) * coneLen,
-                    coneLen * Math.sin(halfAngle), leftAngle + Math.PI, rightAngle + Math.PI, true);
-            ctx.closePath();
-            ctx.fillStyle = grad;
-            ctx.fill();
-            ctx.restore();
-        }
-    }
 
     // ── Siren HUD ─────────────────────────────────────────────────
     function drawSirenHUD() {
