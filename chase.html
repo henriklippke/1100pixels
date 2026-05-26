@@ -915,42 +915,6 @@
         }
     }
 
-    function updateGarages(dt) {
-        const nearby = findNearbyGarage(player.x, player.y);
-        if (nearby) {
-            if (!garageRobTarget || garageRobTarget.key !== nearby.key) {
-                garageRobTarget = nearby;
-                garageRobTimer  = 0;
-            }
-            garageRobTimer += dt;
-            if (garageRobTimer >= GARAGE_ROB_SECS) {
-                usedGarages.add(nearby.key);
-                garageRobTarget = null;
-                garageRobTimer  = 0;
-                // Scatter all cops
-                for (const c of cops) scatterCop(c);
-                for (const g of groundCops) {
-                    const ang = Math.random() * Math.PI * 2;
-                    g.x = player.x + Math.cos(ang) * 700;
-                    g.y = player.y + Math.sin(ang) * 700;
-                    g.speed = 0;
-                }
-                // New car color
-                player.color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
-                player.damage = 0;
-                // Bonus
-                scoreEvent(500, 'GARAGE! +$500 NEUE FARBE!', '#44ff88');
-                multiplier = Math.min(8, multiplier + 0.3);
-                multiplierFreeze = 1.5;
-                spawnParticles(nearby.wx + BLOCK_SIZE / 2, nearby.wy + BLOCK_SIZE / 2, 18, 'rgba(0,220,140,', 160, 0.85);
-                addBanner('COPS ABGESCHÜTTELT!', '#44ff88', true);
-                vibrate([40, 15, 40]);
-            }
-        } else {
-            garageRobTarget = null;
-            garageRobTimer  = 0;
-        }
-    }
 
     function isTunnelH(bx, by) {
         if (isMergedDown(bx, by - 1) || isMergedDown(bx, by)) return false;
@@ -1030,46 +994,6 @@
     // Siren HUD
     let sirenPhase = 0;
 
-    // Garage data
-    const GARAGE_PROB = 0.08;
-    const GARAGE_ROB_SECS = 4;
-    let garageRobTarget = null;
-    let garageRobTimer = 0;
-    const usedGarages = new Set();
-
-    // Car color palette for garage
-    const CAR_COLORS = ['#ffcc44','#ff4444','#44ff88','#44aaff','#ff88ff','#ff8800','#ffffff','#aaffcc'];
-
-    function isGarage(bx, by) {
-        if (isMergedRight(bx - 1, by)) return false;
-        if (isMergedDown(bx, by - 1))  return false;
-        if (isBank(bx, by)) return false;
-        // Use a different hash seed so garage and bank don't overlap
-        let h = bx * 1234567891 + by * 987654321 + 55555;
-        h = (h ^ (h >>> 13)) * 1274126177;
-        return ((h ^ (h >>> 16)) >>> 0) / 4294967296 < GARAGE_PROB;
-    }
-
-    function findNearbyGarage(px, py) {
-        const bx0 = Math.floor(px / PITCH) - 1;
-        const by0 = Math.floor(py / PITCH) - 1;
-        let best = null, bestDist = Infinity;
-        for (let dy = 0; dy <= 2; dy++) {
-            for (let dx = 0; dx <= 2; dx++) {
-                const bx = bx0 + dx, by = by0 + dy;
-                if (!isGarage(bx, by)) continue;
-                const key = bx + ',' + by;
-                if (usedGarages.has(key)) continue;
-                const wx = bx * PITCH + STREET_W;
-                const wy = by * PITCH + STREET_W;
-                const nx = Math.max(wx, Math.min(wx + BLOCK_SIZE, px));
-                const ny = Math.max(wy, Math.min(wy + BLOCK_SIZE, py));
-                const d  = Math.hypot(px - nx, py - ny);
-                if (d < 80 && d < bestDist) { bestDist = d; best = { bx, by, key, wx, wy }; }
-            }
-        }
-        return best;
-    }
 
     // ── Input ──────────────────────────────────────────────────────
     const keys = {};
@@ -1444,12 +1368,8 @@
         robbedBanks  = new Set();
         bankRobTimer = 0;
         bankRobTarget = null;
-        garageRobTarget = null;
-        garageRobTimer = 0;
-        usedGarages.clear();
         comboTimer = 0;
         comboCount = 0;
-        splashParticles = [];
         mapMarkers   = [];
         cameraZoom = 1;
         gameState = 'idle';
@@ -1978,7 +1898,6 @@
         }
 
         updateBanks(dt);
-        updateGarages(dt);
 
         // Siren HUD phase
         sirenPhase += dt;
@@ -2129,7 +2048,6 @@
         drawStreets();
         drawStreetLamps();
         drawBuildings();
-        drawGarages();
         drawBanks();
         drawPickups();
         drawHeadlights();
@@ -2248,17 +2166,6 @@
             m.fillRect(sx - 3, sy - 3, 6, 6);
         }
 
-        // Garages (green dots)
-        for (let by2 = startBY - 1; by2 <= endBY + 1; by2++) {
-            for (let bx2 = startBX - 1; bx2 <= endBX + 1; bx2++) {
-                if (!isGarage(bx2, by2)) continue;
-                const key = bx2 + ',' + by2;
-                const gsX = w2s(bx2 * PITCH + STREET_W + BLOCK_SIZE / 2);
-                const gsY = h2s(by2 * PITCH + STREET_W + BLOCK_SIZE / 2);
-                m.fillStyle = usedGarages.has(key) ? 'rgba(0,180,60,0.3)' : '#00ee44';
-                m.fillRect(gsX - 3, gsY - 3, 6, 6);
-            }
-        }
 
         // Marker auf Minimap
         for (const mk of mapMarkers) {
@@ -3403,71 +3310,6 @@
         ctx.restore();
     }
 
-    // ── Garage drawing ────────────────────────────────────────────
-    function drawGarages() {
-        const vw2 = W * PIXEL_SCALE / cameraZoom / 2 + PITCH;
-        const vh2 = H * PIXEL_SCALE / cameraZoom / 2 + PITCH;
-        const startBX = Math.floor((camX - vw2) / PITCH);
-        const endBX   = Math.ceil ((camX + vw2) / PITCH);
-        const startBY = Math.floor((camY - vh2) / PITCH);
-        const endBY   = Math.ceil ((camY + vh2) / PITCH);
-
-        for (let by = startBY; by <= endBY; by++) {
-            for (let bx = startBX; bx <= endBX; bx++) {
-                if (!isGarage(bx, by)) continue;
-                const key = bx + ',' + by;
-                const used = usedGarages.has(key);
-                const x0 = bx * PITCH + STREET_W;
-                const y0 = by * PITCH + STREET_W;
-                const w = BLOCK_SIZE, h = BLOCK_SIZE;
-                const cx = x0 + w / 2, cy = y0 + h / 2;
-                const isRobbing = garageRobTarget && garageRobTarget.key === key;
-
-                ctx.save();
-                if (used) {
-                    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-                    ctx.fillRect(x0, y0, w, h);
-                    ctx.fillStyle = 'rgba(100,200,100,0.25)';
-                    ctx.font = 'bold 12px monospace';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('BENUTZT', cx, cy);
-                } else {
-                    ctx.fillStyle = 'rgba(0,40,10,0.55)';
-                    ctx.fillRect(x0, y0, w, h);
-                    // Garage door marks
-                    ctx.fillStyle = '#2a5a30';
-                    ctx.fillRect(x0 + 18, y0 + h - 10, w - 36, 10);
-                    for (let di = 0; di < 5; di++) {
-                        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-                        ctx.fillRect(x0 + 18 + di * ((w - 36) / 5), y0 + h - 10, 1, 10);
-                    }
-                    ctx.fillStyle = '#00ee44';
-                    ctx.shadowColor = '#00ee44';
-                    ctx.shadowBlur = isRobbing ? 20 : 8;
-                    ctx.font = 'bold 22px monospace';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('GARAGE', cx, cy);
-                    ctx.shadowBlur = 0;
-                    if (isRobbing) {
-                        const pct = garageRobTimer / GARAGE_ROB_SECS;
-                        ctx.strokeStyle = '#00ee44';
-                        ctx.lineWidth = 5;
-                        ctx.lineCap = 'round';
-                        ctx.shadowColor = '#00ee44';
-                        ctx.shadowBlur = 10;
-                        ctx.beginPath();
-                        ctx.arc(cx, cy + 26, 18, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
-                        ctx.stroke();
-                    }
-                }
-                ctx.restore();
-            }
-        }
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-    }
 
     // ── Ground cop drawing ────────────────────────────────────────
     function drawGroundCop(g) {
