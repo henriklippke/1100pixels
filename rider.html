@@ -24,8 +24,8 @@
         async function storeResult(name, points) {
             try {
                 if (name.trim().toLowerCase() !== 'test') {
-                    await addDoc(collection(db, 'rider'), {
-                        name, points, created: serverTimestamp()
+                    await addDoc(collection(db, 'red-pixel'), {
+                        name, points, game: 'RIDER', created: serverTimestamp()
                     });
                     // Save gems + quest progress
                     const uqs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', name.toLowerCase())));
@@ -57,10 +57,10 @@
             ];
 
             try {
-                const qs = await getDocs(query(collection(db, 'rider')));
+                const qs = await getDocs(query(collection(db, 'red-pixel')));
                 qs.forEach(doc => {
                     const d = doc.data();
-                    if (d.name?.trim().toLowerCase() !== 'test' && d.points >= 15) filtered.push(d);
+                    if (d.game === 'RIDER' && d.name?.trim().toLowerCase() !== 'test' && d.points >= 15) filtered.push(d);
                 });
             } catch(e) {
                 console.error('Leaderboard Fehler:', e);

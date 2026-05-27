@@ -18,7 +18,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        async function loadScores(collectionName, minPoints, tableBodyId) {
+        async function loadScores(collectionName, minPoints, tableBodyId, gameFilter) {
             const tableBody = document.getElementById(tableBodyId);
             tableBody.innerHTML = '<tr><td colspan="4" style="opacity:0.5">Laden…</td></tr>';
 
@@ -26,7 +26,11 @@
                 const querySnapshot = await getDocs(collection(db, collectionName));
 
                 const docs = [];
-                querySnapshot.forEach(doc => docs.push(doc.data()));
+                querySnapshot.forEach(doc => {
+                    const d = doc.data();
+                    if (gameFilter) { if (d.game === gameFilter) docs.push(d); }
+                    else            { if (!d.game)              docs.push(d); }
+                });
                 docs.sort((a, b) => b.points - a.points);
 
                 let rank = 1;
@@ -50,9 +54,9 @@
                     playerCell.textContent = data.name;
 
                     const pointsCell = document.createElement('td');
-                    pointsCell.textContent = collectionName === 'chase'
+                    pointsCell.textContent = gameFilter === 'CHASE'
                         ? `$${data.points}`
-                        : collectionName === 'rider'
+                        : gameFilter === 'RIDER'
                         ? `${data.points} Flips`
                         : `${data.points} points`;
 
@@ -84,8 +88,8 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             loadScores('red-pixel', 500, 'score-table-body-red');
-            loadScores('chase', 49, 'score-table-body-chase');
-            loadScores('rider', 14, 'score-table-body-rider');
+            loadScores('red-pixel', 49, 'score-table-body-chase', 'CHASE');
+            loadScores('red-pixel', 14, 'score-table-body-rider', 'RIDER');
 
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.addEventListener('click', () => {

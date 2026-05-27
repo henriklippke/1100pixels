@@ -281,46 +281,28 @@
             renderQuests('quests-chase',    QUESTS.chase,    questProgress, questsClaimed);
 
             try {
-                const [snap, riderSnap, chaseSnap] = await Promise.race([
-                    Promise.all([
-                        getDocs(collection(db, 'red-pixel')),
-                        getDocs(collection(db, 'rider')),
-                        getDocs(collection(db, 'chase'))
-                    ]),
+                const snap = await Promise.race([
+                    getDocs(collection(db, 'red-pixel')),
                     timeout(8000)
                 ]);
-                const redPixels = [], rider = [], brawler = [];
+                const redPixels = [], rider = [], brawler = [], chase = [];
                 snap.forEach(docSnap => {
                     const d = { ...docSnap.data(), id: docSnap.id };
                     if (d.name?.trim().toLowerCase() === 'test') return;
                     if (d.game === 'RIDER') rider.push(d);
                     else if (d.game === 'BRAWLER') brawler.push(d);
-                    else if (!d.game || d.game === 'CHASE') {
-                        // CHASE entries from before the split should not appear in red-pixel leaderboard
-                        if (d.game !== 'CHASE') redPixels.push(d);
-                    }
-                });
-                riderSnap.forEach(docSnap => {
-                    const d = { ...docSnap.data(), id: docSnap.id };
-                    if (d.name?.trim().toLowerCase() === 'test') return;
-                    rider.push(d);
+                    else if (d.game === 'CHASE') chase.push(d);
+                    else redPixels.push(d);
                 });
                 redPixels.sort((a, b) => b.points - a.points);
                 rider.sort((a, b) => b.points - a.points);
                 brawler.sort((a, b) => b.points - a.points);
+                chase.sort((a, b) => b.points - a.points);
                 const riderFiltered = rider.filter(d => d.points >= 15);
                 const kickedBenshi = JSON.parse(localStorage.getItem('kicked_benshi') || '[]');
                 if (!kickedBenshi.includes('benshi-311')) riderFiltered.push({ name: 'Benshi', points: 311, created: new Date('2026-05-19T20:00:00'), id: 'benshi-311' });
                 if (!kickedBenshi.includes('benshi-212')) riderFiltered.push({ name: 'Benshi', points: 212, created: new Date('2026-05-19T17:40:00'), id: 'benshi-212' });
                 riderFiltered.sort((a, b) => b.points - a.points);
-
-                const chase = [];
-                chaseSnap.forEach(docSnap => {
-                    const d = { ...docSnap.data(), id: docSnap.id };
-                    if (d.name?.trim().toLowerCase() === 'test') return;
-                    chase.push(d);
-                });
-                chase.sort((a, b) => b.points - a.points);
 
                 fillPodium('p', redPixels);
                 fillPodium('r', riderFiltered);
