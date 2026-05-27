@@ -889,7 +889,29 @@
     function isBank(bx, by) {
         if (isMergedRight(bx - 1, by)) return false;
         if (isMergedDown(bx, by - 1))  return false;
+        if (isBoatShop(bx, by)) return false;
         return blockHash(bx, by) < BANK_PROB;
+    }
+
+    // ── Bootshops (4 Häfen am Stadtrand) ──────────────────────────
+    const BOAT_PRICE = 500;
+    const BOAT_SHOPS = [
+        { id: 'N', bx: 0,  by: -9, dir: -1, axis: 'y' }, // Nord — Dock nach oben
+        { id: 'S', bx: 0,  by:  8, dir:  1, axis: 'y' }, // Süd
+        { id: 'W', bx: -9, by:  0, dir: -1, axis: 'x' }, // West
+        { id: 'E', bx: 8,  by:  0, dir:  1, axis: 'x' }, // Ost
+    ];
+    function isBoatShop(bx, by) {
+        for (const s of BOAT_SHOPS) if (s.bx === bx && s.by === by) return true;
+        return false;
+    }
+    function getBoatShop(bx, by) {
+        for (const s of BOAT_SHOPS) if (s.bx === bx && s.by === by) return s;
+        return null;
+    }
+    function shopCenter(s) {
+        return { x: s.bx * PITCH + STREET_W + BLOCK_SIZE / 2,
+                 y: s.by * PITCH + STREET_W + BLOCK_SIZE / 2 };
     }
 
     function findNearbyBank(px, py) {
@@ -1015,6 +1037,12 @@
     let robbedBanks  = new Set();
     let bankRobTimer = 0;
     let bankRobTarget = null; // { bx, by, key, wx, wy }
+
+    // Bootshop / Boote
+    let ownsBoat   = localStorage.getItem('chase_owns_boat') === '1';
+    let nearbyShop = null;        // {id, bx, by, ...} oder null
+    let boats      = [];          // ambient Boote auf dem Fluss
+    let buyCooldown = 0;          // verhindert mehrfach-trigger pro Tastendruck
 
     // Combo system
     let comboTimer = 0;
@@ -1402,6 +1430,9 @@
         mapMarkers   = [];
         cameraZoom = 1;
         gameState = 'idle';
+        nearbyShop = null;
+        buyCooldown = 0;
+        if (boats.length === 0) initBoats();
     }
 
     function addBanner(text, color, big) {
@@ -2538,6 +2569,7 @@
             for (let bx = startBX; bx <= endBX; bx++) {
                 if (isMergedRight(bx - 1, by)) continue;
                 if (isMergedDown(bx, by - 1))  continue;
+                if (isBoatShop(bx, by)) continue; // wird in drawBoatShops() gezeichnet
 
                 const x0 = bx * PITCH + STREET_W;
                 const y0 = by * PITCH + STREET_W;
@@ -2550,6 +2582,150 @@
                 drawBlock(x0, y0, w, h, bx, by);
             }
         }
+    }
+
+    function drawBoatShops() {
+        for (const s of BOAT_SHOPS) {
+            const x0 = s.bx * PITCH + STREET_W;
+            const y0 = s.by * PITCH + STREET_W;
+            const w  = BLOCK_SIZE, h = BLOCK_SIZE;
+            const cx = x0 + w / 2, cy = y0 + h / 2;
+
+            // Haus — warmes Holz-Look
+            ctx.fillStyle = '#3a2410';
+            ctx.fillRect(x0, y0, w, h);
+            ctx.fillStyle = '#5a3a18';
+            ctx.fillRect(x0 + 8, y0 + 8, w - 16, h - 16);
+            // Dach
+            ctx.fillStyle = '#7a2a1a';
+            ctx.fillRect(x0 + 4, y0 + 4, w - 8, 18);
+            // Fenster (warm leuchtend)
+            ctx.fillStyle = '#ffcc66';
+            for (let fy = y0 + 40; fy < y0 + h - 30; fy += 28) {
+                for (let fx = x0 + 22; fx < x0 + w - 22; fx += 32) {
+                    ctx.fillRect(fx, fy, 14, 12);
+                }
+            }
+            // Schild "BOATS $500"
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(cx - 56, cy - 14, 112, 28);
+            ctx.fillStyle = '#ffcc44';
+            ctx.font = 'bold 16px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('⛵ $' + BOAT_PRICE, cx, cy);
+            // Dock — Holzsteg ins Wasser
+            ctx.fillStyle = '#4a2810';
+            const dockLen = 220, dockThick = 28;
+            if (s.axis === 'y') {
+                const dx = cx - dockThick / 2;
+                const dy = s.dir < 0 ? (y0 - dockLen) : (y0 + h);
+                ctx.fillRect(dx, dy, dockThick, dockLen);
+                // Pfosten
+                ctx.fillStyle = '#2a1808';
+                for (let p = 0; p < 4; p++) {
+                    const py = dy + (dockLen / 4) * p + 4;
+                    ctx.fillRect(dx - 4, py, 4, 6);
+                    ctx.fillRect(dx + dockThick, py, 4, 6);
+                }
+            } else {
+                const dy = cy - dockThick / 2;
+                const dx = s.dir < 0 ? (x0 - dockLen) : (x0 + w);
+                ctx.fillRect(dx, dy, dockLen, dockThick);
+                ctx.fillStyle = '#2a1808';
+                for (let p = 0; p < 4; p++) {
+                    const px = dx + (dockLen / 4) * p + 4;
+                    ctx.fillRect(px, dy - 4, 6, 4);
+                    ctx.fillRect(px, dy + dockThick, 6, 4);
+                }
+            }
+            // Markiere als "besucht" wenn Boot gekauft
+            if (ownsBoat) {
+                ctx.fillStyle = 'rgba(80,255,120,0.18)';
+                ctx.fillRect(x0, y0, w, h);
+            }
+        }
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+    }
+
+    // ── Ambient Boote ─────────────────────────────────────────────
+    function initBoats() {
+        boats = [];
+        const RIVER_OFFSET = 600; // Distanz vom Stadtrand für Boots-Bahnen
+        // Nord-Seite (oben, fahren von links nach rechts)
+        boats.push({ x: WORLD_MIN, y: WORLD_MIN - RIVER_OFFSET, vx: 30, vy: 0, color: '#dd5544' });
+        boats.push({ x: WORLD_MAX * 0.4, y: WORLD_MIN - RIVER_OFFSET - 250, vx: 38, vy: 0, color: '#44aaee' });
+        // Süd
+        boats.push({ x: WORLD_MAX, y: WORLD_MAX + RIVER_OFFSET, vx: -28, vy: 0, color: '#88dd66' });
+        boats.push({ x: -WORLD_MAX * 0.3, y: WORLD_MAX + RIVER_OFFSET + 300, vx: -35, vy: 0, color: '#ee8844' });
+        // West
+        boats.push({ x: WORLD_MIN - RIVER_OFFSET, y: WORLD_MIN, vx: 0, vy: 32, color: '#ccaaff' });
+        boats.push({ x: WORLD_MIN - RIVER_OFFSET - 220, y: WORLD_MAX * 0.3, vx: 0, vy: 26, color: '#ffdd44' });
+        // Ost
+        boats.push({ x: WORLD_MAX + RIVER_OFFSET, y: WORLD_MAX, vx: 0, vy: -30, color: '#66ddcc' });
+        boats.push({ x: WORLD_MAX + RIVER_OFFSET + 280, y: -WORLD_MAX * 0.2, vx: 0, vy: -36, color: '#ff77aa' });
+    }
+    function updateBoats(dt) {
+        const RIVER_W = 2500;
+        for (const b of boats) {
+            b.x += b.vx * dt;
+            b.y += b.vy * dt;
+            // Wrap: außerhalb der sichtbaren Flussbahn am gegenüberliegenden Ende neu starten
+            const margin = WORLD_MAX + RIVER_W + 400;
+            if (b.x >  margin) b.x = -margin + (b.x - margin);
+            if (b.x < -margin) b.x =  margin + (b.x + margin);
+            if (b.y >  margin) b.y = -margin + (b.y - margin);
+            if (b.y < -margin) b.y =  margin + (b.y + margin);
+        }
+    }
+    function drawBoats() {
+        for (const b of boats) {
+            const angle = Math.atan2(b.vy, b.vx);
+            ctx.save();
+            ctx.translate(b.x, b.y);
+            ctx.rotate(angle);
+            // Rumpf
+            ctx.fillStyle = b.color;
+            ctx.fillRect(-24, -10, 48, 20);
+            // Bug spitz
+            ctx.beginPath();
+            ctx.moveTo(24, -10); ctx.lineTo(36, 0); ctx.lineTo(24, 10);
+            ctx.closePath();
+            ctx.fill();
+            // Kabine
+            ctx.fillStyle = 'rgba(255,255,255,0.85)';
+            ctx.fillRect(-10, -6, 18, 12);
+            // Bug-Welle
+            ctx.fillStyle = 'rgba(255,255,255,0.35)';
+            ctx.fillRect(36, -4, 10, 2);
+            ctx.fillRect(36, 2, 10, 2);
+            ctx.restore();
+        }
+    }
+
+    function findNearbyBoatShop(px, py) {
+        const NEAR = 180;
+        for (const s of BOAT_SHOPS) {
+            const c = shopCenter(s);
+            const d = Math.hypot(px - c.x, py - c.y);
+            if (d < NEAR) return s;
+        }
+        return null;
+    }
+
+    function buyBoat() {
+        if (ownsBoat) return false;
+        if (score < BOAT_PRICE) {
+            addBanner('Zu wenig $ für Boot', '#ff6666');
+            return false;
+        }
+        score   -= BOAT_PRICE;
+        ownsBoat = true;
+        localStorage.setItem('chase_owns_boat', '1');
+        addBanner('⛵ BOOT GEKAUFT!', '#44ffcc', true);
+        vibrate([40, 20, 40]);
+        return true;
     }
 
     function drawBlock(x0, y0, w, h, bx, by) {
