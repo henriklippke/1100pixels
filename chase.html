@@ -2379,17 +2379,42 @@
         ctx.fillStyle = '#06090f';
         ctx.fillRect(WORLD_MIN, WORLD_MIN, WORLD_MAX - WORLD_MIN, WORLD_MAX - WORLD_MIN);
 
-        // Küstenlinie — heller, kontrastreicher Rand damit der Fluss auch aus der Ferne sichtbar ist
-        const shore = 32;
-        ctx.fillStyle = '#7ac4e6';
-        ctx.fillRect(WORLD_MIN - shore, WORLD_MIN - shore,
-                     WORLD_MAX - WORLD_MIN + shore * 2, shore); // oben
-        ctx.fillRect(WORLD_MIN - shore, WORLD_MAX,
-                     WORLD_MAX - WORLD_MIN + shore * 2, shore); // unten
-        ctx.fillRect(WORLD_MIN - shore, WORLD_MIN,
-                     shore, WORLD_MAX - WORLD_MIN);             // links
+        // Stadtmauer — dicke sichtbare Mauer rund um die Stadt
+        const wall = 70;
+        // dunkler Fuß der Mauer (außen, im Wasser)
+        ctx.fillStyle = '#1a1a22';
+        ctx.fillRect(WORLD_MIN - wall, WORLD_MIN - wall,
+                     WORLD_MAX - WORLD_MIN + wall * 2, wall); // oben
+        ctx.fillRect(WORLD_MIN - wall, WORLD_MAX,
+                     WORLD_MAX - WORLD_MIN + wall * 2, wall); // unten
+        ctx.fillRect(WORLD_MIN - wall, WORLD_MIN,
+                     wall, WORLD_MAX - WORLD_MIN);             // links
         ctx.fillRect(WORLD_MAX, WORLD_MIN,
-                     shore, WORLD_MAX - WORLD_MIN);             // rechts
+                     wall, WORLD_MAX - WORLD_MIN);             // rechts
+
+        // Mauerkrone — helles Steingrau (gut sichtbar in der Nacht)
+        const crown = 22;
+        ctx.fillStyle = '#9aa3b2';
+        ctx.fillRect(WORLD_MIN - wall, WORLD_MIN - wall,
+                     WORLD_MAX - WORLD_MIN + wall * 2, crown); // oben
+        ctx.fillRect(WORLD_MIN - wall, WORLD_MAX + wall - crown,
+                     WORLD_MAX - WORLD_MIN + wall * 2, crown); // unten
+        ctx.fillRect(WORLD_MIN - wall, WORLD_MIN - wall,
+                     crown, WORLD_MAX - WORLD_MIN + wall * 2); // links
+        ctx.fillRect(WORLD_MAX + wall - crown, WORLD_MIN - wall,
+                     crown, WORLD_MAX - WORLD_MIN + wall * 2); // rechts
+
+        // Zinnen (Crenellations) auf der Mauerkrone — alle 80px ein heller Block
+        ctx.fillStyle = '#d4dae5';
+        const merlonW = 38, merlonGap = 80, merlonH = 14;
+        for (let x = WORLD_MIN - wall + 10; x < WORLD_MAX + wall - merlonW; x += merlonGap) {
+            ctx.fillRect(x, WORLD_MIN - wall, merlonW, merlonH);              // oben
+            ctx.fillRect(x, WORLD_MAX + wall - merlonH, merlonW, merlonH);    // unten
+        }
+        for (let y = WORLD_MIN - wall + 10; y < WORLD_MAX + wall - merlonW; y += merlonGap) {
+            ctx.fillRect(WORLD_MIN - wall, y, merlonH, merlonW);              // links
+            ctx.fillRect(WORLD_MAX + wall - merlonH, y, merlonH, merlonW);    // rechts
+        }
 
         // Wasser-Wellen (animierte horizontale Streifen) im ganzen Flussbereich
         ctx.globalAlpha = 0.45;
@@ -3660,24 +3685,10 @@
         let user = null;
         try { user = JSON.parse(localStorage.getItem('1100px_user')); } catch {}
         if (!user || !user.name) {
-            const m = document.getElementById('name-modal');
-            m.classList.add('show');
-            const inp = document.getElementById('name-input');
-            const sub = document.getElementById('name-submit');
-            const submit = () => {
-                const v = inp.value.trim();
-                if (v.length < 2) { inp.classList.add('input-error'); setTimeout(() => inp.classList.remove('input-error'), 400); return; }
-                localStorage.setItem('1100px_user', JSON.stringify({ name: v }));
-                m.classList.remove('show');
-                kickoffWaitToStart();
-                startGame();
-            };
-            sub.addEventListener('click', submit);
-            inp.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
-            setTimeout(() => inp.focus(), 200);
-        } else {
-            kickoffWaitToStart();
+            window.location.href = 'index.html';
+            return;
         }
+        kickoffWaitToStart();
 
         lastT = performance.now();
         requestAnimationFrame(loop);
