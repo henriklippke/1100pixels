@@ -113,6 +113,18 @@
                 document.getElementById('admin-give').addEventListener('click', () => adminAction('give'));
                 document.getElementById('admin-set').addEventListener('click', () => adminAction('set'));
 
+                document.getElementById('admin-loginas').addEventListener('click', async () => {
+                    const name = document.getElementById('admin-loginas-name').value.trim();
+                    const msgEl = document.getElementById('admin-loginas-msg');
+                    if (!name) { msgEl.textContent = 'Name eingeben.'; msgEl.style.color = '#ff8888'; return; }
+                    const qs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', name.toLowerCase())));
+                    if (qs.empty) { msgEl.textContent = `"${name}" nicht gefunden.`; msgEl.style.color = '#ff8888'; return; }
+                    const target = qs.docs[0].data().name;
+                    localStorage.setItem('1100px_user', JSON.stringify({ name: target }));
+                    msgEl.textContent = `✓ Eingeloggt als ${target} — wird neu geladen…`;
+                    msgEl.style.color = '#00eeff';
+                    setTimeout(() => location.reload(), 600);
+                });
             }
 
             // ── Auth ──
@@ -551,6 +563,10 @@
             <button id="admin-set" class="admin-btn" style="background:rgba(255,80,80,0.15);border-color:rgba(255,80,80,0.4)">Setzen</button>
         </div>
         <p id="admin-msg"></p>
+        <div class="admin-title" style="margin-top:14px">👤 Login als</div>
+        <input id="admin-loginas-name" class="admin-input" type="text" placeholder="Spielername" autocomplete="off" spellcheck="false">
+        <button id="admin-loginas" class="admin-btn" style="background:rgba(120,180,255,0.15);border-color:rgba(120,180,255,0.4)">Einloggen als</button>
+        <p id="admin-loginas-msg"></p>
     </div>
 </div>
 
