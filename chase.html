@@ -833,9 +833,29 @@
     const WORLD_BLOCKS = 9;                      // 9 Blöcke in jede Richtung
     const WORLD_MIN    = -WORLD_BLOCKS * PITCH;
     const WORLD_MAX    =  WORLD_BLOCKS * PITCH;
+    const WALL_W       = 70;                     // Breite der Stadtmauer
+    const RIVER_W      = 4500;                   // Breite des Flusses um die Stadt
+    const DOCK_LEN     = 220;
+    const DOCK_THICK   = 28;
 
-    function isStreet(x, y) {
-        if (x < WORLD_MIN || x > WORLD_MAX || y < WORLD_MIN || y > WORLD_MAX) return false;
+    function isStreet(x, y, canBoat = false) {
+        // Außerhalb der Stadt: mit Boot auf Wasser fahrbar (Steg passiert die Mauer)
+        if (x < WORLD_MIN || x > WORLD_MAX || y < WORLD_MIN || y > WORLD_MAX) {
+            if (!canBoat) return false;
+            // außerhalb des Flusses → blockieren
+            if (x < WORLD_MIN - RIVER_W || x > WORLD_MAX + RIVER_W ||
+                y < WORLD_MIN - RIVER_W || y > WORLD_MAX + RIVER_W) return false;
+            // im Mauerband nur auf dem Steg durchlassen
+            const inWallBand =
+                (x >= WORLD_MIN - WALL_W && x < WORLD_MIN) ||
+                (x >  WORLD_MAX        && x <= WORLD_MAX + WALL_W) ||
+                (y >= WORLD_MIN - WALL_W && y < WORLD_MIN) ||
+                (y >  WORLD_MAX        && y <= WORLD_MAX + WALL_W);
+            if (inWallBand && !inAnyDock(x, y)) return false;
+            return true;
+        }
+        // Steg auch innerhalb der Stadt befahrbar
+        if (canBoat && inAnyDock(x, y)) return true;
         const mx = ((x % PITCH) + PITCH) % PITCH;
         const my = ((y % PITCH) + PITCH) % PITCH;
         const onV = mx < STREET_W;
@@ -886,7 +906,13 @@
         return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
     }
 
+    function isInCityBlock(bx, by) {
+        return bx >= -WORLD_BLOCKS && bx < WORLD_BLOCKS
+            && by >= -WORLD_BLOCKS && by < WORLD_BLOCKS;
+    }
+
     function isBank(bx, by) {
+        if (!isInCityBlock(bx, by)) return false;
         if (isMergedRight(bx - 1, by)) return false;
         if (isMergedDown(bx, by - 1))  return false;
         if (isBoatShop(bx, by)) return false;
@@ -912,6 +938,27 @@
     function shopCenter(s) {
         return { x: s.bx * PITCH + STREET_W + BLOCK_SIZE / 2,
                  y: s.by * PITCH + STREET_W + BLOCK_SIZE / 2 };
+    }
+    // Bounding-Box des Stegs (Holzsteg ins Wasser)
+    function dockBounds(s) {
+        const x0 = s.bx * PITCH + STREET_W;
+        const y0 = s.by * PITCH + STREET_W;
+        const c = shopCenter(s);
+        if (s.axis === 'y') {
+            const dx = c.x - DOCK_THICK / 2;
+            const dy = s.dir < 0 ? (y0 - DOCK_LEN) : (y0 + BLOCK_SIZE);
+            return { x0: dx, y0: dy, x1: dx + DOCK_THICK, y1: dy + DOCK_LEN };
+        }
+        const dy = c.y - DOCK_THICK / 2;
+        const dx = s.dir < 0 ? (x0 - DOCK_LEN) : (x0 + BLOCK_SIZE);
+        return { x0: dx, y0: dy, x1: dx + DOCK_LEN, y1: dy + DOCK_THICK };
+    }
+    function inAnyDock(x, y) {
+        for (const s of BOAT_SHOPS) {
+            const d = dockBounds(s);
+            if (x >= d.x0 && x <= d.x1 && y >= d.y0 && y <= d.y1) return true;
+        }
+        return false;
     }
 
     function findNearbyBank(px, py) {
@@ -967,12 +1014,14 @@
 
 
     function isTunnelH(bx, by) {
+        if (!isInCityBlock(bx, by)) return false;
         if (isMergedDown(bx, by - 1) || isMergedDown(bx, by)) return false;
         let h = bx * 1297 + by * 7919 + 41;
         h = (h ^ (h >>> 13)) * 1274126177;
         return ((h ^ (h >>> 16)) >>> 0) / 4294967296 < TUNNEL_PROB;
     }
     function isTunnelV(bx, by) {
+        if (!isInCityBlock(bx, by)) return false;
         if (isMergedRight(bx - 1, by) || isMergedRight(bx, by)) return false;
         let h = bx * 7307 + by * 5443 + 89;
         h = (h ^ (h >>> 13)) * 1274126177;
@@ -1043,6 +1092,8 @@
     let nearbyShop = null;        // {id, bx, by, ...} oder null
     let boats      = [];          // ambient Boote auf dem Fluss
     let buyCooldown = 0;          // verhindert mehrfach-trigger pro Tastendruck
+    let boatBuyTimer = 0;         // Kauf-Fortschritt wenn Spieler nahe am Shop steht
+    const BOAT_BUY_SECS = 1.2;
 
     // Combo system
     let comboTimer = 0;
@@ -1431,6 +1482,7 @@
         cameraZoom = 1;
         gameState = 'idle';
         nearbyShop = null;
+        boatBuyTimer = 0;
         buyCooldown = 0;
         if (boats.length === 0) initBoats();
     }
@@ -1558,8 +1610,8 @@
         if (multiplierFreeze > 0) multiplierFreeze -= dt;
         else multiplier = Math.max(1, multiplier - dt * 0.18);
 
-        // Base score grows by 10 * multiplier per second
-        score += dt * 10 * multiplier;
+        // Base score grows by 10 * multiplier per second — nur wenn man fährt
+        if (Math.abs(player.speed) > 5) score += dt * 10 * multiplier;
 
         // Damage regen
         if (player.damage > 0) player.damage = Math.max(0, player.damage - dt * 5);
@@ -1958,6 +2010,7 @@
         }
 
         updateBanks(dt);
+        updateBoatShop(dt);
 
         // Siren HUD phase
         sirenPhase += dt;
@@ -2083,10 +2136,11 @@
             [ hl,  hw], [ hl, -hw], [-hl,  hw], [-hl, -hw]
         ];
         let n = 0;
+        const canBoat = (car === player) && ownsBoat;
         for (const [lx, ly] of corners) {
             const wx = nx + lx * cos - ly * sin;
             const wy = ny + lx * sin + ly * cos;
-            if (!isStreet(wx, wy)) n++;
+            if (!isStreet(wx, wy, canBoat)) n++;
         }
         return n;
     }
@@ -2105,11 +2159,19 @@
         ctx.translate(-camX, -camY);
 
         drawWater();
+        // Stadt-Inhalte (Straßen, Häuser, Banken, Pickups) auf Stadtgebiet clippen,
+        // damit nichts mehr im Fluss hinter der Stadtmauer erscheint
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(WORLD_MIN, WORLD_MIN, WORLD_MAX - WORLD_MIN, WORLD_MAX - WORLD_MIN);
+        ctx.clip();
         drawStreets();
         drawStreetLamps();
         drawBuildings();
         drawBanks();
         drawPickups();
+        ctx.restore();
+        drawBoatShops();
         drawCar(player, _cs.color, _cs.accent, false);
         for (const g of groundCops) drawGroundCop(g);
         drawTunnels();   // tunnel cap on top of player → player hides under it
@@ -2355,7 +2417,6 @@
 
     function drawWater() {
         const t = elapsed * 0.8;
-        const RIVER_W = 4500; // breite des flusses rund um die stadt
 
         // Wasser-Fläche (breiter Fluss/See um die Stadt herum)
         ctx.fillStyle = '#2e6b94';
@@ -2380,7 +2441,7 @@
         ctx.fillRect(WORLD_MIN, WORLD_MIN, WORLD_MAX - WORLD_MIN, WORLD_MAX - WORLD_MIN);
 
         // Stadtmauer — dicke sichtbare Mauer rund um die Stadt
-        const wall = 70;
+        const wall = WALL_W;
         // dunkler Fuß der Mauer (außen, im Wasser)
         ctx.fillStyle = '#1a1a22';
         ctx.fillRect(WORLD_MIN - wall, WORLD_MIN - wall,
@@ -2639,29 +2700,36 @@
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('⛵ $' + BOAT_PRICE, cx, cy);
+            // Kauf-Fortschritts-Ring wenn Spieler an diesem Shop kauft
+            if (!ownsBoat && nearbyShop && nearbyShop.id === s.id && boatBuyTimer > 0) {
+                const pct = Math.min(1, boatBuyTimer / BOAT_BUY_SECS);
+                ctx.strokeStyle = '#44ffcc';
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'round';
+                ctx.shadowColor = '#44ffcc';
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.arc(cx, cy + 30, 18, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
             // Dock — Holzsteg ins Wasser
+            const d = dockBounds(s);
             ctx.fillStyle = '#4a2810';
-            const dockLen = 220, dockThick = 28;
+            ctx.fillRect(d.x0, d.y0, d.x1 - d.x0, d.y1 - d.y0);
+            // Pfosten
+            ctx.fillStyle = '#2a1808';
             if (s.axis === 'y') {
-                const dx = cx - dockThick / 2;
-                const dy = s.dir < 0 ? (y0 - dockLen) : (y0 + h);
-                ctx.fillRect(dx, dy, dockThick, dockLen);
-                // Pfosten
-                ctx.fillStyle = '#2a1808';
                 for (let p = 0; p < 4; p++) {
-                    const py = dy + (dockLen / 4) * p + 4;
-                    ctx.fillRect(dx - 4, py, 4, 6);
-                    ctx.fillRect(dx + dockThick, py, 4, 6);
+                    const py = d.y0 + (DOCK_LEN / 4) * p + 4;
+                    ctx.fillRect(d.x0 - 4, py, 4, 6);
+                    ctx.fillRect(d.x1,     py, 4, 6);
                 }
             } else {
-                const dy = cy - dockThick / 2;
-                const dx = s.dir < 0 ? (x0 - dockLen) : (x0 + w);
-                ctx.fillRect(dx, dy, dockLen, dockThick);
-                ctx.fillStyle = '#2a1808';
                 for (let p = 0; p < 4; p++) {
-                    const px = dx + (dockLen / 4) * p + 4;
-                    ctx.fillRect(px, dy - 4, 6, 4);
-                    ctx.fillRect(px, dy + dockThick, 6, 4);
+                    const px = d.x0 + (DOCK_LEN / 4) * p + 4;
+                    ctx.fillRect(px, d.y0 - 4, 6, 4);
+                    ctx.fillRect(px, d.y1,     6, 4);
                 }
             }
             // Markiere als "besucht" wenn Boot gekauft
@@ -2692,7 +2760,6 @@
         boats.push({ x: WORLD_MAX + RIVER_OFFSET + 280, y: -WORLD_MAX * 0.2, vx: 0, vy: -36, color: '#ff77aa' });
     }
     function updateBoats(dt) {
-        const RIVER_W = 4500;
         for (const b of boats) {
             b.x += b.vx * dt;
             b.y += b.vy * dt;
@@ -2751,6 +2818,20 @@
         addBanner('⛵ BOOT GEKAUFT!', '#44ffcc', true);
         vibrate([40, 20, 40]);
         return true;
+    }
+
+    function updateBoatShop(dt) {
+        if (ownsBoat) { boatBuyTimer = 0; nearbyShop = null; return; }
+        nearbyShop = findNearbyBoatShop(player.x, player.y);
+        if (nearbyShop && score >= BOAT_PRICE && Math.abs(player.speed) < 60) {
+            boatBuyTimer += dt;
+            if (boatBuyTimer >= BOAT_BUY_SECS) {
+                buyBoat();
+                boatBuyTimer = 0;
+            }
+        } else {
+            boatBuyTimer = Math.max(0, boatBuyTimer - dt * 2);
+        }
     }
 
     function drawBlock(x0, y0, w, h, bx, by) {
