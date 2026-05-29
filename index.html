@@ -812,8 +812,8 @@
         </div>
         </div>
 
-        <!-- ── Chase (nur für Leo & Benshi) ── -->
-        <div class="slide" id="chase-slide" style="display:none">
+        <!-- ── Chase ── -->
+        <div class="slide" id="chase-slide">
         <a href="chase.html" class="game-card">
             <div class="game-thumb">
                 <svg viewBox="0 0 400 260" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">
@@ -883,7 +883,7 @@
         <span class="dot active"></span>
         <span class="dot"></span>
         <span class="dot"></span>
-        <span class="dot" id="chase-dot" style="display:none"></span>
+        <span class="dot" id="chase-dot"></span>
     </div>
 
 </main>
@@ -951,12 +951,6 @@
     document.getElementById('quest-modal-bg').addEventListener('click', () => {
         document.getElementById('quest-modal').classList.remove('show');
     });
-
-    const _u = (() => { try { return JSON.parse(localStorage.getItem('1100px_user')); } catch { return null; } })();
-    if (_u && ['leo', 'benshi'].includes((_u.name || '').toLowerCase())) {
-        document.getElementById('chase-slide').style.display = '';
-        document.getElementById('chase-dot').style.display = '';
-    }
 
     const slider = document.getElementById('slider');
     const dots   = document.querySelectorAll('.dot');

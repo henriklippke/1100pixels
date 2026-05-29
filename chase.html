@@ -2355,16 +2355,16 @@
 
     function drawWater() {
         const t = elapsed * 0.8;
-        const RIVER_W = 2500; // breite des flusses rund um die stadt
+        const RIVER_W = 4500; // breite des flusses rund um die stadt
 
         // Wasser-Fläche (breiter Fluss/See um die Stadt herum)
-        ctx.fillStyle = '#1c3a52';
+        ctx.fillStyle = '#2e6b94';
         ctx.fillRect(WORLD_MIN - RIVER_W, WORLD_MIN - RIVER_W,
                      (WORLD_MAX - WORLD_MIN) + RIVER_W * 2,
                      (WORLD_MAX - WORLD_MIN) + RIVER_W * 2);
 
         // Tiefere Tönung weiter draußen (Tiefenwasser)
-        ctx.fillStyle = 'rgba(8,20,38,0.55)';
+        ctx.fillStyle = 'rgba(8,20,38,0.45)';
         const deep = 900;
         ctx.fillRect(WORLD_MIN - RIVER_W, WORLD_MIN - RIVER_W,
                      (WORLD_MAX - WORLD_MIN) + RIVER_W * 2, deep);                              // oben tief
@@ -2379,9 +2379,9 @@
         ctx.fillStyle = '#06090f';
         ctx.fillRect(WORLD_MIN, WORLD_MIN, WORLD_MAX - WORLD_MIN, WORLD_MAX - WORLD_MIN);
 
-        // Küstenlinie — sandiger Rand
-        const shore = 18;
-        ctx.fillStyle = '#2a3a2a';
+        // Küstenlinie — heller, kontrastreicher Rand damit der Fluss auch aus der Ferne sichtbar ist
+        const shore = 32;
+        ctx.fillStyle = '#7ac4e6';
         ctx.fillRect(WORLD_MIN - shore, WORLD_MIN - shore,
                      WORLD_MAX - WORLD_MIN + shore * 2, shore); // oben
         ctx.fillRect(WORLD_MIN - shore, WORLD_MAX,
@@ -2392,8 +2392,8 @@
                      shore, WORLD_MAX - WORLD_MIN);             // rechts
 
         // Wasser-Wellen (animierte horizontale Streifen) im ganzen Flussbereich
-        ctx.globalAlpha = 0.22;
-        ctx.fillStyle = '#5cb0d8';
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = '#a8e0f0';
         const vw2 = W * PIXEL_SCALE / cameraZoom / 2 + 300;
         const vh2 = H * PIXEL_SCALE / cameraZoom / 2 + 300;
         const waveSpacing = 60;
@@ -2667,7 +2667,7 @@
         boats.push({ x: WORLD_MAX + RIVER_OFFSET + 280, y: -WORLD_MAX * 0.2, vx: 0, vy: -36, color: '#ff77aa' });
     }
     function updateBoats(dt) {
-        const RIVER_W = 2500;
+        const RIVER_W = 4500;
         for (const b of boats) {
             b.x += b.vx * dt;
             b.y += b.vy * dt;
