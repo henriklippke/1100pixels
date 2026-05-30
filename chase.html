@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CHASE</title>
+    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -835,27 +836,9 @@
     const WORLD_MAX    =  WORLD_BLOCKS * PITCH;
     const WALL_W       = 70;                     // Breite der Stadtmauer
     const RIVER_W      = 4500;                   // Breite des Flusses um die Stadt
-    const DOCK_LEN     = 220;
-    const DOCK_THICK   = 28;
 
-    function isStreet(x, y, canBoat = false) {
-        // Außerhalb der Stadt: mit Boot auf Wasser fahrbar (Steg passiert die Mauer)
-        if (x < WORLD_MIN || x > WORLD_MAX || y < WORLD_MIN || y > WORLD_MAX) {
-            if (!canBoat) return false;
-            // außerhalb des Flusses → blockieren
-            if (x < WORLD_MIN - RIVER_W || x > WORLD_MAX + RIVER_W ||
-                y < WORLD_MIN - RIVER_W || y > WORLD_MAX + RIVER_W) return false;
-            // im Mauerband nur auf dem Steg durchlassen
-            const inWallBand =
-                (x >= WORLD_MIN - WALL_W && x < WORLD_MIN) ||
-                (x >  WORLD_MAX        && x <= WORLD_MAX + WALL_W) ||
-                (y >= WORLD_MIN - WALL_W && y < WORLD_MIN) ||
-                (y >  WORLD_MAX        && y <= WORLD_MAX + WALL_W);
-            if (inWallBand && !inAnyDock(x, y)) return false;
-            return true;
-        }
-        // Steg auch innerhalb der Stadt befahrbar
-        if (canBoat && inAnyDock(x, y)) return true;
+    function isStreet(x, y) {
+        if (x < WORLD_MIN || x > WORLD_MAX || y < WORLD_MIN || y > WORLD_MAX) return false;
         const mx = ((x % PITCH) + PITCH) % PITCH;
         const my = ((y % PITCH) + PITCH) % PITCH;
         const onV = mx < STREET_W;
@@ -915,50 +898,7 @@
         if (!isInCityBlock(bx, by)) return false;
         if (isMergedRight(bx - 1, by)) return false;
         if (isMergedDown(bx, by - 1))  return false;
-        if (isBoatShop(bx, by)) return false;
         return blockHash(bx, by) < BANK_PROB;
-    }
-
-    // ── Bootshops (4 Häfen am Stadtrand) ──────────────────────────
-    const BOAT_PRICE = 500;
-    const BOAT_SHOPS = [
-        { id: 'N', bx: 0,  by: -9, dir: -1, axis: 'y' }, // Nord — Dock nach oben
-        { id: 'S', bx: 0,  by:  8, dir:  1, axis: 'y' }, // Süd
-        { id: 'W', bx: -9, by:  0, dir: -1, axis: 'x' }, // West
-        { id: 'E', bx: 8,  by:  0, dir:  1, axis: 'x' }, // Ost
-    ];
-    function isBoatShop(bx, by) {
-        for (const s of BOAT_SHOPS) if (s.bx === bx && s.by === by) return true;
-        return false;
-    }
-    function getBoatShop(bx, by) {
-        for (const s of BOAT_SHOPS) if (s.bx === bx && s.by === by) return s;
-        return null;
-    }
-    function shopCenter(s) {
-        return { x: s.bx * PITCH + STREET_W + BLOCK_SIZE / 2,
-                 y: s.by * PITCH + STREET_W + BLOCK_SIZE / 2 };
-    }
-    // Bounding-Box des Stegs (Holzsteg ins Wasser)
-    function dockBounds(s) {
-        const x0 = s.bx * PITCH + STREET_W;
-        const y0 = s.by * PITCH + STREET_W;
-        const c = shopCenter(s);
-        if (s.axis === 'y') {
-            const dx = c.x - DOCK_THICK / 2;
-            const dy = s.dir < 0 ? (y0 - DOCK_LEN) : (y0 + BLOCK_SIZE);
-            return { x0: dx, y0: dy, x1: dx + DOCK_THICK, y1: dy + DOCK_LEN };
-        }
-        const dy = c.y - DOCK_THICK / 2;
-        const dx = s.dir < 0 ? (x0 - DOCK_LEN) : (x0 + BLOCK_SIZE);
-        return { x0: dx, y0: dy, x1: dx + DOCK_LEN, y1: dy + DOCK_THICK };
-    }
-    function inAnyDock(x, y) {
-        for (const s of BOAT_SHOPS) {
-            const d = dockBounds(s);
-            if (x >= d.x0 && x <= d.x1 && y >= d.y0 && y <= d.y1) return true;
-        }
-        return false;
     }
 
     function findNearbyBank(px, py) {
@@ -1087,13 +1027,6 @@
     let bankRobTimer = 0;
     let bankRobTarget = null; // { bx, by, key, wx, wy }
 
-    // Bootshop / Boote
-    let ownsBoat   = localStorage.getItem('chase_owns_boat') === '1';
-    let nearbyShop = null;        // {id, bx, by, ...} oder null
-    let boats      = [];          // ambient Boote auf dem Fluss
-    let buyCooldown = 0;          // verhindert mehrfach-trigger pro Tastendruck
-    let boatBuyTimer = 0;         // Kauf-Fortschritt wenn Spieler nahe am Shop steht
-    const BOAT_BUY_SECS = 1.2;
 
     // Combo system
     let comboTimer = 0;
@@ -1481,10 +1414,6 @@
         mapMarkers   = [];
         cameraZoom = 1;
         gameState = 'idle';
-        nearbyShop = null;
-        boatBuyTimer = 0;
-        buyCooldown = 0;
-        if (boats.length === 0) initBoats();
     }
 
     function addBanner(text, color, big) {
@@ -2010,7 +1939,6 @@
         }
 
         updateBanks(dt);
-        updateBoatShop(dt);
 
         // Siren HUD phase
         sirenPhase += dt;
@@ -2136,11 +2064,10 @@
             [ hl,  hw], [ hl, -hw], [-hl,  hw], [-hl, -hw]
         ];
         let n = 0;
-        const canBoat = (car === player) && ownsBoat;
         for (const [lx, ly] of corners) {
             const wx = nx + lx * cos - ly * sin;
             const wy = ny + lx * sin + ly * cos;
-            if (!isStreet(wx, wy, canBoat)) n++;
+            if (!isStreet(wx, wy)) n++;
         }
         return n;
     }
@@ -2171,7 +2098,6 @@
         drawBanks();
         drawPickups();
         ctx.restore();
-        drawBoatShops();
         drawCar(player, _cs.color, _cs.accent, false);
         for (const g of groundCops) drawGroundCop(g);
         drawTunnels();   // tunnel cap on top of player → player hides under it
@@ -2655,7 +2581,6 @@
             for (let bx = startBX; bx <= endBX; bx++) {
                 if (isMergedRight(bx - 1, by)) continue;
                 if (isMergedDown(bx, by - 1))  continue;
-                if (isBoatShop(bx, by)) continue; // wird in drawBoatShops() gezeichnet
 
                 const x0 = bx * PITCH + STREET_W;
                 const y0 = by * PITCH + STREET_W;
@@ -2667,170 +2592,6 @@
 
                 drawBlock(x0, y0, w, h, bx, by);
             }
-        }
-    }
-
-    function drawBoatShops() {
-        for (const s of BOAT_SHOPS) {
-            const x0 = s.bx * PITCH + STREET_W;
-            const y0 = s.by * PITCH + STREET_W;
-            const w  = BLOCK_SIZE, h = BLOCK_SIZE;
-            const cx = x0 + w / 2, cy = y0 + h / 2;
-
-            // Haus — warmes Holz-Look
-            ctx.fillStyle = '#3a2410';
-            ctx.fillRect(x0, y0, w, h);
-            ctx.fillStyle = '#5a3a18';
-            ctx.fillRect(x0 + 8, y0 + 8, w - 16, h - 16);
-            // Dach
-            ctx.fillStyle = '#7a2a1a';
-            ctx.fillRect(x0 + 4, y0 + 4, w - 8, 18);
-            // Fenster (warm leuchtend)
-            ctx.fillStyle = '#ffcc66';
-            for (let fy = y0 + 40; fy < y0 + h - 30; fy += 28) {
-                for (let fx = x0 + 22; fx < x0 + w - 22; fx += 32) {
-                    ctx.fillRect(fx, fy, 14, 12);
-                }
-            }
-            // Schild "BOATS $500"
-            ctx.fillStyle = 'rgba(0,0,0,0.7)';
-            ctx.fillRect(cx - 56, cy - 14, 112, 28);
-            ctx.fillStyle = '#ffcc44';
-            ctx.font = 'bold 16px monospace';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('⛵ $' + BOAT_PRICE, cx, cy);
-            // Kauf-Fortschritts-Ring wenn Spieler an diesem Shop kauft
-            if (!ownsBoat && nearbyShop && nearbyShop.id === s.id && boatBuyTimer > 0) {
-                const pct = Math.min(1, boatBuyTimer / BOAT_BUY_SECS);
-                ctx.strokeStyle = '#44ffcc';
-                ctx.lineWidth = 5;
-                ctx.lineCap = 'round';
-                ctx.shadowColor = '#44ffcc';
-                ctx.shadowBlur = 12;
-                ctx.beginPath();
-                ctx.arc(cx, cy + 30, 18, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-            }
-            // Dock — Holzsteg ins Wasser
-            const d = dockBounds(s);
-            ctx.fillStyle = '#4a2810';
-            ctx.fillRect(d.x0, d.y0, d.x1 - d.x0, d.y1 - d.y0);
-            // Pfosten
-            ctx.fillStyle = '#2a1808';
-            if (s.axis === 'y') {
-                for (let p = 0; p < 4; p++) {
-                    const py = d.y0 + (DOCK_LEN / 4) * p + 4;
-                    ctx.fillRect(d.x0 - 4, py, 4, 6);
-                    ctx.fillRect(d.x1,     py, 4, 6);
-                }
-            } else {
-                for (let p = 0; p < 4; p++) {
-                    const px = d.x0 + (DOCK_LEN / 4) * p + 4;
-                    ctx.fillRect(px, d.y0 - 4, 6, 4);
-                    ctx.fillRect(px, d.y1,     6, 4);
-                }
-            }
-            // Markiere als "besucht" wenn Boot gekauft
-            if (ownsBoat) {
-                ctx.fillStyle = 'rgba(80,255,120,0.18)';
-                ctx.fillRect(x0, y0, w, h);
-            }
-        }
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-    }
-
-    // ── Ambient Boote ─────────────────────────────────────────────
-    function initBoats() {
-        boats = [];
-        const RIVER_OFFSET = 600; // Distanz vom Stadtrand für Boots-Bahnen
-        // Nord-Seite (oben, fahren von links nach rechts)
-        boats.push({ x: WORLD_MIN, y: WORLD_MIN - RIVER_OFFSET, vx: 30, vy: 0, color: '#dd5544' });
-        boats.push({ x: WORLD_MAX * 0.4, y: WORLD_MIN - RIVER_OFFSET - 250, vx: 38, vy: 0, color: '#44aaee' });
-        // Süd
-        boats.push({ x: WORLD_MAX, y: WORLD_MAX + RIVER_OFFSET, vx: -28, vy: 0, color: '#88dd66' });
-        boats.push({ x: -WORLD_MAX * 0.3, y: WORLD_MAX + RIVER_OFFSET + 300, vx: -35, vy: 0, color: '#ee8844' });
-        // West
-        boats.push({ x: WORLD_MIN - RIVER_OFFSET, y: WORLD_MIN, vx: 0, vy: 32, color: '#ccaaff' });
-        boats.push({ x: WORLD_MIN - RIVER_OFFSET - 220, y: WORLD_MAX * 0.3, vx: 0, vy: 26, color: '#ffdd44' });
-        // Ost
-        boats.push({ x: WORLD_MAX + RIVER_OFFSET, y: WORLD_MAX, vx: 0, vy: -30, color: '#66ddcc' });
-        boats.push({ x: WORLD_MAX + RIVER_OFFSET + 280, y: -WORLD_MAX * 0.2, vx: 0, vy: -36, color: '#ff77aa' });
-    }
-    function updateBoats(dt) {
-        for (const b of boats) {
-            b.x += b.vx * dt;
-            b.y += b.vy * dt;
-            // Wrap: außerhalb der sichtbaren Flussbahn am gegenüberliegenden Ende neu starten
-            const margin = WORLD_MAX + RIVER_W + 400;
-            if (b.x >  margin) b.x = -margin + (b.x - margin);
-            if (b.x < -margin) b.x =  margin + (b.x + margin);
-            if (b.y >  margin) b.y = -margin + (b.y - margin);
-            if (b.y < -margin) b.y =  margin + (b.y + margin);
-        }
-    }
-    function drawBoats() {
-        for (const b of boats) {
-            const angle = Math.atan2(b.vy, b.vx);
-            ctx.save();
-            ctx.translate(b.x, b.y);
-            ctx.rotate(angle);
-            // Rumpf
-            ctx.fillStyle = b.color;
-            ctx.fillRect(-24, -10, 48, 20);
-            // Bug spitz
-            ctx.beginPath();
-            ctx.moveTo(24, -10); ctx.lineTo(36, 0); ctx.lineTo(24, 10);
-            ctx.closePath();
-            ctx.fill();
-            // Kabine
-            ctx.fillStyle = 'rgba(255,255,255,0.85)';
-            ctx.fillRect(-10, -6, 18, 12);
-            // Bug-Welle
-            ctx.fillStyle = 'rgba(255,255,255,0.35)';
-            ctx.fillRect(36, -4, 10, 2);
-            ctx.fillRect(36, 2, 10, 2);
-            ctx.restore();
-        }
-    }
-
-    function findNearbyBoatShop(px, py) {
-        const NEAR = 180;
-        for (const s of BOAT_SHOPS) {
-            const c = shopCenter(s);
-            const d = Math.hypot(px - c.x, py - c.y);
-            if (d < NEAR) return s;
-        }
-        return null;
-    }
-
-    function buyBoat() {
-        if (ownsBoat) return false;
-        if (score < BOAT_PRICE) {
-            addBanner('Zu wenig $ für Boot', '#ff6666');
-            return false;
-        }
-        score   -= BOAT_PRICE;
-        ownsBoat = true;
-        localStorage.setItem('chase_owns_boat', '1');
-        addBanner('⛵ BOOT GEKAUFT!', '#44ffcc', true);
-        vibrate([40, 20, 40]);
-        return true;
-    }
-
-    function updateBoatShop(dt) {
-        if (ownsBoat) { boatBuyTimer = 0; nearbyShop = null; return; }
-        nearbyShop = findNearbyBoatShop(player.x, player.y);
-        if (nearbyShop && score >= BOAT_PRICE && Math.abs(player.speed) < 60) {
-            boatBuyTimer += dt;
-            if (boatBuyTimer >= BOAT_BUY_SECS) {
-                buyBoat();
-                boatBuyTimer = 0;
-            }
-        } else {
-            boatBuyTimer = Math.max(0, boatBuyTimer - dt * 2);
         }
     }
 
