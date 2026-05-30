@@ -799,7 +799,7 @@
     const miniCanvas = document.getElementById('minimap');
     const miniCtx    = miniCanvas.getContext('2d');
     const MINI_SIZE  = 140;
-    const MINI_RANGE = 1800;
+    const MINI_RANGE = 2400;
     const MINI_SCALE = MINI_SIZE / MINI_RANGE;
 
     function resize() {
@@ -1002,6 +1002,10 @@
 
     // ── State ──────────────────────────────────────────────────────
     let player, cops, particles, pickups, groundCops;
+    let moneyTrucks = [];
+    let nextMoneyTruckAt = 8;
+    const MONEY_TRUCK_BONUS = 5000;
+    const MONEY_TRUCK_INTERVAL = 40;
     let camX = 0, camY = 0;
     let cameraZoom = 1;
     let lastT = 0;
@@ -1239,6 +1243,37 @@
             m.fillRect(sx - cs/2, sy - cs/2, cs, cs);
         }
 
+        // Geldtransporter (blinkender goldener Marker mit Glow)
+        for (const t of moneyTrucks) {
+            if (t.claimed) continue;
+            let sx = w2s(t.x), sy = h2s(t.y);
+            const blink = (Math.floor(elapsed * 4) % 2) === 0;
+            // Wenn außerhalb der Minimap: am Rand "kleben" als Pfeil
+            const margin = 6;
+            if (sx < margin || sx > size - margin || sy < margin || sy > size - margin) {
+                sx = Math.max(margin, Math.min(size - margin, sx));
+                sy = Math.max(margin, Math.min(size - margin, sy));
+            }
+            // Glow
+            m.fillStyle = 'rgba(255,216,74,0.4)';
+            m.beginPath();
+            m.arc(sx, sy, 9, 0, Math.PI * 2);
+            m.fill();
+            // Kern
+            m.fillStyle = blink ? '#ffd84a' : '#fff8c0';
+            m.beginPath();
+            m.arc(sx, sy, 5, 0, Math.PI * 2);
+            m.fill();
+            // $-Zeichen
+            m.fillStyle = '#1a1a1a';
+            m.font = 'bold 8px monospace';
+            m.textAlign = 'center';
+            m.textBaseline = 'middle';
+            m.fillText('$', sx, sy);
+            m.textAlign = 'left';
+            m.textBaseline = 'alphabetic';
+        }
+
         // Marker
         for (const mk of mapMarkers) {
             const sx = w2s(mk.x), sy = h2s(mk.y);
@@ -1393,6 +1428,8 @@
         };
         cops = [];
         groundCops = [];
+        moneyTrucks = [];
+        nextMoneyTruckAt = 8;
         particles = [];
         pickups = [];
         banners = [];
@@ -1495,6 +1532,213 @@
         });
     }
 
+    // ── Geldtransporter ────────────────────────────────────────────
+    const TRUCK_DIRS = [
+        { angle: 0,            dx:  1, dy:  0 },
+        { angle: Math.PI / 2,  dx:  0, dy:  1 },
+        { angle: Math.PI,      dx: -1, dy:  0 },
+        { angle: -Math.PI / 2, dx:  0, dy: -1 },
+    ];
+
+    function spawnMoneyTruck() {
+        // Versuche bis zu 8 mal eine zufällige Position auf einer Straße zu finden
+        for (let tries = 0; tries < 8; tries++) {
+            const d = TRUCK_DIRS[Math.floor(Math.random() * 4)];
+            // Spawne in 500–800 Entfernung damit er auf der Minimap sichtbar ist
+            const ang = Math.random() * Math.PI * 2;
+            const dist = 500 + Math.random() * 300;
+            let sx = player.x + Math.cos(ang) * dist;
+            let sy = player.y + Math.sin(ang) * dist;
+            // Auf Straßenmitte snappen (zentral, damit Lenken an Kreuzungen sauber funktioniert)
+            if (d.dx !== 0) {
+                const by = Math.round(sy / PITCH);
+                sy = by * PITCH + STREET_W / 2;
+            } else {
+                const bx = Math.round(sx / PITCH);
+                sx = bx * PITCH + STREET_W / 2;
+            }
+            if (sx < WORLD_MIN + 100 || sx > WORLD_MAX - 100 ||
+                sy < WORLD_MIN + 100 || sy > WORLD_MAX - 100) continue;
+            if (!isStreet(sx, sy)) continue;
+            moneyTrucks.push({
+                x: sx, y: sy,
+                angle: d.angle,
+                dx: d.dx, dy: d.dy,
+                speed: 200,
+                w: 64, l: 140,
+                claimed: false,
+                followTimer: 0,
+                lastDecisionTile: null,
+                stuckTime: 0
+            });
+            return;
+        }
+    }
+
+    function moveAndSteerTruck(t, dt) {
+        // An Kreuzungszentrum? Dann ggf. zufällig abbiegen
+        const mx = ((t.x % PITCH) + PITCH) % PITCH;
+        const my = ((t.y % PITCH) + PITCH) % PITCH;
+        const atCenter = Math.abs(mx - STREET_W / 2) < 6 && Math.abs(my - STREET_W / 2) < 6;
+        const tileKey = Math.floor(t.x / PITCH) + ',' + Math.floor(t.y / PITCH);
+        if (atCenter && t.lastDecisionTile !== tileKey) {
+            t.lastDecisionTile = tileKey;
+            if (Math.random() < 0.65) tryTruckTurn(t, false);
+        }
+        // Vorwärts bewegen
+        const step = t.speed * dt;
+        const newX = t.x + t.dx * step;
+        const newY = t.y + t.dy * step;
+        if (isStreet(newX, newY)) {
+            t.x = newX;
+            t.y = newY;
+            t.stuckTime = 0;
+        } else {
+            // Blockiert — versuchen abzubiegen ohne zu bewegen
+            if (tryTruckTurn(t, true)) {
+                t.stuckTime = 0;
+            } else {
+                t.stuckTime += dt;
+            }
+        }
+    }
+
+    function tryTruckTurn(t, mustTurn) {
+        // Snap auf Kreuzungs-Zentrum damit das Lenken sauber ist
+        const cx = Math.round((t.x - STREET_W / 2) / PITCH) * PITCH + STREET_W / 2;
+        const cy = Math.round((t.y - STREET_W / 2) / PITCH) * PITCH + STREET_W / 2;
+        const left  = { dx: -t.dy, dy:  t.dx };
+        const right = { dx:  t.dy, dy: -t.dx };
+        const probe = 70;
+        const leftOk  = isStreet(cx + left.dx  * probe, cy + left.dy  * probe);
+        const rightOk = isStreet(cx + right.dx * probe, cy + right.dy * probe);
+        const opts = [];
+        if (leftOk)  opts.push(left);
+        if (rightOk) opts.push(right);
+        if (!opts.length && mustTurn) {
+            const rev = { dx: -t.dx, dy: -t.dy };
+            if (isStreet(cx + rev.dx * probe, cy + rev.dy * probe)) opts.push(rev);
+        }
+        if (!opts.length) return false;
+        const chosen = opts[Math.floor(Math.random() * opts.length)];
+        // Snap auf Zentrum und in neue Richtung drehen
+        t.x = cx;
+        t.y = cy;
+        t.dx = chosen.dx;
+        t.dy = chosen.dy;
+        t.angle = Math.atan2(t.dy, t.dx);
+        return true;
+    }
+
+    function updateMoneyTrucks(dt) {
+        nextMoneyTruckAt -= dt;
+        if (nextMoneyTruckAt <= 0) {
+            spawnMoneyTruck();
+            nextMoneyTruckAt = MONEY_TRUCK_INTERVAL;
+        }
+        for (let i = moneyTrucks.length - 1; i >= 0; i--) {
+            const t = moneyTrucks[i];
+            // Bewegung + AI-Lenken auf der Straße
+            moveAndSteerTruck(t, dt);
+            // Despawn wenn raus aus Stadt oder Spieler zu weit weg oder festgefahren
+            if (t.x < WORLD_MIN || t.x > WORLD_MAX || t.y < WORLD_MIN || t.y > WORLD_MAX ||
+                Math.hypot(t.x - player.x, t.y - player.y) > 2200 || t.stuckTime > 1.5) {
+                moneyTrucks.splice(i, 1);
+                continue;
+            }
+            if (t.claimed) continue;
+            // Prüfen ob Spieler "nah hinter" dem LKW fährt
+            // hinter dem LKW = entgegen Fahrtrichtung
+            const dxp = player.x - t.x;
+            const dyp = player.y - t.y;
+            const distToTruck = Math.hypot(dxp, dyp);
+            const behindDot = -(dxp * t.dx + dyp * t.dy); // >0 wenn Spieler hinter dem LKW
+            const lateral = Math.abs(dxp * t.dy - dyp * t.dx); // seitlicher Abstand
+            const speedOk = Math.abs(player.speed) > 30;
+            // Großzügiger Detection-Cone: bis 200 hinter dem LKW, bis 60 seitlich
+            if (distToTruck < 220 && behindDot > -20 && behindDot < 200 && lateral < 60 && speedOk) {
+                t.followTimer += dt;
+                if (t.followTimer >= 1.5) {
+                    score       += MONEY_TRUCK_BONUS;
+                    cashGrabbed += MONEY_TRUCK_BONUS;
+                    multiplier   = Math.min(8, multiplier + 1.0);
+                    multiplierFreeze = 2.0;
+                    spawnParticles(t.x, t.y, 36, 'rgba(255,204,0,', 220, 1.2);
+                    addBanner('💰 +$' + MONEY_TRUCK_BONUS + ' GELDTRANSPORTER!', '#ffcc00', true);
+                    vibrate([60, 30, 80, 30, 100]);
+                    moneyTrucks.splice(i, 1);
+                    continue;
+                }
+            } else {
+                t.followTimer = Math.max(0, t.followTimer - dt * 1.5);
+            }
+        }
+    }
+
+    function drawMoneyTrucks() {
+        const vw2 = W * PIXEL_SCALE / cameraZoom / 2 + 80;
+        const vh2 = H * PIXEL_SCALE / cameraZoom / 2 + 80;
+        for (const t of moneyTrucks) {
+            if (Math.abs(t.x - camX) > vw2 || Math.abs(t.y - camY) > vh2) continue;
+            ctx.save();
+            ctx.translate(t.x, t.y);
+            ctx.rotate(t.angle);
+            const w = t.w, l = t.l;
+            // Schatten
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.beginPath();
+            ctx.ellipse(3, 3, l / 2, w / 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Chassis (sehr dunkel)
+            ctx.fillStyle = '#1a1d24';
+            roundRect(-l / 2, -w / 2, l, w, 3);
+            ctx.fill();
+            // Ladefläche (gepanzert, mittel-dunkel)
+            ctx.fillStyle = '#2a2e38';
+            ctx.fillRect(-l / 2 + 4, -w / 2 + 3, l - 22, w - 6);
+            // Goldener Streifen
+            ctx.fillStyle = t.claimed ? '#666' : '#d4af3a';
+            ctx.fillRect(-l / 2 + 6, -2, l - 26, 4);
+            // $-Symbol auf der Seite
+            ctx.fillStyle = t.claimed ? '#888' : '#ffd84a';
+            ctx.font = 'bold 14px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('$', -l / 4 + 4, 0);
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            // Kabine (vorne)
+            ctx.fillStyle = '#3a3e48';
+            ctx.fillRect(l / 2 - 18, -w / 2 + 2, 14, w - 4);
+            // Windschutz
+            ctx.fillStyle = 'rgba(20,30,50,0.85)';
+            ctx.fillRect(l / 2 - 16, -w / 2 + 4, 10, w - 8);
+            // Scheinwerfer
+            ctx.fillStyle = 'rgba(255,240,180,0.95)';
+            ctx.fillRect(l / 2 - 4, -w / 2 + 3, 4, 4);
+            ctx.fillRect(l / 2 - 4,  w / 2 - 7, 4, 4);
+            // Rücklichter
+            ctx.fillStyle = t.claimed ? 'rgba(120,120,120,0.6)' : 'rgba(255,80,80,0.95)';
+            ctx.fillRect(-l / 2,     -w / 2 + 3, 3, 5);
+            ctx.fillRect(-l / 2,      w / 2 - 8, 3, 5);
+            // Follow-Fortschritts-Ring beim Verfolgen
+            if (!t.claimed && t.followTimer > 0) {
+                ctx.rotate(-t.angle); // Ring nicht mitdrehen
+                const pct = Math.min(1, t.followTimer / 1.5);
+                ctx.strokeStyle = '#ffcc00';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.shadowColor = '#ffcc00';
+                ctx.shadowBlur = 14;
+                ctx.beginPath();
+                ctx.arc(0, 0, 32, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+            ctx.restore();
+        }
+    }
+
     function scatterCop(c) {
         c.state = 'search';
         // Spread helis to random points across a wide search area around player
@@ -1584,9 +1828,9 @@
             : keySteer;
         const handbrake  = keys.Space;
 
-        // Touch: joystick active = auto-gas; brake button overrides; gas button also works
+        // Touch: immer Gas außer wenn gebremst wird
         const effectiveAccel = isTouch
-            ? (brakePressed ? -1 : (joyActive || gasPressed) ? 1 : 0)
+            ? (brakePressed ? -1 : 1)
             : accelInput;
 
         const accelMul = boostActive ? 1.7 : 1.0;
@@ -1948,6 +2192,7 @@
         }
 
         updateBanks(dt);
+        updateMoneyTrucks(dt);
 
         // Siren HUD phase
         sirenPhase += dt;
@@ -2106,6 +2351,7 @@
         drawBuildings();
         drawBanks();
         drawPickups();
+        drawMoneyTrucks();
         ctx.restore();
         drawCar(player, _cs.color, _cs.accent, false);
         for (const g of groundCops) drawGroundCop(g);
@@ -2220,6 +2466,25 @@
             const sx = w2s(g.x), sy = h2s(g.y);
             m.fillStyle = '#4488ff';
             m.fillRect(sx - 3, sy - 3, 6, 6);
+        }
+
+        // Geldtransporter (auffälliger goldener Marker, klebt am Rand wenn off-map)
+        for (const t of moneyTrucks) {
+            let sx = w2s(t.x), sy = h2s(t.y);
+            const margin = 6;
+            if (sx < margin || sx > MINI_SIZE - margin || sy < margin || sy > MINI_SIZE - margin) {
+                sx = Math.max(margin, Math.min(MINI_SIZE - margin, sx));
+                sy = Math.max(margin, Math.min(MINI_SIZE - margin, sy));
+            }
+            const blink = (Math.floor(elapsed * 4) % 2) === 0;
+            m.fillStyle = 'rgba(255,216,74,0.45)';
+            m.beginPath();
+            m.arc(sx, sy, 8, 0, Math.PI * 2);
+            m.fill();
+            m.fillStyle = blink ? '#ffd84a' : '#fff8c0';
+            m.beginPath();
+            m.arc(sx, sy, 4, 0, Math.PI * 2);
+            m.fill();
         }
 
 
