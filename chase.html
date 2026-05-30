@@ -996,7 +996,7 @@
     const MAX_REVERSE    = -130 * _cs.s;
     const FRICTION       = 0.985;
     const BRAKE_DECEL    = 600;
-    const STEER_RATE     = 3.8 * _cs.t;
+    const STEER_RATE     = 4.2 * _cs.t;
     const HANDBRAKE_F    = 0.93;
     const DAMAGE_MULT    = _cs.d;
 
@@ -1921,12 +1921,12 @@
             let velDiff = player.angle - player.velAngle;
             while (velDiff > Math.PI)  velDiff -= Math.PI * 2;
             while (velDiff < -Math.PI) velDiff += Math.PI * 2;
-            const grip = handbrake ? 2.6 : 7.5;
+            const grip = handbrake ? 2.6 : 6.3;
             player.velAngle += velDiff * Math.min(1, grip * dt);
 
             // Slip side-friction bleeds a bit of speed when drifting hard
             const slip = Math.abs(velDiff);
-            if (slip > 0.3) player.speed *= Math.pow(0.985, dt * 60 * (slip - 0.3));
+            if (slip > 0.32) player.speed *= Math.pow(0.985, dt * 60 * (slip - 0.32));
 
             // Drift bonus: charge boost, bump multiplier, award drift completion
             if (slip > 0.35 && Math.abs(player.speed) > 100) {
