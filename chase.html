@@ -2757,17 +2757,6 @@
         }
         ctx.setLineDash([]);
 
-        // Curb at sidewalk/building boundary
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        for (let bx = startBX; bx <= endBX; bx++) {
-            ctx.fillRect(bx * PITCH - 2, top, 2, bottom - top);
-            ctx.fillRect(bx * PITCH + STREET_W, top, 2, bottom - top);
-        }
-        for (let by = startBY; by <= endBY; by++) {
-            ctx.fillRect(left, by * PITCH - 2, right - left, 2);
-            ctx.fillRect(left, by * PITCH + STREET_W, right - left, 2);
-        }
-
     }
 
     function drawTunnels() {
@@ -2883,29 +2872,18 @@
             default: drawGrayWarehouse(x0, y0, w, h, r); break;
         }
 
-        ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x0 + 4.5, y0 + 4.5, w - 9, h - 9);
-        // Top/left: dark shadow for depth
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(x0, y0, w, 3);
-        ctx.fillRect(x0, y0, 3, h);
-        // Bottom/right: light highlight
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        ctx.fillRect(x0 + 3, y0 + h - 2, w - 3, 2);
-        ctx.fillRect(x0 + w - 2, y0 + 3, 2, h - 3);
     }
 
     function drawGrayTower(x, y, w, h, r) {
         // Slight variations in gray
         const shades = ['#52565e', '#5a5e66', '#4a4e56'];
         ctx.fillStyle = shades[Math.floor(r * 100) % shades.length];
-        ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+        ctx.fillRect(x, y, w, h);
 
         // Top-left highlight
         ctx.fillStyle = 'rgba(255,255,255,0.05)';
-        ctx.fillRect(x + 4, y + 4, w - 8, 2);
-        ctx.fillRect(x + 4, y + 4, 2, h - 8);
+        ctx.fillRect(x, y, w, 2);
+        ctx.fillRect(x, y, 2, h);
 
         // Dense small windows — night: warm orange glow
         const cw = 5, ch = 6, gx = 5, gy = 5;
@@ -2931,12 +2909,12 @@
 
     function drawGrayApartment(x, y, w, h, r) {
         ctx.fillStyle = '#56544c';
-        ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+        ctx.fillRect(x, y, w, h);
 
-        // Subtle horizontal courses (brick stripes)
+        // Subtle horizontal courses (brick stripes) — komplett von Rand zu Rand
         ctx.fillStyle = 'rgba(0,0,0,0.15)';
-        for (let by2 = y + 12; by2 < y + h - 8; by2 += 9) {
-            ctx.fillRect(x + 5, by2, w - 10, 1);
+        for (let by2 = y + 4; by2 < y + h; by2 += 9) {
+            ctx.fillRect(x, by2, w, 1);
         }
 
         // Larger window grid — night: warm yellow/orange glow
@@ -2959,7 +2937,7 @@
     function drawGrayHouses(x, y, w, h, r) {
         // Yard ground — clearly lighter than streets to avoid tunnel look
         ctx.fillStyle = '#6a6e68';
-        ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+        ctx.fillRect(x, y, w, h);
 
         const cols = 2, rows = 2;
         const padX = 14, padY = 14, gapX = 18, gapY = 18;
@@ -2999,14 +2977,14 @@
 
     function drawGrayWarehouse(x, y, w, h, r) {
         ctx.fillStyle = '#4e5258';
-        ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+        ctx.fillRect(x, y, w, h);
 
-        // Corrugated roof lines
+        // Corrugated roof lines — ziehen sich komplett durch von Rand zu Rand
         ctx.strokeStyle = 'rgba(0,0,0,0.28)';
         ctx.lineWidth = 1;
-        for (let cy = y + 12; cy < y + h - 8; cy += 8) {
+        for (let cy = y + 4; cy < y + h; cy += 8) {
             ctx.beginPath();
-            ctx.moveTo(x + 8, cy); ctx.lineTo(x + w - 8, cy);
+            ctx.moveTo(x, cy); ctx.lineTo(x + w, cy);
             ctx.stroke();
         }
 
