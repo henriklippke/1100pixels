@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CHASE</title>
     <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+    <script src="/no-zoom.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1352,8 +1353,13 @@
     setupBtn('btn-nitro', v => { nitroPressed  = v; });
 
     // ── Helpers ────────────────────────────────────────────────────
+    const VIBRATE_MULT = 3.0;
     function vibrate(pattern) {
-        if (isTouch && navigator.vibrate) navigator.vibrate(pattern);
+        if (!(isTouch && navigator.vibrate)) return;
+        const scaled = Array.isArray(pattern)
+            ? pattern.map(v => Math.round(v * VIBRATE_MULT))
+            : Math.round(pattern * VIBRATE_MULT);
+        navigator.vibrate(scaled);
     }
 
     function rand(a, b) { return a + Math.random() * (b - a); }
@@ -1572,7 +1578,10 @@
         // Player input
         const accelInput = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
         const keySteer   = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
-        const steerInput = isTouch ? joyDX : keySteer;
+        // Joystick: nicht-lineare Kurve damit kleine Auslenkung sanft lenkt
+        const steerInput = isTouch
+            ? Math.sign(joyDX) * Math.pow(Math.abs(joyDX), 2.0) * 0.75
+            : keySteer;
         const handbrake  = keys.Space;
 
         // Touch: joystick active = auto-gas; brake button overrides; gas button also works
