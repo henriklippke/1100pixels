@@ -1363,6 +1363,7 @@
     let gasPressed   = false;
     let brakePressed = false;
     let nitroPressed = false;
+    let brakeHeldTime = 0;
 
     const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
     if (isTouch) {
@@ -1822,15 +1823,21 @@
         // Player input
         const accelInput = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
         const keySteer   = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
-        // Joystick: nicht-lineare Kurve damit kleine Auslenkung sanft lenkt
+        // Joystick: leichte Kurve damit kleine Auslenkung etwas sanfter ist, aber volle Auslenkung 100% lenkt
         const steerInput = isTouch
-            ? Math.sign(joyDX) * Math.pow(Math.abs(joyDX), 2.0) * 0.75
+            ? Math.sign(joyDX) * Math.pow(Math.abs(joyDX), 1.4)
             : keySteer;
         const handbrake  = keys.Space;
 
-        // Touch: immer Gas außer wenn gebremst wird
+        // Touch: immer Gas. Bremse: erst stoppen, nach 0.5 s im Stand → rückwärts
+        if (isTouch) {
+            if (brakePressed) brakeHeldTime += dt;
+            else brakeHeldTime = 0;
+        }
         const effectiveAccel = isTouch
-            ? (brakePressed ? -1 : 1)
+            ? (brakePressed
+                ? (player.speed > 5 ? -1 : (brakeHeldTime > 0.5 ? -1 : 0))
+                : 1)
             : accelInput;
 
         const accelMul = boostActive ? 1.7 : 1.0;
