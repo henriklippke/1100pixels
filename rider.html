@@ -1225,6 +1225,7 @@
 
     // ── Camera ────────────────────────────────────────────────────
     let camX = 0;  // world X of left edge of screen
+    let camY = 0;  // vertikaler Offset; > 0 = Welt nach unten verschieben (Spieler hoch in der Luft)
 
     // ── Game Loop ──────────────────────────────────────────────────
     let lastTime = null;
@@ -1501,6 +1502,12 @@
         // Camera follows player
         camX = px - canvas.width * 0.30;
 
+        // Vertical camera: folge dem Spieler wenn er zu hoch springt
+        const highThreshold = canvas.height * 0.35;
+        const maxCamY = canvas.height * 0.55;
+        const targetCamY = Math.max(0, Math.min(maxCamY, highThreshold - py));
+        camY += (targetCamY - camY) * Math.min(1, dt * 6);
+
         // Extend terrain when player gets close to the end
         if (_terrainCursor && px > _terrainCursor.x - 3000) extendTerrain();
 
@@ -1648,6 +1655,8 @@
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, W, H);
 
+        // Vertikales Kamera-Folgen wenn hoch in der Luft
+        ctx.translate(0, camY);
 
         // Neon grid
         drawGrid();

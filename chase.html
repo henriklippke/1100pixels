@@ -836,7 +836,7 @@
     const WORLD_MIN    = -WORLD_BLOCKS * PITCH;
     const WORLD_MAX    =  WORLD_BLOCKS * PITCH;
     const WALL_W       = 70;                     // Breite der Stadtmauer
-    const RIVER_W      = 4500;                   // Breite des Flusses um die Stadt
+    const RIVER_W      = 1200;                   // Breite des Flusses um die Stadt
 
     function isStreet(x, y) {
         if (x < WORLD_MIN || x > WORLD_MAX || y < WORLD_MIN || y > WORLD_MAX) return false;
@@ -1049,6 +1049,11 @@
         if (e.code === 'KeyM') toggleBigMap();
     });
     document.addEventListener('keyup', e => { keys[e.code] = false; });
+    // Bei Tabwechsel/Fokus-Verlust alle Keys löschen — verhindert "stuck" boost/lenken
+    window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) for (const k in keys) keys[k] = false;
+    });
 
     // Große Map
     let mapMarkers  = [];  // [ { x, y }, ... ]
@@ -1161,17 +1166,17 @@
         const px = (player ? player.x : 0) + bigMapPanX;
         const py = (player ? player.y : 0) + bigMapPanY;
 
-        // Wasser-Hintergrund
-        m.fillStyle = '#0d2a4a';
+        // Wasser-Hintergrund — helleres Blau damit der Fluss klar sichtbar ist
+        m.fillStyle = '#2e6b94';
         m.fillRect(0, 0, size, size);
 
         const w2s = wx => (wx - px) * scale + size / 2;
         const h2s = wy => (wy - py) * scale + size / 2;
 
-        const startBX = Math.floor((px - BM_RANGE/2) / PITCH) - 1;
-        const endBX   = Math.ceil ((px + BM_RANGE/2) / PITCH) + 1;
-        const startBY = Math.floor((py - BM_RANGE/2) / PITCH) - 1;
-        const endBY   = Math.ceil ((py + BM_RANGE/2) / PITCH) + 1;
+        const startBX = Math.max(-WORLD_BLOCKS, Math.floor((px - BM_RANGE/2) / PITCH) - 1);
+        const endBX   = Math.min(WORLD_BLOCKS - 1, Math.ceil ((px + BM_RANGE/2) / PITCH) + 1);
+        const startBY = Math.max(-WORLD_BLOCKS, Math.floor((py - BM_RANGE/2) / PITCH) - 1);
+        const endBY   = Math.min(WORLD_BLOCKS - 1, Math.ceil ((py + BM_RANGE/2) / PITCH) + 1);
 
         // Land-Fläche
         const lx = w2s(WORLD_MIN), ly = h2s(WORLD_MIN);
@@ -1389,12 +1394,14 @@
     setupBtn('btn-nitro', v => { nitroPressed  = v; });
 
     // ── Helpers ────────────────────────────────────────────────────
-    const VIBRATE_MULT = 3.0;
+    const VIBRATE_MULT = 5.0;
+    const VIBRATE_MIN  = 30; // Mindest-Vibrationsdauer ms damit man's spürt
     function vibrate(pattern) {
         if (!(isTouch && navigator.vibrate)) return;
+        const scale = v => Math.max(VIBRATE_MIN, Math.round(v * VIBRATE_MULT));
         const scaled = Array.isArray(pattern)
-            ? pattern.map(v => Math.round(v * VIBRATE_MULT))
-            : Math.round(pattern * VIBRATE_MULT);
+            ? pattern.map((v, i) => i % 2 === 0 ? scale(v) : Math.round(v * VIBRATE_MULT))
+            : scale(pattern);
         navigator.vibrate(scaled);
     }
 
@@ -2378,8 +2385,8 @@
 
     function drawMinimap() {
         const m = miniCtx;
-        // Background = road/asphalt tone (streets will show as the gaps between buildings)
-        m.fillStyle = '#1a2230';
+        // Background: Fluss (blau)
+        m.fillStyle = '#2e6b94';
         m.fillRect(0, 0, MINI_SIZE, MINI_SIZE);
 
         const px = player ? player.x : 0;
@@ -2391,6 +2398,12 @@
         const bottom = py + half;
         const w2s = (wx) => (wx - px) * MINI_SCALE + MINI_SIZE / 2;
         const h2s = (wy) => (wy - py) * MINI_SCALE + MINI_SIZE / 2;
+
+        // Stadt-Fläche (Land) als dunkles Rechteck
+        m.fillStyle = '#1a2230';
+        m.fillRect(w2s(WORLD_MIN), h2s(WORLD_MIN),
+                   (WORLD_MAX - WORLD_MIN) * MINI_SCALE,
+                   (WORLD_MAX - WORLD_MIN) * MINI_SCALE);
 
         const startBX = Math.floor(left   / PITCH);
         const endBX   = Math.ceil (right  / PITCH);
@@ -2672,16 +2685,40 @@
         ctx.fillRect(WORLD_MAX + wall - crown, WORLD_MIN - wall,
                      crown, WORLD_MAX - WORLD_MIN + wall * 2); // rechts
 
-        // Zinnen (Crenellations) auf der Mauerkrone — alle 80px ein heller Block
+        // Zinnen (Crenellations) auf der Mauerkrone — nur sichtbare zeichnen
         ctx.fillStyle = '#d4dae5';
         const merlonW = 38, merlonGap = 80, merlonH = 14;
-        for (let x = WORLD_MIN - wall + 10; x < WORLD_MAX + wall - merlonW; x += merlonGap) {
-            ctx.fillRect(x, WORLD_MIN - wall, merlonW, merlonH);              // oben
-            ctx.fillRect(x, WORLD_MAX + wall - merlonH, merlonW, merlonH);    // unten
+        const _vw2c = W * PIXEL_SCALE / cameraZoom / 2 + merlonGap;
+        const _vh2c = H * PIXEL_SCALE / cameraZoom / 2 + merlonGap;
+        const xStart = Math.max(WORLD_MIN - wall + 10, camX - _vw2c);
+        const xEnd   = Math.min(WORLD_MAX + wall - merlonW, camX + _vw2c);
+        const yStart = Math.max(WORLD_MIN - wall + 10, camY - _vh2c);
+        const yEnd   = Math.min(WORLD_MAX + wall - merlonW, camY + _vh2c);
+        const xAlign = Math.floor((xStart - (WORLD_MIN - wall + 10)) / merlonGap) * merlonGap + (WORLD_MIN - wall + 10);
+        const yAlign = Math.floor((yStart - (WORLD_MIN - wall + 10)) / merlonGap) * merlonGap + (WORLD_MIN - wall + 10);
+        // Nord-Mauer sichtbar?
+        if (camY - _vh2c < WORLD_MIN) {
+            for (let x = xAlign; x < xEnd; x += merlonGap) {
+                ctx.fillRect(x, WORLD_MIN - wall, merlonW, merlonH);
+            }
         }
-        for (let y = WORLD_MIN - wall + 10; y < WORLD_MAX + wall - merlonW; y += merlonGap) {
-            ctx.fillRect(WORLD_MIN - wall, y, merlonH, merlonW);              // links
-            ctx.fillRect(WORLD_MAX + wall - merlonH, y, merlonH, merlonW);    // rechts
+        // Süd-Mauer sichtbar?
+        if (camY + _vh2c > WORLD_MAX) {
+            for (let x = xAlign; x < xEnd; x += merlonGap) {
+                ctx.fillRect(x, WORLD_MAX + wall - merlonH, merlonW, merlonH);
+            }
+        }
+        // West-Mauer sichtbar?
+        if (camX - _vw2c < WORLD_MIN) {
+            for (let y = yAlign; y < yEnd; y += merlonGap) {
+                ctx.fillRect(WORLD_MIN - wall, y, merlonH, merlonW);
+            }
+        }
+        // Ost-Mauer sichtbar?
+        if (camX + _vw2c > WORLD_MAX) {
+            for (let y = yAlign; y < yEnd; y += merlonGap) {
+                ctx.fillRect(WORLD_MAX + wall - merlonH, y, merlonH, merlonW);
+            }
         }
 
         // Wasser-Wellen (animierte horizontale Streifen) im ganzen Flussbereich
@@ -2887,10 +2924,12 @@
         ctx.fillStyle = shades[Math.floor(r * 100) % shades.length];
         ctx.fillRect(x, y, w, h);
 
-        // Top-left highlight
+        // Rand komplett ums ganze Haus
         ctx.fillStyle = 'rgba(255,255,255,0.05)';
-        ctx.fillRect(x, y, w, 2);
-        ctx.fillRect(x, y, 2, h);
+        ctx.fillRect(x, y, w, 2);              // oben
+        ctx.fillRect(x, y, 2, h);              // links
+        ctx.fillRect(x, y + h - 2, w, 2);      // unten
+        ctx.fillRect(x + w - 2, y, 2, h);      // rechts
 
         // Dense small windows — night: warm orange glow
         const cw = 5, ch = 6, gx = 5, gy = 5;
@@ -2971,10 +3010,12 @@
                 // Roof ridge
                 ctx.fillStyle = 'rgba(0,0,0,0.4)';
                 ctx.fillRect(hx, hy + hh / 2 - 0.5, hw, 1);
-                // Top/bottom shading
+                // Schattierung komplett rund ums Haus
                 ctx.fillStyle = 'rgba(0,0,0,0.25)';
-                ctx.fillRect(hx, hy, hw, 3);
-                ctx.fillRect(hx, hy + hh - 3, hw, 3);
+                ctx.fillRect(hx, hy, hw, 3);              // oben
+                ctx.fillRect(hx, hy + hh - 3, hw, 3);     // unten
+                ctx.fillRect(hx, hy, 3, hh);              // links
+                ctx.fillRect(hx + hw - 3, hy, 3, hh);     // rechts
                 // Outline
                 ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1;
                 ctx.strokeRect(hx + 0.5, hy + 0.5, hw - 1, hh - 1);
