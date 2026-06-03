@@ -834,7 +834,7 @@
     const WORLD_MIN    = -WORLD_BLOCKS * PITCH;
     const WORLD_MAX    =  WORLD_BLOCKS * PITCH;
     const WALL_W       = 70;                     // Breite der Stadtmauer
-    const RIVER_W      = 1200;                   // Breite des Flusses um die Stadt
+    const RIVER_W      = 12000;                  // Breite des Flusses (nur weiche Grenze für Wellen)
 
     function isStreet(x, y) {
         if (x < WORLD_MIN || x > WORLD_MAX || y < WORLD_MIN || y > WORLD_MAX) return false;
@@ -2307,6 +2307,7 @@
         const spd = Math.abs(player.speed);
         let targetZoom = 1 - Math.min(0.15, spd / MAX_SPEED * 0.15);
         if (boostActive) targetZoom = Math.max(0.78, targetZoom - 0.04);
+        if (isTouch) targetZoom *= 0.78; // auf Handy weiter weg gezoomt
         cameraZoom += (targetZoom - cameraZoom) * Math.min(1, dt * 1.2);
 
         // Effects decay
@@ -2724,23 +2725,45 @@
     function drawWater() {
         const t = elapsed * 0.8;
 
-        // Wasser-Fläche (breiter Fluss/See um die Stadt herum)
-        ctx.fillStyle = '#2e6b94';
-        ctx.fillRect(WORLD_MIN - RIVER_W, WORLD_MIN - RIVER_W,
-                     (WORLD_MAX - WORLD_MIN) + RIVER_W * 2,
-                     (WORLD_MAX - WORLD_MIN) + RIVER_W * 2);
+        // Viewport-Bounds: Wasser nur soweit zeichnen wie sichtbar
+        const vw2 = W * PIXEL_SCALE / cameraZoom / 2 + 100;
+        const vh2 = H * PIXEL_SCALE / cameraZoom / 2 + 100;
+        const viewL = camX - vw2, viewR = camX + vw2;
+        const viewT = camY - vh2, viewB = camY + vh2;
 
-        // Tiefere Tönung weiter draußen (Tiefenwasser)
+        // Wasser-Fläche — nur den sichtbaren Bereich füllen
+        ctx.fillStyle = '#2e6b94';
+        ctx.fillRect(viewL, viewT, viewR - viewL, viewB - viewT);
+
+        // Tiefere Tönung an den Stadtmauer-Rändern für Atmosphäre
         ctx.fillStyle = 'rgba(8,20,38,0.45)';
         const deep = 900;
-        ctx.fillRect(WORLD_MIN - RIVER_W, WORLD_MIN - RIVER_W,
-                     (WORLD_MAX - WORLD_MIN) + RIVER_W * 2, deep);                              // oben tief
-        ctx.fillRect(WORLD_MIN - RIVER_W, WORLD_MAX + RIVER_W - deep,
-                     (WORLD_MAX - WORLD_MIN) + RIVER_W * 2, deep);                              // unten tief
-        ctx.fillRect(WORLD_MIN - RIVER_W, WORLD_MIN - RIVER_W,
-                     deep, (WORLD_MAX - WORLD_MIN) + RIVER_W * 2);                              // links tief
-        ctx.fillRect(WORLD_MAX + RIVER_W - deep, WORLD_MIN - RIVER_W,
-                     deep, (WORLD_MAX - WORLD_MIN) + RIVER_W * 2);                              // rechts tief
+        const dxL = Math.max(viewL, WORLD_MIN - deep - 200);
+        const dxR = Math.min(viewR, WORLD_MAX + deep + 200);
+        // Nord-Streifen
+        if (viewT < WORLD_MIN - 4) {
+            const y0 = Math.max(viewT, WORLD_MIN - deep);
+            const y1 = Math.min(viewB, WORLD_MIN);
+            if (y1 > y0) ctx.fillRect(dxL, y0, dxR - dxL, y1 - y0);
+        }
+        // Süd-Streifen
+        if (viewB > WORLD_MAX + 4) {
+            const y0 = Math.max(viewT, WORLD_MAX);
+            const y1 = Math.min(viewB, WORLD_MAX + deep);
+            if (y1 > y0) ctx.fillRect(dxL, y0, dxR - dxL, y1 - y0);
+        }
+        // West-Streifen
+        if (viewL < WORLD_MIN - 4) {
+            const x0 = Math.max(viewL, WORLD_MIN - deep);
+            const x1 = Math.min(viewR, WORLD_MIN);
+            if (x1 > x0) ctx.fillRect(x0, viewT, x1 - x0, viewB - viewT);
+        }
+        // Ost-Streifen
+        if (viewR > WORLD_MAX + 4) {
+            const x0 = Math.max(viewL, WORLD_MAX);
+            const x1 = Math.min(viewR, WORLD_MAX + deep);
+            if (x1 > x0) ctx.fillRect(x0, viewT, x1 - x0, viewB - viewT);
+        }
 
         // Land-Fläche (Stadt) als dunkles Rechteck — night mode
         ctx.fillStyle = '#06090f';
