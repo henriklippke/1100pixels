@@ -1068,13 +1068,17 @@
     const bigMapCtx     = bigMapCanvas.getContext('2d');
     const bigMapWrap    = document.getElementById('bigmap-wrap');
 
-    const BM_RANGE = 5000;
+    const BM_RANGE_DEFAULT = 5000;
+    let bmRange = BM_RANGE_DEFAULT;
+    const BM_RANGE_MIN = 1200;   // ganz reingezoomt
+    const BM_RANGE_MAX = 18000;  // ganz rausgezoomt
     let bigMapSize = 0;
 
     function openBigMap() {
         bigMapOpen  = true;
         bigMapPanX  = 0;
         bigMapPanY  = 0;
+        bmRange     = BM_RANGE_DEFAULT;
         bigMapOverlay.classList.add('show');
         const size  = Math.min(window.innerWidth * 0.92, window.innerHeight * 0.85);
         bigMapSize  = Math.round(size);
@@ -1103,62 +1107,90 @@
         toggleBigMap();
     });
 
-    // Scrollen / Ziehen auf der Map
+    // Pan + Pinch-Zoom auf der Map
     bigMapCanvas.style.cursor = 'grab';
+    const bmPointers = new Map(); // pointerId -> {x, y}
+    let bmPinchStartDist = 0;
+    let bmPinchStartRange = 0;
+
     bigMapCanvas.addEventListener('pointerdown', e => {
         e.preventDefault();
         bigMapCanvas.setPointerCapture(e.pointerId);
-        bmDragging   = true;
-        bmDidDrag    = false;
-        bmDragStartX = e.clientX;
-        bmDragStartY = e.clientY;
-        bmDragPanX   = bigMapPanX;
-        bmDragPanY   = bigMapPanY;
-        bigMapCanvas.style.cursor = 'grabbing';
+        bmPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (bmPointers.size === 1) {
+            bmDragging   = true;
+            bmDidDrag    = false;
+            bmDragStartX = e.clientX;
+            bmDragStartY = e.clientY;
+            bmDragPanX   = bigMapPanX;
+            bmDragPanY   = bigMapPanY;
+            bigMapCanvas.style.cursor = 'grabbing';
+        } else if (bmPointers.size === 2) {
+            const pts = [...bmPointers.values()];
+            bmPinchStartDist  = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+            bmPinchStartRange = bmRange;
+            bmDragging = false;
+            bmDidDrag  = true; // verhindert Marker-Setzen beim Pinch-Ende
+        }
     });
     bigMapCanvas.addEventListener('pointermove', e => {
-        if (!bmDragging) return;
-        const dx = e.clientX - bmDragStartX;
-        const dy = e.clientY - bmDragStartY;
-        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) bmDidDrag = true;
-        const scale = bigMapSize / BM_RANGE;
-        bigMapPanX = bmDragPanX - dx / scale;
-        bigMapPanY = bmDragPanY - dy / scale;
-        drawBigMap();
+        if (!bmPointers.has(e.pointerId)) return;
+        bmPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (bmPointers.size === 2 && bmPinchStartDist > 0) {
+            const pts = [...bmPointers.values()];
+            const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+            bmRange = Math.max(BM_RANGE_MIN, Math.min(BM_RANGE_MAX, bmPinchStartRange * bmPinchStartDist / dist));
+            drawBigMap();
+        } else if (bmDragging) {
+            const dx = e.clientX - bmDragStartX;
+            const dy = e.clientY - bmDragStartY;
+            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) bmDidDrag = true;
+            const scale = bigMapSize / bmRange;
+            bigMapPanX = bmDragPanX - dx / scale;
+            bigMapPanY = bmDragPanY - dy / scale;
+            drawBigMap();
+        }
     });
-    bigMapCanvas.addEventListener('pointerup', e => {
-        if (!bmDidDrag) {
-            // Klick ohne Drag → Marker setzen / löschen
+    function bmEndPointer(e) {
+        if (!bmPointers.has(e.pointerId)) return;
+        const wasSingleTap = bmPointers.size === 1 && !bmDidDrag;
+        bmPointers.delete(e.pointerId);
+        if (wasSingleTap) {
+            // Marker setzen / löschen
             const rect   = bigMapCanvas.getBoundingClientRect();
             const cx     = (e.clientX - rect.left) * (bigMapSize / rect.width);
             const cy     = (e.clientY - rect.top)  * (bigMapSize / rect.height);
-            const scale  = bigMapSize / BM_RANGE;
+            const scale  = bigMapSize / bmRange;
             const vpx    = (player ? player.x : 0) + bigMapPanX;
             const vpy    = (player ? player.y : 0) + bigMapPanY;
             const wx     = (cx - bigMapSize / 2) / scale + vpx;
             const wy     = (cy - bigMapSize / 2) / scale + vpy;
-
-            // Existing marker in der Nähe? → löschen
             const snapPx = 20 / scale;
             const idx = mapMarkers.findIndex(m => Math.hypot(m.x - wx, m.y - wy) < snapPx);
-            if (idx !== -1) {
-                mapMarkers.splice(idx, 1);
-            } else {
-                mapMarkers.push({ x: wx, y: wy });
-            }
+            if (idx !== -1) mapMarkers.splice(idx, 1);
+            else            mapMarkers.push({ x: wx, y: wy });
             drawBigMap();
         }
-        bmDragging = false;
-        bigMapCanvas.style.cursor = 'grab';
-    });
-    bigMapCanvas.addEventListener('pointercancel', () => {
-        bmDragging = false;
-        bigMapCanvas.style.cursor = 'grab';
-    });
+        if (bmPointers.size < 2) bmPinchStartDist = 0;
+        if (bmPointers.size === 0) {
+            bmDragging = false;
+            bigMapCanvas.style.cursor = 'grab';
+        }
+    }
+    bigMapCanvas.addEventListener('pointerup',     bmEndPointer);
+    bigMapCanvas.addEventListener('pointercancel', bmEndPointer);
+
+    // Maus-Rad zum Zoomen auf Desktop
+    bigMapCanvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        const factor = e.deltaY > 0 ? 1.15 : 0.87;
+        bmRange = Math.max(BM_RANGE_MIN, Math.min(BM_RANGE_MAX, bmRange * factor));
+        drawBigMap();
+    }, { passive: false });
 
     function drawBigMap() {
         const size  = bigMapSize;
-        const scale = size / BM_RANGE;
+        const scale = size / bmRange;
         const m     = bigMapCtx;
 
         const px = (player ? player.x : 0) + bigMapPanX;
@@ -1171,10 +1203,10 @@
         const w2s = wx => (wx - px) * scale + size / 2;
         const h2s = wy => (wy - py) * scale + size / 2;
 
-        const startBX = Math.max(-WORLD_BLOCKS, Math.floor((px - BM_RANGE/2) / PITCH) - 1);
-        const endBX   = Math.min(WORLD_BLOCKS - 1, Math.ceil ((px + BM_RANGE/2) / PITCH) + 1);
-        const startBY = Math.max(-WORLD_BLOCKS, Math.floor((py - BM_RANGE/2) / PITCH) - 1);
-        const endBY   = Math.min(WORLD_BLOCKS - 1, Math.ceil ((py + BM_RANGE/2) / PITCH) + 1);
+        const startBX = Math.max(-WORLD_BLOCKS, Math.floor((px - bmRange/2) / PITCH) - 1);
+        const endBX   = Math.min(WORLD_BLOCKS - 1, Math.ceil ((px + bmRange/2) / PITCH) + 1);
+        const startBY = Math.max(-WORLD_BLOCKS, Math.floor((py - bmRange/2) / PITCH) - 1);
+        const endBY   = Math.min(WORLD_BLOCKS - 1, Math.ceil ((py + bmRange/2) / PITCH) + 1);
 
         // Land-Fläche
         const lx = w2s(WORLD_MIN), ly = h2s(WORLD_MIN);
@@ -1834,7 +1866,7 @@
             : keySteer;
         const handbrake  = keys.Space;
 
-        // Touch: immer Gas. Bremse: erst stoppen, nach 0.5 s im Stand → rückwärts
+        // Touch: Gas-Button drücken → Gas. Bremse: erst stoppen, nach 0.5 s im Stand → rückwärts
         if (isTouch) {
             if (brakePressed) brakeHeldTime += dt;
             else brakeHeldTime = 0;
@@ -1842,7 +1874,7 @@
         const effectiveAccel = isTouch
             ? (brakePressed
                 ? (player.speed > 5 ? -1 : (brakeHeldTime > 0.5 ? -1 : 0))
-                : 1)
+                : (gasPressed ? 1 : 0))
             : accelInput;
 
         const accelMul = boostActive ? 1.7 : 1.0;
