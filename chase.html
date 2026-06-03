@@ -1930,7 +1930,7 @@
         const effectiveAccel = isTouch
             ? (brakePressed
                 ? (player.speed > 5 ? -1 : (brakeHeldTime > 0.5 ? -1 : 0))
-                : (gasPressed ? 1 : 0))
+                : ((gasPressed || nitroPressed) ? 1 : 0))
             : accelInput;
 
         const accelMul = boostActive ? 1.7 : 1.0;
