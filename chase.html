@@ -1413,15 +1413,71 @@
         document.getElementById('hint').textContent = 'WASD/Pfeile · LEERTASTE = Handbremse/Drift · SHIFT = NITRO';
     }
 
-    function setupBtn(id, setFn) {
-        const el = document.getElementById(id);
-        el.addEventListener('pointerdown', e => { e.preventDefault(); setFn(true); el.classList.add('active'); el.setPointerCapture(e.pointerId); });
-        el.addEventListener('pointerup',   e => { setFn(false); el.classList.remove('active'); });
-        el.addEventListener('pointercancel', e => { setFn(false); el.classList.remove('active'); });
-    }
-    setupBtn('btn-gas',   v => { gasPressed   = v; });
-    setupBtn('btn-brake', v => { brakePressed  = v; });
-    setupBtn('btn-nitro', v => { nitroPressed  = v; });
+    // Slide-Controls: Finger auf GAS, hoch slides → NITRO, runter slides → BREMSE.
+    // Finger bleibt unten, der Button unter dem Finger ist aktiv.
+    (function setupSlideButtons() {
+        const btns = {
+            nitro: document.getElementById('btn-nitro'),
+            gas:   document.getElementById('btn-gas'),
+            brake: document.getElementById('btn-brake'),
+        };
+        let activePointerId = null;
+        let currentBtn = null;
+
+        function setActive(name) {
+            if (name === currentBtn) return;
+            if (currentBtn) {
+                btns[currentBtn].classList.remove('active');
+                if (currentBtn === 'gas')   gasPressed   = false;
+                if (currentBtn === 'nitro') nitroPressed = false;
+                if (currentBtn === 'brake') brakePressed = false;
+            }
+            currentBtn = name;
+            if (name) {
+                btns[name].classList.add('active');
+                if (name === 'gas')   gasPressed   = true;
+                if (name === 'nitro') nitroPressed = true;
+                if (name === 'brake') brakePressed = true;
+            }
+        }
+
+        function findBtnAt(x, y) {
+            // Generös Y-Toleranz nach oben/unten damit Slides nicht in die Lücke fallen
+            for (const [name, el] of Object.entries(btns)) {
+                const r = el.getBoundingClientRect();
+                if (x >= r.left - 24 && x <= r.right + 24 &&
+                    y >= r.top  - 8  && y <= r.bottom + 8) {
+                    return name;
+                }
+            }
+            return null;
+        }
+
+        for (const [name, el] of Object.entries(btns)) {
+            el.addEventListener('pointerdown', e => {
+                e.preventDefault();
+                if (activePointerId !== null) return;
+                activePointerId = e.pointerId;
+                el.setPointerCapture(e.pointerId);
+                setActive(name);
+                const onMove = ev => {
+                    if (ev.pointerId !== activePointerId) return;
+                    setActive(findBtnAt(ev.clientX, ev.clientY));
+                };
+                const onEnd = ev => {
+                    if (ev.pointerId !== activePointerId) return;
+                    setActive(null);
+                    activePointerId = null;
+                    el.removeEventListener('pointermove',   onMove);
+                    el.removeEventListener('pointerup',     onEnd);
+                    el.removeEventListener('pointercancel', onEnd);
+                };
+                el.addEventListener('pointermove',   onMove);
+                el.addEventListener('pointerup',     onEnd);
+                el.addEventListener('pointercancel', onEnd);
+            });
+        }
+    })();
 
     // ── Helpers ────────────────────────────────────────────────────
     const VIBRATE_MULT = 5.0;
