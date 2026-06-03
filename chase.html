@@ -2307,7 +2307,6 @@
         const spd = Math.abs(player.speed);
         let targetZoom = 1 - Math.min(0.15, spd / MAX_SPEED * 0.15);
         if (boostActive) targetZoom = Math.max(0.78, targetZoom - 0.04);
-        if (isTouch) targetZoom *= 0.78; // auf Handy weiter weg gezoomt
         cameraZoom += (targetZoom - cameraZoom) * Math.min(1, dt * 1.2);
 
         // Effects decay
