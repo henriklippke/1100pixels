@@ -1536,9 +1536,21 @@
         return a;
     }
 
+    // Geteilter SFX-AudioContext — wird wiederverwendet statt pro Sound neu
+    // erzeugt (sonst stapeln sich AudioContexts → RAM-Leck, vor allem bei Flips).
+    let _sfxAC = null;
+    function getSfxAC() {
+        if (!_sfxAC) {
+            try { _sfxAC = new (window.AudioContext || window.webkitAudioContext)(); }
+            catch(e) { return null; }
+        }
+        if (_sfxAC.state === 'suspended') { try { _sfxAC.resume(); } catch(e) {} }
+        return _sfxAC;
+    }
+
     function playGameOverSound() {
         try {
-            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            const ac = getSfxAC(); if (!ac) return;
             [[494,0],[392,0.22],[330,0.44],[196,0.70]].forEach(([freq, t]) => {
                 const osc = ac.createOscillator();
                 const gain = ac.createGain();
@@ -1555,7 +1567,7 @@
 
     function playFlipSound() {
         try {
-            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            const ac = getSfxAC(); if (!ac) return;
             const osc = ac.createOscillator();
             const gain = ac.createGain();
             osc.connect(gain); gain.connect(ac.destination);
