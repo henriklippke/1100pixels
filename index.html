@@ -319,10 +319,19 @@
                 if (!kickedBenshi.includes('benshi-212')) riderFiltered.push({ name: 'Benshi', points: 212, created: new Date('2026-05-19T17:40:00'), id: 'benshi-212' });
                 riderFiltered.sort((a, b) => b.points - a.points);
 
+                // Wochenstart: Montag 00:00 der aktuellen Woche
+                const weekStart = new Date();
+                const dow = (weekStart.getDay() + 6) % 7; // Mo=0 … So=6
+                weekStart.setDate(weekStart.getDate() - dow);
+                weekStart.setHours(0, 0, 0, 0);
+                const toD = (ts) => ts ? (ts.toDate ? ts.toDate() : new Date(ts)) : null;
+                const riderWeek = riderFiltered.filter(d => { const dt = toD(d.created); return dt && dt >= weekStart; });
+
                 fillPodium('p', redPixels);
                 fillPodium('r', riderFiltered);
                 fillPodium('c', chase);
                 fillTable('lb-redpixel', redPixels, 'Pts');
+                fillTable('lb-rider-week', riderWeek, 'Flips');
                 fillTable('lb-rider', riderFiltered, 'Flips');
                 fillTable('lb-chase', chase, '$');
                 fillTable('lb-brawler', brawler, 'Pts');
@@ -701,6 +710,15 @@
         </a>
         <div class="lb-panel slide-lb">
             <h3 class="lb-title"><span class="lb-dot cyan"></span>Rider</h3>
+            <div class="lb-sub">🔥 Diese Woche</div>
+            <div class="lb-scroll lb-week">
+                <table class="lb-table lb-fixed">
+                    <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
+                    <thead><tr><th>#</th><th>Spieler</th><th>Flips</th><th>Datum</th></tr></thead>
+                    <tbody id="lb-rider-week"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
+                </table>
+            </div>
+            <div class="lb-sub alltime">🏆 Allzeit</div>
             <div class="lb-scroll">
                 <table class="lb-table lb-fixed">
                     <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>

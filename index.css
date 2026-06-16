@@ -513,12 +513,23 @@ main {
     font-weight: 400;
 }
 
+.lb-sub {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #ff8844;
+    margin: 14px 2px 4px;
+}
+.lb-sub.alltime { color: #569aa9; }
+.lb-sub:first-of-type { margin-top: 2px; }
+
 .lb-scroll {
     max-height: 300px;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.12) transparent;
 }
+.lb-scroll.lb-week { max-height: 170px; }
 .lb-scroll::-webkit-scrollbar { width: 4px; }
 .lb-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
 

@@ -76,20 +76,43 @@
                 pbEl.textContent = myBest > 0 ? `Dein Rekord: ${myBest} Flips` : '';
             }
 
-            tbody.innerHTML = '';
-            filtered.forEach((d, i) => {
-                const tr = document.createElement('tr');
-                const ts = d.created;
-                let dateStr = '';
-                if (ts) {
-                    const dt = ts.toDate ? ts.toDate() : new Date(ts);
-                    dateStr = `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}`;
+            const toDate = (ts) => ts ? (ts.toDate ? ts.toDate() : new Date(ts)) : null;
+
+            // Wochenstart: Montag 00:00 der aktuellen Woche
+            const weekStart = new Date();
+            const dow = (weekStart.getDay() + 6) % 7; // Mo=0 … So=6
+            weekStart.setDate(weekStart.getDate() - dow);
+            weekStart.setHours(0, 0, 0, 0);
+
+            const renderList = (tb, rows) => {
+                tb.innerHTML = '';
+                if (!rows.length) {
+                    tb.innerHTML = '<tr><td colspan="4" style="opacity:.5;padding:8px 0">Noch keine Ergebnisse</td></tr>';
+                    return;
                 }
-                const isMe = currentUser && d.name === currentUser.name;
-                tr.style.background = isMe ? 'rgba(255,68,68,0.08)' : '';
-                tr.innerHTML = `<td>${i < 3 ? medals[i] : i+1}</td><td style="${isMe ? 'color:#ff8844;font-weight:700' : ''}">${d.name}</td><td style="color:#ff8844;font-weight:bold;text-align:center">${d.points}</td><td style="color:rgba(255,255,255,0.35);font-size:0.78rem;text-align:right;white-space:nowrap">${dateStr}</td>`;
-                tbody.appendChild(tr);
-            });
+                rows.forEach((d, i) => {
+                    const tr = document.createElement('tr');
+                    const dt = toDate(d.created);
+                    const dateStr = dt ? `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}` : '';
+                    const isMe = currentUser && d.name === currentUser.name;
+                    tr.style.background = isMe ? 'rgba(255,68,68,0.08)' : '';
+                    tr.innerHTML = `<td>${i < 3 ? medals[i] : i+1}</td><td style="${isMe ? 'color:#ff8844;font-weight:700' : ''}">${d.name}</td><td style="color:#ff8844;font-weight:bold;text-align:center">${d.points}</td><td style="color:rgba(255,255,255,0.35);font-size:0.78rem;text-align:right;white-space:nowrap">${dateStr}</td>`;
+                    tb.appendChild(tr);
+                });
+            };
+
+            // Allzeit
+            renderList(tbody, filtered);
+
+            // Diese Woche
+            const weekBody = document.getElementById('lb-week-body');
+            if (weekBody) {
+                const weekRows = filtered.filter(d => {
+                    const dt = toDate(d.created);
+                    return dt && dt >= weekStart;
+                });
+                renderList(weekBody, weekRows);
+            }
         }
 
 
@@ -413,12 +436,12 @@
         }
         .modal-box button:active { transform: translateY(0); }
 
-        #leaderboard tbody tr td {
+        #leaderboard tbody tr td, #leaderboard-week tbody tr td {
             padding: 5px 6px;
             border-bottom: 1px solid rgba(255,255,255,0.07);
             color: rgba(255,255,255,0.85);
         }
-        #leaderboard tbody tr:first-child td { color: #ffcc44; }
+        #leaderboard tbody tr:first-child td, #leaderboard-week tbody tr:first-child td { color: #ffcc44; }
 
         @media (max-width: 431px) {
             .modal-box { padding: 35px 25px; }
@@ -465,7 +488,27 @@
         <p class="final-score">Deine Flips<br><span id="final-score-display">0</span></p>
         <p id="personal-best-display" style="font-size:0.8rem;color:rgba(255,255,255,0.4);margin:-8px 0 12px;letter-spacing:1px"></p>
 
-        <table style="width:100%;border-collapse:collapse;margin:18px 0 6px;font-size:0.9rem">
+        <h2 style="font-size:0.95rem;color:#ff8844;margin:18px 0 4px;text-align:left;letter-spacing:.5px">🔥 Diese Woche</h2>
+        <table style="width:100%;border-collapse:collapse;margin:0 0 6px;font-size:0.9rem">
+            <thead>
+                <tr style="color:#569aa9;border-bottom:1px solid rgba(86,154,169,0.4)">
+                    <td style="padding:4px 6px">#</td>
+                    <td style="padding:4px 6px">Spieler</td>
+                    <td style="padding:4px 6px;text-align:center">Flips</td>
+                    <td style="padding:4px 6px;text-align:right">Datum</td>
+                </tr>
+            </thead>
+        </table>
+        <div style="max-height:200px;overflow-y:auto;margin-bottom:18px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.15) transparent">
+            <table id="leaderboard-week" style="width:100%;border-collapse:collapse;font-size:0.9rem">
+                <tbody id="lb-week-body">
+                    <tr><td colspan="4" style="opacity:.5;padding:8px 0">Laden…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2 style="font-size:0.95rem;color:#569aa9;margin:6px 0 4px;text-align:left;letter-spacing:.5px">🏆 Allzeit</h2>
+        <table style="width:100%;border-collapse:collapse;margin:0 0 6px;font-size:0.9rem">
             <thead>
                 <tr style="color:#569aa9;border-bottom:1px solid rgba(86,154,169,0.4)">
                     <td style="padding:4px 6px">#</td>
@@ -478,7 +521,7 @@
         <div style="max-height:240px;overflow-y:auto;margin-bottom:22px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.15) transparent">
             <table id="leaderboard" style="width:100%;border-collapse:collapse;font-size:0.9rem">
                 <tbody id="lb-body">
-                    <tr><td colspan="3" style="opacity:.5;padding:8px 0">Laden…</td></tr>
+                    <tr><td colspan="4" style="opacity:.5;padding:8px 0">Laden…</td></tr>
                 </tbody>
             </table>
         </div>
