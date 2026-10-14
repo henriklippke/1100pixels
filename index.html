@@ -110,12 +110,30 @@
         .half:hover .btn { background: var(--accent); color: #0a1628; }
 
         footer {
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
             padding: 18px 20px 26px;
             color: rgba(255,255,255,0.22);
             font-size: 0.75rem;
             border-top: 1px solid rgba(255,255,255,0.06);
         }
+
+        .discord {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            border: 1px solid rgba(88,101,242,0.45);
+            border-radius: 8px;
+            padding: 7px 14px;
+            color: #8b95f7;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: background 0.2s, color 0.2s;
+        }
+        .discord:hover { background: #5865f2; color: #fff; }
 
         @media (max-width: 760px) {
             .split { grid-template-columns: 1fr; }
@@ -153,7 +171,10 @@
 
 </main>
 
-<footer>1100pixels.com</footer>
+<footer>
+    <a class="discord" href="https://discord.gg/NpZwJbvuZ" target="_blank" rel="noopener">💬 Join our Discord</a>
+    <span>1100pixels.com</span>
+</footer>
 
 </body>
 </html>
