@@ -272,7 +272,7 @@
     const el = document.getElementById('profil-content');
 
     if (!user) {
-        el.innerHTML = '<p class="loading">Nicht eingeloggt. <a href="/" style="color:#ff5555">Startseite</a></p>';
+        el.innerHTML = '<p class="loading">Nicht eingeloggt. <a href="/spiele.html" style="color:#ff5555">Startseite</a></p>';
     } else {
         try {
             const [qs, uqs] = await Promise.all([
@@ -382,7 +382,7 @@
                 </div>
 
                 <div class="profil-actions">
-                    <a href="/" class="btn-back">← Zurück</a>
+                    <a href="/spiele.html" class="btn-back">← Zurück</a>
                     <button class="btn-logout" id="logout-btn">Abmelden</button>
                 </div>
             `;

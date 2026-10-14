@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <title>1100pixels.com</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Kleine Pixel-Games von Leo zum direkt im Browser spielen — kostenlos, ohne Anmeldung. Sammle Highscores, schalte Skins frei und löse tägliche Quests.">
+    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+    <script src="/no-zoom.js"></script>
+    <link rel="stylesheet" href="/index.css">
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, deleteDoc, doc, query, where, updateDoc, increment, arrayUnion }
+            from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+        import { getUser, logout, register, login } from '/auth.js';
+
+        const app = initializeApp({
+            apiKey: "AIzaSyCGxWCAMbglUMjHeKRdeniS4TcA5oCAx1c",
+            authDomain: "pixels-e2f82.firebaseapp.com",
+            projectId: "pixels-e2f82",
+            storageBucket: "pixels-e2f82.firebasestorage.app",
+            messagingSenderId: "311496840709",
+            appId: "1:311496840709:web:3a94601ef40cbd0c946e6c"
+        });
+        const db = getFirestore(app);
+
+        function fillPodium(prefix, docs) {
+            for (let i = 0; i < 3; i++) {
+                const el = document.getElementById(`${prefix}${i+1}`);
+                if (!el) continue;
+                el.querySelector('.p-name').textContent = docs[i] ? docs[i].name  : '–';
+                el.querySelector('.p-pts').textContent  = docs[i] ? docs[i].points : '';
+            }
+        }
+
+        function fmtDate(ts) {
+            if (!ts) return '';
+            const d   = ts.toDate ? ts.toDate() : new Date(ts);
+            const day = String(d.getDate()).padStart(2,'0');
+            const mon = String(d.getMonth()+1).padStart(2,'0');
+            const yr  = d.getFullYear();
+            const h   = String(d.getHours()).padStart(2,'0');
+            const min = String(d.getMinutes()).padStart(2,'0');
+            return `${day}.${mon}.${yr} ${h}:${min}`;
+        }
+
+        const isAdmin = (() => { try { const u = JSON.parse(localStorage.getItem('1100px_user')); return u?.name?.toLowerCase() === 'leo'; } catch { return false; } })();
+
+        function fillTable(tbodyId, docs, scoreLabel) {
+            const tbody = document.getElementById(tbodyId);
+            if (!tbody) return;
+            const medals = ['🥇','🥈','🥉'];
+            tbody.innerHTML = '';
+            if (docs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="lb-empty" style="text-align:center">Noch keine Einträge</td></tr>';
+                return;
+            }
+            docs.forEach((d, i) => {
+                const tr = document.createElement('tr');
+                tr.className = i < 3 ? `rank-${i+1}` : '';
+                const adminBtn = isAdmin && d.id
+                    ? `<button data-id="${d.id}" class="admin-kick" title="Eintrag löschen">✕</button>`
+                    : '';
+                tr.innerHTML = `<td class="lb-rank">${i < 3 ? medals[i] : i+1}</td><td class="lb-name">${d.name}<span class="lb-name-date">${fmtDate(d.created)}</span></td><td class="lb-pts">${d.points} <span class="lb-unit">${scoreLabel}</span></td><td class="lb-date">${fmtDate(d.created)}${adminBtn}</td>`;
+                tbody.appendChild(tr);
+            });
+
+            if (isAdmin) {
+                tbody.addEventListener('click', async (e) => {
+                    const btn = e.target.closest('.admin-kick');
+                    if (!btn) return;
+                    e.stopPropagation();
+                    const id = btn.dataset.id;
+                    if (id.startsWith('benshi-')) {
+                        const kicked = JSON.parse(localStorage.getItem('kicked_benshi') || '[]');
+                        if (!kicked.includes(id)) { kicked.push(id); localStorage.setItem('kicked_benshi', JSON.stringify(kicked)); }
+                        btn.closest('tr').remove();
+                        return;
+                    }
+                    try {
+                        await deleteDoc(doc(db, 'red-pixel', id));
+                        btn.closest('tr').remove();
+                    } catch(err) {
+                        alert('Fehler: ' + err.message);
+                    }
+                });
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            // ── Admin Panel ──
+            const adminPanel = document.getElementById('admin-panel');
+            if (isAdmin) {
+                adminPanel.style.display = 'block';
+                document.getElementById('admin-toggle').addEventListener('click', () => {
+                    adminPanel.classList.toggle('open');
+                });
+                const adminAction = async (mode) => {
+                    const name = document.getElementById('admin-name').value.trim();
+                    const amount = parseInt(document.getElementById('admin-amount').value);
+                    const msgEl = document.getElementById('admin-msg');
+                    if (!name || isNaN(amount) || amount < 0) { msgEl.textContent = 'Name und Anzahl eingeben.'; return; }
+                    const qs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', name.toLowerCase())));
+                    if (qs.empty) { msgEl.textContent = `"${name}" nicht gefunden.`; return; }
+                    if (mode === 'give') {
+                        await updateDoc(doc(db, 'users', qs.docs[0].id), { gems: increment(amount) });
+                        msgEl.textContent = `✓ ${amount} Gems an ${qs.docs[0].data().name} geschenkt!`;
+                    } else {
+                        await updateDoc(doc(db, 'users', qs.docs[0].id), { gems: amount });
+                        msgEl.textContent = `✓ ${qs.docs[0].data().name} hat jetzt ${amount} Gems.`;
+                    }
+                    msgEl.style.color = '#00eeff';
+                    document.getElementById('admin-name').value = '';
+                    document.getElementById('admin-amount').value = '';
+                };
+                document.getElementById('admin-give').addEventListener('click', () => adminAction('give'));
+                document.getElementById('admin-set').addEventListener('click', () => adminAction('set'));
+
+                document.getElementById('admin-loginas').addEventListener('click', async () => {
+                    const name = document.getElementById('admin-loginas-name').value.trim();
+                    const msgEl = document.getElementById('admin-loginas-msg');
+                    if (!name) { msgEl.textContent = 'Name eingeben.'; msgEl.style.color = '#ff8888'; return; }
+                    const qs = await getDocs(query(collection(db, 'users'), where('nameLower', '==', name.toLowerCase())));
+                    if (qs.empty) { msgEl.textContent = `"${name}" nicht gefunden.`; msgEl.style.color = '#ff8888'; return; }
+                    const target = qs.docs[0].data().name;
+                    localStorage.setItem('1100px_user', JSON.stringify({ name: target }));
+                    msgEl.textContent = `✓ Eingeloggt als ${target} — wird neu geladen…`;
+                    msgEl.style.color = '#00eeff';
+                    setTimeout(() => location.reload(), 600);
+                });
+            }
+
+            // ── Auth ──
+            const user = getUser();
+            const headerUser = document.getElementById('header-user');
+            const authOverlay = document.getElementById('auth-overlay');
+
+            if (user) {
+                headerUser.innerHTML = `Hallo, <span>${user.name}</span> <a href="/profil.html" style="color:rgba(255,255,255,0.4);font-size:0.7rem;border:1px solid rgba(255,255,255,0.15);border-radius:5px;padding:3px 8px;text-decoration:none">Profil</a> <button id="logout-btn">Abmelden</button>`;
+                document.getElementById('logout-btn').addEventListener('click', logout);
+            } else {
+                authOverlay.classList.add('show');
+            }
+
+            const tabs = document.querySelectorAll('.auth-tab');
+            tabs.forEach(t => t.addEventListener('click', () => {
+                tabs.forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+                document.getElementById('auth-error').textContent = '';
+            }));
+
+            async function doAuth() {
+                const name = document.getElementById('auth-name').value;
+                const pin  = document.getElementById('auth-pin').value;
+                const mode = document.querySelector('.auth-tab.active').dataset.mode;
+                const errEl = document.getElementById('auth-error');
+                errEl.textContent = '';
+                const res = mode === 'register'
+                    ? await register(db, name, pin)
+                    : await login(db, name, pin);
+                if (res.error) { errEl.textContent = res.error; return; }
+                authOverlay.classList.remove('show');
+                headerUser.innerHTML = `Hallo, <span>${res.name}</span> <a href="/profil.html" style="color:rgba(255,255,255,0.4);font-size:0.7rem;border:1px solid rgba(255,255,255,0.15);border-radius:5px;padding:3px 8px;text-decoration:none">Profil</a> <button id="logout-btn">Abmelden</button>`;
+                document.getElementById('logout-btn').addEventListener('click', logout);
+                // Gems + Quest-Daten nach Login laden
+                document.getElementById('header-gems').style.display = '';
+                try {
+                    const uqs2 = await getDocs(query(collection(db, 'users'), where('nameLower', '==', res.name.toLowerCase())));
+                    if (!uqs2.empty) {
+                        userDocId = uqs2.docs[0].id;
+                        const ud2 = uqs2.docs[0].data();
+                        const reset2 = await checkQuestReset(ud2, userDocId);
+                        questProgress = reset2.progress;
+                        questsClaimed = reset2.claimed;
+                        document.getElementById('header-gem-count').textContent = ud2.gems || 0;
+                        if (ud2.activeChaseSkin) localStorage.setItem('1100px_activeChaseSkin', ud2.activeChaseSkin);
+                        if (ud2.activeSkin)      localStorage.setItem('1100px_activeSkin',      ud2.activeSkin);
+                        renderQuests('quests-rider',    QUESTS.rider,    questProgress, questsClaimed);
+                        renderQuests('quests-redpixel', QUESTS.redpixel, questProgress, questsClaimed);
+                        renderQuests('quests-chase',    QUESTS.chase,    questProgress, questsClaimed);
+                    }
+                } catch(e) { console.warn('Post-login load failed:', e.message); }
+            }
+            document.getElementById('auth-submit').addEventListener('click', doAuth);
+            document.getElementById('auth-pin').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });
+            document.getElementById('auth-name').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('auth-pin').focus(); });
+
+            // ── Quests (täglich, werden um Mitternacht zurückgesetzt) ──
+            const QUESTS = {
+                rider: [
+                    { id: 'r_flips',  title: '20 Flips',     desc: 'Mache heute 20 Flips in Rider',           target: 20,  gem: 8  },
+                    { id: 'r_loops',  title: '5 Loopings',   desc: 'Fahre heute 5 Loopings in Rider',         target: 5,   gem: 12 },
+                    { id: 'r_games',  title: '3 Runden',     desc: 'Spiele heute 3 Runden Rider',             target: 3,   gem: 5  }
+                ],
+                redpixel: [
+                    { id: 'rp_points', title: '1500 Punkte',   desc: 'Sammle heute 1500 Punkte in RED Pixels',  target: 1500, gem: 8  },
+                    { id: 'rp_games',  title: '3 Runden',      desc: 'Spiele heute 3 Runden RED Pixels',        target: 3,    gem: 5  },
+                    { id: 'rp_high',   title: '800+ in einem Spiel', desc: 'Erreiche 800 Punkte in einem Spiel', target: 1,    gem: 12 }
+                ],
+                chase: [
+                    { id: 'c_money', title: '$3000 verdienen', desc: 'Verdiene heute $3000 in Chase',           target: 3000, gem: 8  },
+                    { id: 'c_games', title: '3 Runden',         desc: 'Spiele heute 3 Runden Chase',             target: 3,    gem: 5  },
+                    { id: 'c_high',  title: '$2000 in einem Spiel', desc: 'Erreiche $2000 in einer Runde',      target: 1,    gem: 12 }
+                ]
+            };
+
+            // ── Daily reset ──
+            function todayStr() {
+                const d = new Date();
+                return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            }
+
+            async function checkQuestReset(ud, docId) {
+                if (!docId) return { progress: ud.quests || {}, claimed: ud.questsClaimed || {} };
+                const today = todayStr();
+                if (ud.questsResetDate !== today) {
+                    await updateDoc(doc(db, 'users', docId), {
+                        quests: {},
+                        questsClaimed: {},
+                        questsResetDate: today
+                    });
+                    return { progress: {}, claimed: {} };
+                }
+                return { progress: ud.quests || {}, claimed: ud.questsClaimed || {} };
+            }
+
+            let userDocId = null;
+
+            function renderQuests(containerId, quests, progress, claimed) {
+                const el = document.getElementById(containerId);
+                if (!el) return;
+                if (quests.length === 0) { el.innerHTML = '<p class="quest-empty">Bald verfügbar</p>'; return; }
+                el.innerHTML = quests.map(q => {
+                    const prog     = Math.min(progress[q.id] || 0, q.target);
+                    const pct      = Math.round((prog / q.target) * 100);
+                    const done     = prog >= q.target;
+                    const isClaimed = claimed?.[q.id];
+                    const btn = done && !isClaimed && user
+                        ? `<button class="quest-claim-btn" data-id="${q.id}" data-gem="${q.gem}">Einlösen</button>`
+                        : done && isClaimed ? `<span class="quest-claimed">Erhalten ✓</span>` : '';
+                    return `<div class="quest-item ${done ? 'quest-done' : ''}">
+                        <div class="quest-top">
+                            <span class="quest-title">${q.title}</span>
+                            <span class="quest-reward">+${q.gem} 💎</span>
+                        </div>
+                        <div class="quest-desc">${q.desc}</div>
+                        <div class="quest-bar-wrap"><div class="quest-bar" style="width:${pct}%"></div></div>
+                        <div class="quest-footer"><span class="quest-progress">${prog} / ${q.target}</span>${btn}</div>
+                    </div>`;
+                }).join('');
+
+                el.querySelectorAll('.quest-claim-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        if (!userDocId) return;
+                        const qid = btn.dataset.id;
+                        const gem = parseInt(btn.dataset.gem);
+                        await updateDoc(doc(db, 'users', userDocId), {
+                            [`questsClaimed.${qid}`]: true,
+                            gems: increment(gem)
+                        });
+                        const cur = parseInt(document.getElementById('header-gem-count').textContent) || 0;
+                        document.getElementById('header-gem-count').textContent = cur + gem;
+                        btn.replaceWith(Object.assign(document.createElement('span'), { className: 'quest-claimed', textContent: 'Erhalten ✓' }));
+                    });
+                });
+            }
+
+            // Load quest progress + gems for logged-in user
+            let questProgress = {}, questsClaimed = {};
+            const timeout = ms => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
+            if (user) {
+                try {
+                    const uqs = await Promise.race([
+                        getDocs(query(collection(db, 'users'), where('nameLower', '==', user.name.toLowerCase()))),
+                        timeout(6000)
+                    ]);
+                    if (!uqs.empty) {
+                        userDocId = uqs.docs[0].id;
+                        const ud = uqs.docs[0].data();
+                        const reset = await checkQuestReset(ud, userDocId);
+                        questProgress = reset.progress;
+                        questsClaimed = reset.claimed;
+                        document.getElementById('header-gem-count').textContent = ud.gems || 0;
+                        if (ud.activeChaseSkin) localStorage.setItem('1100px_activeChaseSkin', ud.activeChaseSkin);
+                        if (ud.activeSkin)      localStorage.setItem('1100px_activeSkin',      ud.activeSkin);
+                    }
+                } catch(e) {
+                    console.warn('User data load failed:', e.message);
+                    document.getElementById('header-gem-count').textContent = '?';
+                }
+            } else {
+                document.getElementById('header-gems').style.display = 'none';
+            }
+            renderQuests('quests-rider',    QUESTS.rider,    questProgress, questsClaimed);
+            renderQuests('quests-redpixel', QUESTS.redpixel, questProgress, questsClaimed);
+            renderQuests('quests-chase',    QUESTS.chase,    questProgress, questsClaimed);
+
+            try {
+                const snap = await Promise.race([
+                    getDocs(collection(db, 'red-pixel')),
+                    timeout(8000)
+                ]);
+                const redPixels = [], rider = [], brawler = [], chase = [];
+                snap.forEach(docSnap => {
+                    const d = { ...docSnap.data(), id: docSnap.id };
+                    if (d.name?.trim().toLowerCase() === 'test') return;
+                    if (d.game === 'RIDER') rider.push(d);
+                    else if (d.game === 'BRAWLER') brawler.push(d);
+                    else if (d.game === 'CHASE') chase.push(d);
+                    else redPixels.push(d);
+                });
+                redPixels.sort((a, b) => b.points - a.points);
+                rider.sort((a, b) => b.points - a.points);
+                brawler.sort((a, b) => b.points - a.points);
+                chase.sort((a, b) => b.points - a.points);
+                const riderFiltered = rider.filter(d => d.points >= 15);
+                const kickedBenshi = JSON.parse(localStorage.getItem('kicked_benshi') || '[]');
+                if (!kickedBenshi.includes('benshi-311')) riderFiltered.push({ name: 'Benshi', points: 311, created: new Date('2026-05-19T20:00:00'), id: 'benshi-311' });
+                if (!kickedBenshi.includes('benshi-212')) riderFiltered.push({ name: 'Benshi', points: 212, created: new Date('2026-05-19T17:40:00'), id: 'benshi-212' });
+                riderFiltered.sort((a, b) => b.points - a.points);
+
+                // Wochenstart: Montag 00:00 der aktuellen Woche
+                const weekStart = new Date();
+                const dow = (weekStart.getDay() + 6) % 7; // Mo=0 … So=6
+                weekStart.setDate(weekStart.getDate() - dow);
+                weekStart.setHours(0, 0, 0, 0);
+                const toD = (ts) => ts ? (ts.toDate ? ts.toDate() : new Date(ts)) : null;
+                const riderWeek = riderFiltered.filter(d => { const dt = toD(d.created); return dt && dt >= weekStart; });
+
+                fillPodium('p', redPixels);
+                fillPodium('r', riderFiltered);
+                fillPodium('c', chase);
+                fillTable('lb-redpixel', redPixels, 'Pts');
+                fillTable('lb-rider-week', riderWeek, 'Flips');
+                fillTable('lb-rider', riderFiltered, 'Flips');
+                fillTable('lb-chase', chase, '$');
+                fillTable('lb-brawler', brawler, 'Pts');
+            } catch(e) { console.error(e); }
+
+            // ── Skin Shop ──
+            const SKINS = [
+                { id: 'default',   name: 'Standard',    price: 0,    color: '#00aaff', prop: 'Keine Boni',               emoji: '🔵' },
+                { id: 'heavy',     name: 'Heavy Metal', price: 50,   color: '#ff6600', prop: 'Schwerkraft +28%',         emoji: '🔩' },
+                { id: 'flipper',   name: 'Flipmaster',  price: 70,   color: '#00ff88', prop: 'Flip Speed +20%',          emoji: '🌀' },
+                { id: 'moon',      name: 'Moon Rider',  price: 90,   color: '#aa44ff', prop: 'Schwerkraft −22%',         emoji: '🌙' },
+                { id: 'turbo',     name: 'Turbo',       price: 110,  color: '#ff2244', prop: 'Speed +12%',               emoji: '⚡' },
+                { id: 'phantom',   name: 'Phantom',     price: 130,  color: '#aaddff', prop: 'Weniger Reibung',          emoji: '👻' },
+                { id: 'berserker', name: 'Berserker',   price: 160,  color: '#ff2200', prop: 'Boost nach 6 Flips',       emoji: '🔥' },
+                { id: 'neon',      name: 'Neon',        price: 200,  color: '#ff00dd', prop: 'Boost +50% länger',        emoji: '✨' },
+                { id: 'rocket',    name: 'Rocket',      price: 230,  color: '#ff5500', prop: 'Schub +30%',               emoji: '🚀' },
+                { id: 'eagle',     name: 'Eagle',       price: 280,  color: '#44aaff', prop: 'Boost Kraft +40%',         emoji: '🦅' },
+                { id: 'crusher',   name: 'Crusher',     price: 400,  color: '#ff8800', prop: 'Schwerkraft +20% & Flip +15%', emoji: '💥' },
+                { id: 'shadow',    name: 'Shadow',      price: 550,  color: '#9900ff', prop: 'Schwerkraft −12% & Speed +8%', emoji: '🌑' },
+                { id: 'storm',     name: 'Storm',       price: 700,  color: '#00ccff', prop: 'Schub +15% & Boost +25%',  emoji: '⛈️' },
+                { id: 'custom',    name: 'Custom Bike', price: 1000, color: '#ffcc00', prop: '2 wählbare Boni',          emoji: '🏆' },
+            ];
+            const CUSTOM_PROPS = [
+                { id: 'gravDown',   label: 'Schwerkraft −28%',    emoji: '🌙', group: 'grav'      },
+                { id: 'gravUp',     label: 'Schwerkraft +38%',    emoji: '🔩', group: 'grav'      },
+                { id: 'speed',      label: 'Speed +22%',           emoji: '⚡', group: 'speed'     },
+                { id: 'flip',       label: 'Flip Speed +32%',      emoji: '🌀', group: 'flip'      },
+                { id: 'thrust',     label: 'Schub +25%',           emoji: '🚀', group: 'thrust'    },
+                { id: 'boostDur',   label: 'Boost +45% länger',    emoji: '✨', group: 'boostDur'  },
+                { id: 'quickBoost', label: 'Boost nach 6 Flips',   emoji: '🔥', group: 'quickBoost'},
+                { id: 'boostStr',   label: 'Boost Kraft +35%',     emoji: '🦅', group: 'boostStr'  },
+            ];
+            let skinsUserDocId = null, skinsGems = 0, skinsOwned = ['default'], skinsActive = 'default', skinsCustomProps = [];
+
+            // ── Chase Skins ──
+            const CHASE_SKINS = [
+                { id: 'default', name: 'Standard',   price: 0,   color: '#ffcc44', prop: 'Keine Boni',                       emoji: '🚗' },
+                { id: 'sports',  name: 'Sports',     price: 40,  color: '#ff3344', prop: 'Speed +15%',                       emoji: '🏎️' },
+                { id: 'muscle',  name: 'Muscle',     price: 60,  color: '#ff8800', prop: 'Beschleunigung +25%',              emoji: '💪' },
+                { id: 'drift',   name: 'Drift King', price: 90,  color: '#aa44ff', prop: 'Wendigkeit +30%',                  emoji: '🌀' },
+                { id: 'tank',    name: 'Tank',       price: 130, color: '#666666', prop: 'Schaden −45% (etwas langsamer)',   emoji: '🛡️' },
+                { id: 'police',  name: 'Undercover', price: 180, color: '#4488ff', prop: 'Speed +10% & Wendigkeit +10%',     emoji: '🚓' },
+                { id: 'gt',      name: 'GT',         price: 280, color: '#ffffff', prop: 'Speed +18% & Beschleunigung +18%', emoji: '🏁' },
+                { id: 'phantom', name: 'Phantom',    price: 450, color: '#222222', prop: 'Alle +12% & Schaden −20%',         emoji: '👻' },
+            ];
+            let chaseSkinsOwned = ['default'], chaseSkinsActive = 'default';
+            let currentSkinTab = 'rider';
+
+            function renderPicker() {
+                const optsEl = document.getElementById('sk-picker-opts');
+                optsEl.innerHTML = CUSTOM_PROPS.map(p => {
+                    const sel = skinsCustomProps.includes(p.id);
+                    return `<button class="sk-prop-opt ${sel ? 'sk-prop-sel' : ''}" data-id="${p.id}" data-group="${p.group}">${p.emoji} ${p.label}</button>`;
+                }).join('');
+                document.getElementById('sk-save-btn').disabled = skinsCustomProps.length !== 2;
+                optsEl.querySelectorAll('.sk-prop-opt').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = btn.dataset.id, group = btn.dataset.group;
+                        if (skinsCustomProps.includes(id)) {
+                            skinsCustomProps = skinsCustomProps.filter(p => p !== id);
+                        } else {
+                            skinsCustomProps = skinsCustomProps.filter(p => (CUSTOM_PROPS.find(x => x.id === p)?.group) !== group);
+                            if (skinsCustomProps.length < 2) skinsCustomProps.push(id);
+                        }
+                        renderPicker();
+                    });
+                });
+            }
+
+            function renderSkinsGrid() {
+                const grid = document.getElementById('skins-grid');
+                document.getElementById('skins-gem-count').textContent = skinsGems;
+                const titleEl = document.getElementById('skins-modal-title');
+
+                if (currentSkinTab === 'chase') {
+                    titleEl.textContent = '🚔 Chase Skins';
+                    grid.innerHTML = CHASE_SKINS.map(s => {
+                        const owned = chaseSkinsOwned.includes(s.id), active = chaseSkinsActive === s.id;
+                        const action = active
+                            ? `<span class="sk-badge">Aktiv</span>`
+                            : owned
+                            ? `<button class="sk-equip" data-id="${s.id}" data-kind="chase">Ausrüsten</button>`
+                            : skinsGems >= s.price || s.price === 0
+                            ? `<button class="sk-buy" data-id="${s.id}" data-price="${s.price}" data-kind="chase">${s.price} 💎</button>`
+                            : `<span class="sk-locked">${s.price} 💎</span>`;
+                        return `<div class="sk-card ${active ? 'sk-active' : ''}">
+                            <div class="sk-icon">${s.emoji}</div>
+                            <div class="sk-name" style="color:${s.color}">${s.name}</div>
+                            <div class="sk-prop">${s.prop}</div>
+                            ${action}
+                        </div>`;
+                    }).join('');
+                    document.getElementById('sk-picker').style.display = 'none';
+                } else {
+                    titleEl.textContent = '🎨 Rider Skins';
+                    grid.innerHTML = SKINS.map(s => {
+                        const owned = skinsOwned.includes(s.id), active = skinsActive === s.id;
+                        let subProp = s.prop;
+                        if (s.id === 'custom' && active && skinsCustomProps.length === 2)
+                            subProp = skinsCustomProps.map(id => CUSTOM_PROPS.find(p => p.id === id)?.label).join(' + ');
+                        const action = active && s.id !== 'custom'
+                            ? `<span class="sk-badge">Aktiv</span>`
+                            : active && s.id === 'custom'
+                            ? `<span class="sk-badge">Aktiv</span><button class="sk-equip" data-id="custom" data-kind="rider" style="margin-top:4px;font-size:0.55rem">Anpassen</button>`
+                            : owned
+                            ? `<button class="sk-equip" data-id="${s.id}" data-kind="rider">Ausrüsten</button>`
+                            : skinsGems >= s.price || s.price === 0
+                            ? `<button class="sk-buy" data-id="${s.id}" data-price="${s.price}" data-kind="rider">${s.price} 💎</button>`
+                            : `<span class="sk-locked">${s.price} 💎</span>`;
+                        return `<div class="sk-card ${active ? 'sk-active' : ''}">
+                            <div class="sk-icon">${s.emoji}</div>
+                            <div class="sk-name" style="color:${s.color}">${s.name}</div>
+                            <div class="sk-prop">${subProp}</div>
+                            ${action}
+                        </div>`;
+                    }).join('');
+
+                    const picker = document.getElementById('sk-picker');
+                    if (skinsActive === 'custom' && skinsOwned.includes('custom')) { picker.style.display = ''; renderPicker(); }
+                    else picker.style.display = 'none';
+                }
+
+                grid.querySelectorAll('.sk-buy').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        if (!skinsUserDocId) return;
+                        const price = parseInt(btn.dataset.price);
+                        const kind  = btn.dataset.kind;
+                        const id    = btn.dataset.id;
+                        btn.disabled = true;
+                        const field = kind === 'chase' ? 'ownedChaseSkins' : 'ownedSkins';
+                        await updateDoc(doc(db, 'users', skinsUserDocId), { [field]: arrayUnion(id), gems: increment(-price) });
+                        skinsGems -= price;
+                        if (kind === 'chase') chaseSkinsOwned.push(id);
+                        else skinsOwned.push(id);
+                        renderSkinsGrid();
+                    });
+                });
+                grid.querySelectorAll('.sk-equip').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        if (!skinsUserDocId) return;
+                        const kind = btn.dataset.kind;
+                        const id   = btn.dataset.id;
+                        if (kind === 'chase') {
+                            await updateDoc(doc(db, 'users', skinsUserDocId), { activeChaseSkin: id });
+                            localStorage.setItem('1100px_activeChaseSkin', id);
+                            chaseSkinsActive = id;
+                        } else {
+                            await updateDoc(doc(db, 'users', skinsUserDocId), { activeSkin: id });
+                            localStorage.setItem('1100px_activeSkin', id);
+                            skinsActive = id;
+                        }
+                        renderSkinsGrid();
+                    });
+                });
+            }
+
+            async function openSkinsModal(tab) {
+                if (tab) {
+                    currentSkinTab = tab;
+                    document.querySelectorAll('.skins-tab-btn').forEach(b => {
+                        const active = b.dataset.skintab === tab;
+                        b.classList.toggle('skins-tab-active', active);
+                        b.style.background = active ? 'rgba(255,204,68,0.18)' : 'rgba(255,255,255,0.05)';
+                        b.style.borderColor = active ? 'rgba(255,204,68,0.45)' : 'rgba(255,255,255,0.15)';
+                        b.style.color = active ? 'white' : 'rgba(255,255,255,0.7)';
+                    });
+                }
+                document.getElementById('skins-modal').classList.add('show');
+                if (skinsUserDocId) { renderSkinsGrid(); return; }
+                if (!user) { renderSkinsGrid(); return; }
+                const uqs2 = await getDocs(query(collection(db, 'users'), where('nameLower', '==', user.name.toLowerCase())));
+                if (!uqs2.empty) {
+                    skinsUserDocId   = uqs2.docs[0].id;
+                    const ud2        = uqs2.docs[0].data();
+                    skinsGems        = ud2.gems || 0;
+                    skinsOwned       = ud2.ownedSkins || ['default'];
+                    skinsActive      = ud2.activeSkin || 'default';
+                    skinsCustomProps = ud2.customSkinProps || [];
+                    chaseSkinsOwned  = ud2.ownedChaseSkins || ['default'];
+                    chaseSkinsActive = ud2.activeChaseSkin || 'default';
+                    localStorage.setItem('1100px_activeSkin', skinsActive);
+                    localStorage.setItem('1100px_customProps', JSON.stringify(skinsCustomProps));
+                    localStorage.setItem('1100px_activeChaseSkin', chaseSkinsActive);
+                }
+                renderSkinsGrid();
+            }
+
+            document.getElementById('skins-btn-img').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openSkinsModal('rider'); });
+            const chaseSkinBtn = document.getElementById('skins-btn-chase');
+            if (chaseSkinBtn) chaseSkinBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openSkinsModal('chase'); });
+            document.querySelectorAll('.skins-tab-btn').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.preventDefault(); e.stopPropagation();
+                    currentSkinTab = btn.dataset.skintab;
+                    document.querySelectorAll('.skins-tab-btn').forEach(b => {
+                        const active = b.dataset.skintab === currentSkinTab;
+                        b.classList.toggle('skins-tab-active', active);
+                        b.style.background = active ? 'rgba(255,204,68,0.18)' : 'rgba(255,255,255,0.05)';
+                        b.style.borderColor = active ? 'rgba(255,204,68,0.45)' : 'rgba(255,255,255,0.15)';
+                        b.style.color = active ? 'white' : 'rgba(255,255,255,0.7)';
+                    });
+                    renderSkinsGrid();
+                });
+            });
+            document.getElementById('skins-modal-close').addEventListener('click', () => document.getElementById('skins-modal').classList.remove('show'));
+            document.getElementById('skins-modal-bg').addEventListener('click',    () => document.getElementById('skins-modal').classList.remove('show'));
+            document.getElementById('sk-save-btn').addEventListener('click', async () => {
+                if (!skinsUserDocId || skinsCustomProps.length !== 2) return;
+                await updateDoc(doc(db, 'users', skinsUserDocId), { customSkinProps: skinsCustomProps });
+                localStorage.setItem('1100px_customProps', JSON.stringify(skinsCustomProps));
+                document.getElementById('skins-modal').classList.remove('show');
+            });
+        });
+    </script>
+</head>
+<body>
+
+<div class="auth-overlay" id="auth-overlay">
+    <div class="auth-box">
+        <h2>1100pixels</h2>
+        <div class="auth-tabs">
+            <button class="auth-tab active" data-mode="login">Anmelden</button>
+            <button class="auth-tab" data-mode="register">Registrieren</button>
+        </div>
+        <input class="auth-input" id="auth-name" type="text" placeholder="Benutzername" maxlength="20" autocomplete="off" spellcheck="false">
+        <input class="auth-input" id="auth-pin" type="password" placeholder="Code (mind. 4 Zeichen)" maxlength="20" inputmode="numeric">
+        <p class="auth-error" id="auth-error"></p>
+        <button class="auth-btn" id="auth-submit">Los</button>
+    </div>
+</div>
+
+<!-- Admin Panel (nur für Leo) -->
+<div id="admin-panel">
+    <div id="admin-toggle">⚙</div>
+    <div id="admin-content">
+        <div class="admin-title">💎 Gems verwalten</div>
+        <input id="admin-name" class="admin-input" type="text" placeholder="Spielername" autocomplete="off" spellcheck="false">
+        <input id="admin-amount" class="admin-input" type="number" placeholder="Anzahl" min="0" max="99999">
+        <div style="display:flex;gap:6px">
+            <button id="admin-give" class="admin-btn">Schenken</button>
+            <button id="admin-set" class="admin-btn" style="background:rgba(255,80,80,0.15);border-color:rgba(255,80,80,0.4)">Setzen</button>
+        </div>
+        <p id="admin-msg"></p>
+        <div class="admin-title" style="margin-top:14px">👤 Login als</div>
+        <input id="admin-loginas-name" class="admin-input" type="text" placeholder="Spielername" autocomplete="off" spellcheck="false">
+        <button id="admin-loginas" class="admin-btn" style="background:rgba(120,180,255,0.15);border-color:rgba(120,180,255,0.4)">Einloggen als</button>
+        <p id="admin-loginas-msg"></p>
+    </div>
+</div>
+
+<div id="header-gems">💎 <span id="header-gem-count">–</span></div>
+
+<header>
+    <nav class="site-switch">
+        <a href="/">← Home</a>
+        <a href="https://stats.mc.1100pixels.com/">⛏️ Minecraft Server</a>
+    </nav>
+    <img src="/images/logo.png" width="160" class="logo" alt="1100pixels">
+    <p class="tagline">Pixel games made by Leo</p>
+    <div class="header-user" id="header-user"></div>
+</header>
+
+<main>
+    <div class="slider" id="slider">
+
+        <!-- ── Rider ── -->
+        <div class="slide">
+        <a href="rider.html" class="game-card">
+            <div class="game-thumb">
+                <svg class="rider-svg" viewBox="0 0 400 260" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <filter id="gl"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                        <filter id="gl2"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                        <radialGradient id="bg" cx="55%" cy="45%" r="55%">
+                            <stop offset="0%" stop-color="#0e2040"/>
+                            <stop offset="100%" stop-color="#060e1a"/>
+                        </radialGradient>
+                    </defs>
+
+                    <!-- Background -->
+                    <rect width="400" height="260" fill="url(#bg)"/>
+
+                    <!-- Grid -->
+                    <g stroke="rgba(86,154,169,0.07)" stroke-width="1">
+                        <line x1="0" y1="65"  x2="400" y2="65"/>
+                        <line x1="0" y1="130" x2="400" y2="130"/>
+                        <line x1="0" y1="195" x2="400" y2="195"/>
+                        <line x1="100" y1="0" x2="100" y2="260"/>
+                        <line x1="200" y1="0" x2="200" y2="260"/>
+                        <line x1="300" y1="0" x2="300" y2="260"/>
+                    </g>
+
+                    <!-- Loop: center (285,158), R=70 → bottom at 228 (off screen) -->
+                    <!-- circ=439.8, gap 28°=34.1, arc=405.7, offset to start at 104°=-127.4 -->
+                    <circle cx="285" cy="158" r="70" fill="none"
+                        stroke="rgba(86,154,169,0.18)" stroke-width="14"
+                        stroke-dasharray="405.7 34.1" stroke-dashoffset="-127.4"/>
+                    <circle cx="285" cy="158" r="70" fill="none"
+                        stroke="#569aa9" stroke-width="3.5"
+                        stroke-dasharray="405.7 34.1" stroke-dashoffset="-127.4"
+                        filter="url(#gl)"/>
+
+                    <!-- Loop legs at entry/exit -->
+                    <line x1="261" y1="224" x2="261" y2="228" stroke="#569aa9" stroke-width="3.5" filter="url(#gl)"/>
+                    <line x1="309" y1="224" x2="309" y2="228" stroke="#569aa9" stroke-width="3.5" filter="url(#gl)"/>
+
+                    <!-- Terrain: flat with ramp -->
+                    <polyline points="0,228 55,228 100,195 148,228 400,228"
+                        fill="none" stroke="#569aa9" stroke-width="3" stroke-linejoin="round" filter="url(#gl)"/>
+                    <polygon points="0,228 55,228 100,195 148,228 400,228 400,260 0,260"
+                        fill="rgba(5,12,22,0.95)"/>
+
+                    <!-- Speed lines — rider moving left at top -->
+                    <g stroke="rgba(86,154,169,0.45)" stroke-width="1.5" stroke-linecap="round" filter="url(#gl)">
+                        <line x1="310" y1="78"  x2="355" y2="82"/>
+                        <line x1="308" y1="93"  x2="353" y2="95"/>
+                        <line x1="313" y1="63"  x2="350" y2="67"/>
+                        <line x1="312" y1="107" x2="350" y2="108"/>
+                    </g>
+
+                    <!-- Skateboard upside-down at top of loop -->
+                    <g transform="translate(285,88) rotate(180)" filter="url(#gl2)">
+                        <!-- Deck side face with kick tails -->
+                        <polygon points="-33,-9 -19,-6 19,-6 33,-9 33,-16 19,-13 -19,-13 -33,-16"
+                            fill="rgba(0,30,45,0.97)" stroke="#00f0ff" stroke-width="1.8" stroke-linejoin="round"/>
+                        <!-- Top surface (3D depth) -->
+                        <polygon points="-33,-16 -19,-13 19,-13 33,-16 32,-19 18,-16.5 -18,-16.5 -32,-19"
+                            fill="rgba(0,120,155,0.22)" stroke="#00f0ff" stroke-width="1.2" stroke-linejoin="round"/>
+                        <!-- Gloss line -->
+                        <line x1="-13" y1="-14.5" x2="13" y2="-14.5"
+                            stroke="rgba(160,255,255,0.45)" stroke-width="1"/>
+                        <!-- Trucks -->
+                        <g stroke="#2a6677" stroke-width="2.2" stroke-linecap="round">
+                            <line x1="-26" y1="-6" x2="-14" y2="-6"/>
+                            <line x1="-20" y1="-6" x2="-20" y2="4"/>
+                            <line x1="-26" y1="4"  x2="-14" y2="4"/>
+                            <line x1="14"  y1="-6" x2="26"  y2="-6"/>
+                            <line x1="20"  y1="-6" x2="20"  y2="4"/>
+                            <line x1="14"  y1="4"  x2="26"  y2="4"/>
+                        </g>
+                        <!-- Wheels -->
+                        <circle cx="-20" cy="4" r="12" fill="#030d12" stroke="#00f0ff" stroke-width="2.2"/>
+                        <circle cx="20"  cy="4" r="12" fill="#030d12" stroke="#00f0ff" stroke-width="2.2"/>
+                        <circle cx="-20" cy="4" r="8.5" fill="none" stroke="rgba(0,180,210,0.28)" stroke-width="1"/>
+                        <circle cx="20"  cy="4" r="8.5" fill="none" stroke="rgba(0,180,210,0.28)" stroke-width="1"/>
+                    </g>
+
+                    <!-- HUD: score top-left -->
+                    <text x="16" y="36" font-family="'Segoe UI',monospace" font-size="15"
+                        font-weight="800" fill="#ff4444" filter="url(#gl)" letter-spacing="1">42 FLIPS</text>
+                    <!-- Boost label -->
+                    <text x="16" y="54" font-family="'Segoe UI',monospace" font-size="9"
+                        fill="rgba(255,204,68,0.65)" letter-spacing="1.5">BOOST</text>
+                    <!-- Boost bar -->
+                    <rect x="16" y="60" width="30" height="5" rx="2" fill="#ffcc44" filter="url(#gl)"/>
+                    <rect x="50" y="60" width="30" height="5" rx="2" fill="#ffcc44" filter="url(#gl)"/>
+                    <rect x="84" y="60" width="30" height="5" rx="2" fill="rgba(255,204,68,0.25)"/>
+
+                    <!-- SPEED BOOST popup -->
+                    <text x="285" y="45" font-family="'Segoe UI',monospace" font-size="11"
+                        font-weight="700" fill="#ffcc44" filter="url(#gl2)"
+                        text-anchor="middle" letter-spacing="1" opacity="0.9">SPEED BOOST!</text>
+                </svg>
+                <div class="scanlines"></div>
+                <div class="thumb-overlay">
+                    <div class="podium">
+                        <div class="podium-place p2" id="r2"><span class="medal">🥈</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                        <div class="podium-place p1" id="r1"><span class="medal">🥇</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                        <div class="podium-place p3" id="r3"><span class="medal">🥉</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                    </div>
+                    <span class="play-btn">▶ Spielen</span>
+                    <button class="quest-link-btn" id="quest-btn-rider">📜<span>Quests</span></button>
+                    <button class="skin-link-btn" id="skins-btn-img">🎨<span>Skins</span></button>
+                    <div class="thumb-bottom">
+                        <h2 class="game-title">Rider</h2>
+                        <p class="game-desc">Fahre so weit wie möglich und mache Flips.</p>
+                    </div>
+                </div>
+            </div>
+        </a>
+        <div class="lb-panel slide-lb">
+            <h3 class="lb-title"><span class="lb-dot cyan"></span>Rider</h3>
+            <div class="lb-sub">🔥 Diese Woche</div>
+            <div class="lb-scroll lb-week">
+                <table class="lb-table lb-fixed">
+                    <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
+                    <thead><tr><th>#</th><th>Spieler</th><th>Flips</th><th>Datum</th></tr></thead>
+                    <tbody id="lb-rider-week"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
+                </table>
+            </div>
+            <div class="lb-sub alltime">🏆 Allzeit</div>
+            <div class="lb-scroll">
+                <table class="lb-table lb-fixed">
+                    <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
+                    <thead><tr><th>#</th><th>Spieler</th><th>Flips</th><th>Datum</th></tr></thead>
+                    <tbody id="lb-rider"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+        </div>
+
+        <!-- ── Red Pixels ── -->
+        <div class="slide">
+        <a href="RED-pixels.html" class="game-card">
+            <div class="game-thumb">
+                <img src="/images/red.png" alt="Red Pixels">
+                <div class="scanlines"></div>
+                <div class="thumb-overlay">
+                    <div class="podium">
+                        <div class="podium-place p2" id="p2"><span class="medal">🥈</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                        <div class="podium-place p1" id="p1"><span class="medal">🥇</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                        <div class="podium-place p3" id="p3"><span class="medal">🥉</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                    </div>
+                    <span class="play-btn">▶ Spielen</span>
+                    <button class="quest-link-btn" id="quest-btn-redpixel">📜<span>Quests</span></button>
+                    <div class="thumb-bottom">
+                        <h2 class="game-title">Red Pixels</h2>
+                        <p class="game-desc">Finde die sich nicht ändernde rote Box.</p>
+                    </div>
+                </div>
+            </div>
+        </a>
+        <div class="lb-panel slide-lb">
+            <h3 class="lb-title"><span class="lb-dot red"></span>1100pixels</h3>
+            <div class="lb-scroll">
+                <table class="lb-table lb-fixed">
+                    <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
+                    <thead><tr><th>#</th><th>Spieler</th><th>Punkte</th><th>Datum</th></tr></thead>
+                    <tbody id="lb-redpixel"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+        </div>
+
+        <!-- ── Brawler ── -->
+        <div class="slide">
+        <a href="fight.html" class="game-card">
+            <div class="game-thumb">
+                <svg viewBox="0 0 400 260" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">
+                    <defs>
+                        <filter id="glf"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                        <filter id="glf2"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                    </defs>
+                    <rect width="400" height="260" fill="#07111f"/>
+                    <!-- Grid -->
+                    <g stroke="rgba(255,68,68,0.06)" stroke-width="1">
+                        <line x1="0" y1="65"  x2="400" y2="65"/>
+                        <line x1="0" y1="130" x2="400" y2="130"/>
+                        <line x1="0" y1="195" x2="400" y2="195"/>
+                        <line x1="100" y1="0" x2="100" y2="260"/>
+                        <line x1="200" y1="0" x2="200" y2="260"/>
+                        <line x1="300" y1="0" x2="300" y2="260"/>
+                    </g>
+                    <!-- Platform -->
+                    <rect x="50" y="210" width="300" height="8" rx="4" fill="rgba(0,204,255,0.18)" stroke="#00ccff" stroke-width="1.5" filter="url(#glf)"/>
+                    <rect x="100" y="160" width="80" height="6" rx="3" fill="rgba(0,204,255,0.12)" stroke="#00ccff" stroke-width="1.2" filter="url(#glf)"/>
+                    <rect x="220" y="160" width="80" height="6" rx="3" fill="rgba(0,204,255,0.12)" stroke="#00ccff" stroke-width="1.2" filter="url(#glf)"/>
+                    <!-- Player stickman (cyan, left) -->
+                    <g filter="url(#glf)" stroke="#00ccff" stroke-linecap="round">
+                        <circle cx="145" cy="155" r="11" fill="none" stroke-width="2.5"/>
+                        <line x1="145" y1="166" x2="145" y2="194" stroke-width="2.5"/>
+                        <line x1="145" y1="175" x2="125" y2="188" stroke-width="2.2"/>
+                        <line x1="145" y1="175" x2="168" y2="182" stroke-width="2.2"/>
+                        <line x1="145" y1="194" x2="132" y2="210" stroke-width="2.2"/>
+                        <line x1="145" y1="194" x2="158" y2="210" stroke-width="2.2"/>
+                        <!-- Punch fist -->
+                        <circle cx="172" cy="180" r="7" fill="rgba(0,204,255,0.3)" stroke="#00ccff" stroke-width="2"/>
+                    </g>
+                    <!-- Enemy stickman (red, right) -->
+                    <g filter="url(#glf)" stroke="#ff4444" stroke-linecap="round">
+                        <circle cx="255" cy="155" r="11" fill="none" stroke-width="2.5"/>
+                        <line x1="255" y1="166" x2="255" y2="194" stroke-width="2.5"/>
+                        <line x1="255" y1="175" x2="232" y2="185" stroke-width="2.2"/>
+                        <line x1="255" y1="175" x2="275" y2="188" stroke-width="2.2"/>
+                        <line x1="255" y1="194" x2="242" y2="210" stroke-width="2.2"/>
+                        <line x1="255" y1="194" x2="268" y2="210" stroke-width="2.2"/>
+                        <!-- Hit effect -->
+                        <g stroke="#ff4444" opacity="0.7">
+                            <line x1="240" y1="148" x2="230" y2="140" stroke-width="1.5"/>
+                            <line x1="243" y1="145" x2="237" y2="133" stroke-width="1.5"/>
+                            <line x1="247" y1="143" x2="245" y2="130" stroke-width="1.5"/>
+                        </g>
+                    </g>
+                    <!-- Damage % -->
+                    <text x="110" y="140" font-family="'Segoe UI',monospace" font-size="13" font-weight="800" fill="#00ccff" filter="url(#glf)" text-anchor="middle">24%</text>
+                    <text x="290" y="140" font-family="'Segoe UI',monospace" font-size="13" font-weight="800" fill="#ff4444" filter="url(#glf2)" text-anchor="middle">87%</text>
+                    <!-- Stocks -->
+                    <g fill="#00ccff" filter="url(#glf)"><circle cx="100" cy="230" r="5"/><circle cx="116" cy="230" r="5"/><circle cx="132" cy="230" r="5"/></g>
+                    <g fill="#ff4444" filter="url(#glf)"><circle cx="268" cy="230" r="5"/></g>
+                    <!-- Hit sparks -->
+                    <g filter="url(#glf2)">
+                        <circle cx="200" cy="170" r="12" fill="rgba(255,200,0,0.15)" stroke="rgba(255,200,0,0.5)" stroke-width="1.5"/>
+                        <line x1="192" y1="162" x2="185" y2="155" stroke="rgba(255,200,0,0.7)" stroke-width="1.5"/>
+                        <line x1="200" y1="158" x2="200" y2="149" stroke="rgba(255,200,0,0.7)" stroke-width="1.5"/>
+                        <line x1="208" y1="162" x2="215" y2="155" stroke="rgba(255,200,0,0.7)" stroke-width="1.5"/>
+                    </g>
+                    <!-- Title -->
+                    <text x="200" y="30" font-family="'Segoe UI',monospace" font-size="18" font-weight="900" fill="#ff4444" filter="url(#glf2)" text-anchor="middle" letter-spacing="3">GRID FIGHT</text>
+                </svg>
+                <div class="scanlines"></div>
+                <div class="thumb-overlay">
+                    <span class="play-btn">▶ Spielen</span>
+                    <div class="thumb-bottom">
+                        <h2 class="game-title">Grid Fight</h2>
+                        <p class="game-desc">Kämpfe gegen den KI-Gegner und wirf ihn von der Plattform.</p>
+                    </div>
+                </div>
+            </div>
+        </a>
+        <div class="lb-panel slide-lb">
+            <h3 class="lb-title"><span class="lb-dot red"></span>Grid Fight</h3>
+            <div class="lb-scroll">
+                <table class="lb-table lb-fixed">
+                    <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
+                    <thead><tr><th>#</th><th>Spieler</th><th>Punkte</th><th>Datum</th></tr></thead>
+                    <tbody id="lb-brawler"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+        </div>
+
+        <!-- ── Chase ── -->
+        <div class="slide" id="chase-slide">
+        <a href="chase.html" class="game-card">
+            <div class="game-thumb">
+                <svg viewBox="0 0 400 260" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">
+                    <rect width="400" height="260" fill="#050a14"/>
+                    <g stroke="rgba(255,60,60,0.07)" stroke-width="1">
+                        <line x1="0" y1="65"  x2="400" y2="65"/><line x1="0" y1="130" x2="400" y2="130"/>
+                        <line x1="0" y1="195" x2="400" y2="195"/><line x1="100" y1="0" x2="100" y2="260"/>
+                        <line x1="200" y1="0" x2="200" y2="260"/><line x1="300" y1="0" x2="300" y2="260"/>
+                    </g>
+                    <!-- Road -->
+                    <rect x="0" y="110" width="400" height="40" fill="rgba(255,255,255,0.04)"/>
+                    <line x1="0" y1="130" x2="400" y2="130" stroke="rgba(255,204,68,0.3)" stroke-width="2" stroke-dasharray="30,20"/>
+                    <!-- Player car (yellow) -->
+                    <g filter="url(#gl2)" transform="translate(160,118)">
+                        <rect x="-14" y="-10" width="28" height="20" rx="4" fill="#ffcc44" opacity="0.95"/>
+                        <rect x="-8" y="-7" width="16" height="10" rx="2" fill="rgba(0,0,0,0.4)"/>
+                        <circle cx="-10" cy="10" r="4" fill="#222"/><circle cx="10" cy="10" r="4" fill="#222"/>
+                        <circle cx="-10" cy="-10" r="4" fill="#222"/><circle cx="10" cy="-10" r="4" fill="#222"/>
+                    </g>
+                    <!-- Cop heli (red) -->
+                    <g transform="translate(280,100)">
+                        <ellipse cx="0" cy="0" rx="22" ry="12" fill="rgba(255,50,50,0.8)"/>
+                        <line x1="-30" y1="0" x2="30" y2="0" stroke="rgba(255,100,100,0.6)" stroke-width="2"/>
+                        <circle cx="0" cy="0" r="5" fill="#ff2222"/>
+                        <rect x="-3" y="10" width="6" height="12" fill="rgba(255,80,80,0.6)"/>
+                    </g>
+                    <!-- Siren flash -->
+                    <circle cx="280" cy="95" r="18" fill="rgba(255,50,50,0.12)" stroke="rgba(255,50,50,0.5)" stroke-width="1.5"/>
+                    <!-- Speed lines -->
+                    <g stroke="rgba(255,204,68,0.25)" stroke-width="1.5">
+                        <line x1="60" y1="122" x2="140" y2="122"/><line x1="40" y1="130" x2="130" y2="130"/>
+                        <line x1="70" y1="138" x2="145" y2="138"/>
+                    </g>
+                    <defs><filter id="gl2"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                </svg>
+                <div class="scanlines"></div>
+                <div class="thumb-overlay">
+                    <div class="podium">
+                        <div class="podium-place p2" id="c2"><span class="medal">🥈</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                        <div class="podium-place p1" id="c1"><span class="medal">🥇</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                        <div class="podium-place p3" id="c3"><span class="medal">🥉</span><span class="p-name">–</span><span class="p-pts"></span></div>
+                    </div>
+                    <span class="play-btn">▶ Spielen</span>
+                    <button class="quest-link-btn" id="quest-btn-chase">📜<span>Quests</span></button>
+                    <button class="skin-link-btn" id="skins-btn-chase">🚗<span>Skins</span></button>
+                    <div class="thumb-bottom">
+                        <h2 class="game-title">Chase</h2>
+                        <p class="game-desc">Entkomme den Polizei-Helis. Raube Banken aus.</p>
+                    </div>
+                </div>
+            </div>
+        </a>
+        <div class="lb-panel slide-lb">
+            <h3 class="lb-title"><span class="lb-dot cyan"></span>Chase</h3>
+            <div class="lb-scroll">
+                <table class="lb-table lb-fixed">
+                    <colgroup><col class="col-rank"><col class="col-name"><col class="col-pts"><col class="col-date"></colgroup>
+                    <thead><tr><th>#</th><th>Spieler</th><th>Score</th><th>Datum</th></tr></thead>
+                    <tbody id="lb-chase"><tr><td colspan="4" class="lb-empty">Laden…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+        </div>
+
+    </div>
+    <div class="slider-dots" id="slider-dots">
+        <span class="dot active"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot" id="chase-dot"></span>
+    </div>
+
+</main>
+
+<div class="skins-modal" id="skins-modal">
+    <div class="skins-modal-bg" id="skins-modal-bg"></div>
+    <div class="skins-modal-box">
+        <div class="skins-modal-head">
+            <span class="skins-modal-title" id="skins-modal-title">🎨 Rider Skins</span>
+            <span class="skins-modal-gems">💎 <span id="skins-gem-count">–</span></span>
+            <button class="skins-modal-close" id="skins-modal-close">✕</button>
+        </div>
+        <div class="skins-tabs" style="display:flex;gap:8px;justify-content:center;margin:6px 0 12px">
+            <button class="skins-tab-btn skins-tab-active" data-skintab="rider" style="background:rgba(255,204,68,0.18);border:1px solid rgba(255,204,68,0.45);color:white;padding:5px 14px;border-radius:5px;cursor:pointer;font-size:0.82rem">🏍️ Rider</button>
+            <button class="skins-tab-btn" data-skintab="chase" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);padding:5px 14px;border-radius:5px;cursor:pointer;font-size:0.82rem">🚔 Chase</button>
+        </div>
+        <div class="skins-grid" id="skins-grid"></div>
+        <div class="sk-picker" id="sk-picker" style="display:none">
+            <div class="sk-picker-label">Wähle genau 2 Eigenschaften (je 50% Stärke):</div>
+            <div class="sk-picker-opts" id="sk-picker-opts"></div>
+            <button class="sk-save-btn" id="sk-save-btn">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<div class="quest-modal" id="quest-modal">
+    <div class="quest-modal-bg" id="quest-modal-bg"></div>
+    <div class="quest-modal-box">
+        <div class="quest-modal-head">
+            <span class="quest-modal-title" id="quest-modal-title">Quests</span>
+            <button class="quest-modal-close" id="quest-modal-close">✕</button>
+        </div>
+        <p class="quest-reset-info" style="text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.4);margin:0 0 10px">Quests setzen sich um Mitternacht zurück. Gems behältst du!</p>
+        <div id="quests-rider"></div>
+        <div id="quests-redpixel" style="display:none"></div>
+        <div id="quests-chase" style="display:none"></div>
+    </div>
+</div>
+
+<script>
+    function showQuests(which, title) {
+        ['rider','redpixel','chase'].forEach(g => {
+            const el = document.getElementById('quests-' + g);
+            if (el) el.style.display = g === which ? '' : 'none';
+        });
+        document.getElementById('quest-modal-title').textContent = title;
+        document.getElementById('quest-modal').classList.add('show');
+    }
+    document.getElementById('quest-btn-rider').addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        showQuests('rider', 'Rider – Quests');
+    });
+    document.getElementById('quest-btn-redpixel').addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        showQuests('redpixel', 'Red Pixels – Quests');
+    });
+    const _qbtnChase = document.getElementById('quest-btn-chase');
+    if (_qbtnChase) _qbtnChase.addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        showQuests('chase', 'Chase – Quests');
+    });
+    document.getElementById('quest-modal-close').addEventListener('click', () => {
+        document.getElementById('quest-modal').classList.remove('show');
+    });
+    document.getElementById('quest-modal-bg').addEventListener('click', () => {
+        document.getElementById('quest-modal').classList.remove('show');
+    });
+
+    const slider = document.getElementById('slider');
+    const dots   = document.querySelectorAll('.dot');
+    slider.addEventListener('scroll', () => {
+        const idx = Math.round(slider.scrollLeft / slider.offsetWidth);
+        dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    }, { passive: true });
+    dots.forEach((d, i) => d.addEventListener('click', () => {
+        slider.scrollTo({ left: i * slider.offsetWidth, behavior: 'smooth' });
+    }));
+</script>
+</body>
+</html>

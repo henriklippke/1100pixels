@@ -236,6 +236,18 @@ header {
     border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
+/* Wechsel zwischen den beiden Haelften der Seite (Spiele / Minecraft). */
+.site-switch {
+    display: flex;
+    justify-content: center;
+    gap: 22px;
+    margin-bottom: 22px;
+    font-size: 0.78rem;
+    letter-spacing: 1px;
+}
+.site-switch a { color: rgba(255,255,255,0.35); transition: color 0.2s; }
+.site-switch a:hover { color: #fff; }
+
 .logo { display: block; margin: 0 auto 14px; }
 
 .tagline {
